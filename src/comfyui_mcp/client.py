@@ -128,3 +128,57 @@ class ComfyUIClient:
         r = await c.get("/workflow_templates")
         r.raise_for_status()
         return r.json()
+
+    async def get_extensions(self) -> list:
+        c = await self._get_client()
+        r = await c.get("/extensions")
+        r.raise_for_status()
+        return r.json()
+
+    async def get_features(self) -> dict:
+        c = await self._get_client()
+        r = await c.get("/features")
+        r.raise_for_status()
+        return r.json()
+
+    async def get_model_types(self) -> list:
+        c = await self._get_client()
+        r = await c.get("/models")
+        r.raise_for_status()
+        return r.json()
+
+    async def get_view_metadata(self, folder: str, filename: str) -> dict:
+        c = await self._get_client()
+        r = await c.get(f"/view_metadata/{folder}", params={"filename": filename})
+        r.raise_for_status()
+        return r.json()
+
+    async def get_prompt_status(self) -> dict:
+        c = await self._get_client()
+        r = await c.get("/prompt")
+        r.raise_for_status()
+        return r.json()
+
+    async def clear_queue(
+        self, clear_running: bool = False, clear_pending: bool = False
+    ) -> None:
+        c = await self._get_client()
+        data: dict[str, list[str]] = {"clear": []}
+        if clear_running:
+            data["clear"].append("running")
+        if clear_pending:
+            data["clear"].append("pending")
+        r = await c.post("/queue", json=data)
+        r.raise_for_status()
+
+    async def upload_mask(
+        self, data: bytes, filename: str, subfolder: str = ""
+    ) -> dict:
+        c = await self._get_client()
+        files = {"mask": (filename, data, "image/png")}
+        form_data: dict[str, str] = {}
+        if subfolder:
+            form_data["subfolder"] = subfolder
+        r = await c.post("/upload/mask", files=files, data=form_data)
+        r.raise_for_status()
+        return r.json()

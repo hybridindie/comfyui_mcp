@@ -89,4 +89,31 @@ def register_file_tools(
 
     tool_fns["list_outputs"] = list_outputs
 
+    @mcp.tool()
+    async def upload_mask(filename: str, mask_data: str, subfolder: str = "") -> str:
+        """Upload a mask image to ComfyUI's input directory.
+
+        Args:
+            filename: Name for the uploaded mask file (e.g. 'mask.png')
+            mask_data: Base64-encoded mask image data
+            subfolder: Optional subfolder within ComfyUI's input directory
+        """
+        limiter.check("upload_mask")
+        clean_name = sanitizer.validate_filename(filename)
+        clean_subfolder = sanitizer.validate_subfolder(subfolder)
+        raw = base64.b64decode(mask_data)
+        sanitizer.validate_size(len(raw))
+        audit.log(
+            tool="upload_mask",
+            action="uploading",
+            extra={"filename": clean_name, "size_bytes": len(raw)},
+        )
+        result = await client.upload_mask(raw, clean_name, clean_subfolder)
+        audit.log(tool="upload_mask", action="uploaded", extra={"result": result})
+        return (
+            f"Uploaded mask {result.get('name', clean_name)} to ComfyUI input directory"
+        )
+
+    tool_fns["upload_mask"] = upload_mask
+
     return tool_fns
