@@ -22,6 +22,9 @@ class PathSanitizer:
         if "\x00" in decoded:
             raise PathValidationError(f"Filename contains null byte: {filename!r}")
 
+        if len(decoded) > 255:
+            raise PathValidationError("Filename too long (max 255 characters)")
+
         normalized = decoded.replace("\\", "/")
 
         if normalized.startswith("/"):
@@ -70,6 +73,8 @@ class PathSanitizer:
 
     def validate_size(self, size_bytes: int) -> None:
         """Validate file size against the configured maximum."""
+        if size_bytes < 0:
+            raise PathValidationError("File size cannot be negative")
         if size_bytes > self._max_size_bytes:
             max_mb = self._max_size_bytes / (1024 * 1024)
             actual_mb = size_bytes / (1024 * 1024)

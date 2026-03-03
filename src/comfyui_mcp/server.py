@@ -20,40 +20,79 @@ from comfyui_mcp.tools.history import register_history_tools
 from comfyui_mcp.tools.jobs import register_job_tools
 
 
-def _build_server(settings: Settings | None = None) -> FastMCP:
-    """Build and configure the MCP server with all tools registered."""
-    if settings is None:
-        settings = load_settings()
-
-    # Initialize components
-    client = ComfyUIClient(
+def _create_client(settings: Settings) -> ComfyUIClient:
+    """Create and configure the ComfyUI client."""
+    return ComfyUIClient(
         base_url=settings.comfyui.url,
         timeout_connect=settings.comfyui.timeout_connect,
         timeout_read=settings.comfyui.timeout_read,
         tls_verify=settings.comfyui.tls_verify,
     )
 
-    audit_path = Path(settings.logging.audit_file).expanduser()
-    audit = AuditLogger(audit_file=audit_path)
 
-    inspector = WorkflowInspector(
+def _create_audit_logger(settings: Settings) -> AuditLogger:
+    """Create and configure the audit logger."""
+    audit_path = Path(settings.logging.audit_file).expanduser()
+    return AuditLogger(audit_file=audit_path)
+
+
+def _create_workflow_inspector(settings: Settings) -> WorkflowInspector:
+    """Create and configure the workflow inspector."""
+    return WorkflowInspector(
         mode=settings.security.mode,
         dangerous_nodes=settings.security.dangerous_nodes,
         allowed_nodes=settings.security.allowed_nodes,
     )
 
-    node_auditor = NodeAuditor()
 
-    sanitizer = PathSanitizer(
+def _create_path_sanitizer(settings: Settings) -> PathSanitizer:
+    """Create and configure the path sanitizer."""
+    return PathSanitizer(
         allowed_extensions=settings.security.allowed_extensions,
         max_size_mb=settings.security.max_upload_size_mb,
     )
 
-    # Rate limiters per category
-    workflow_limiter = RateLimiter(max_per_minute=settings.rate_limits.workflow)
-    generation_limiter = RateLimiter(max_per_minute=settings.rate_limits.generation)
-    file_limiter = RateLimiter(max_per_minute=settings.rate_limits.file_ops)
-    read_limiter = RateLimiter(max_per_minute=settings.rate_limits.read_only)
+
+def _create_rate_limiters(settings: Settings) -> dict[str, RateLimiter]:
+    """Create rate limiters for each category."""
+    return {
+        "workflow": RateLimiter(max_per_minute=settings.rate_limits.workflow),
+        "generation": RateLimiter(max_per_minute=settings.rate_limits.generation),
+        "file": RateLimiter(max_per_minute=settings.rate_limits.file_ops),
+        "read": RateLimiter(max_per_minute=settings.rate_limits.read_only),
+    }
+
+
+def _register_all_tools(
+    server: FastMCP,
+    client: ComfyUIClient,
+    audit: AuditLogger,
+    rate_limiters: dict[str, RateLimiter],
+    inspector: WorkflowInspector,
+    sanitizer: PathSanitizer,
+    node_auditor: NodeAuditor,
+) -> None:
+    """Register all MCP tool groups with their dependencies."""
+    register_discovery_tools(server, client, audit, rate_limiters["read"], node_auditor)
+    register_history_tools(server, client, audit, rate_limiters["read"])
+    register_job_tools(server, client, audit, rate_limiters["workflow"])
+    register_file_tools(server, client, audit, rate_limiters["file"], sanitizer)
+    register_generation_tools(
+        server, client, audit, rate_limiters["generation"], inspector
+    )
+
+
+def _build_server(settings: Settings | None = None) -> FastMCP:
+    """Build and configure the MCP server with all tools registered."""
+    if settings is None:
+        settings = load_settings()
+
+    client = _create_client(settings)
+    audit = _create_audit_logger(settings)
+    inspector = _create_workflow_inspector(settings)
+    sanitizer = _create_path_sanitizer(settings)
+    node_auditor = NodeAuditor()
+    rate_limiters = _create_rate_limiters(settings)
 
     server = FastMCP(
         "ComfyUI",
@@ -67,12 +106,9 @@ def _build_server(settings: Settings | None = None) -> FastMCP:
         ),
     )
 
-    # Register all tool groups
-    register_discovery_tools(server, client, audit, read_limiter, node_auditor)
-    register_history_tools(server, client, audit, read_limiter)
-    register_job_tools(server, client, audit, workflow_limiter)
-    register_file_tools(server, client, audit, file_limiter, sanitizer)
-    register_generation_tools(server, client, audit, generation_limiter, inspector)
+    _register_all_tools(
+        server, client, audit, rate_limiters, inspector, sanitizer, node_auditor
+    )
 
     return server
 

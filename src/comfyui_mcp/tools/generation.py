@@ -16,6 +16,14 @@ MAX_WIDTH = 4096
 MAX_HEIGHT = 4096
 MIN_DIMENSION = 64
 
+
+def _format_warnings(warnings: list[str]) -> str:
+    """Format warnings for user display."""
+    if not warnings:
+        return ""
+    return "\n⚠️ Warnings detected:\n" + "\n".join(f"  - {w}" for w in warnings)
+
+
 # Default txt2img workflow — uses standard ComfyUI nodes
 _DEFAULT_TXT2IMG = {
     "3": {
@@ -103,7 +111,10 @@ def register_generation_tools(
                       Each key is a node ID, each value has 'class_type' and 'inputs'.
         """
         limiter.check("run_workflow")
-        wf = json.loads(workflow)
+        try:
+            wf = json.loads(workflow)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON workflow: {e}")
 
         # Inspect the workflow
         result = inspector.inspect(wf)
@@ -115,11 +126,7 @@ def register_generation_tools(
             status="allowed" if not result.blocked else "blocked",
         )
 
-        warning_msg = ""
-        if result.warnings:
-            warning_msg = "\n⚠️ Warnings detected:\n" + "\n".join(
-                f"  - {w}" for w in result.warnings
-            )
+        warning_msg = _format_warnings(result.warnings)
 
         # Submit to ComfyUI
         response = await client.post_prompt(wf)
@@ -173,11 +180,7 @@ def register_generation_tools(
             extra={"prompt": prompt, "width": width, "height": height},
         )
 
-        warning_msg = ""
-        if result.warnings:
-            warning_msg = "\n⚠️ Warnings detected:\n" + "\n".join(
-                f"  - {w}" for w in result.warnings
-            )
+        warning_msg = _format_warnings(result.warnings)
 
         response = await client.post_prompt(wf)
         prompt_id = response.get("prompt_id", "unknown")
