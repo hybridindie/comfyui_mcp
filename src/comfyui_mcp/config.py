@@ -25,7 +25,6 @@ _DEFAULT_ALLOWED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".json"
 
 class ComfyUISettings(BaseModel):
     url: str = "http://127.0.0.1:8188"
-    token: str = ""
     tls_verify: bool = True
     timeout_connect: int = 30
     timeout_read: int = 300
@@ -85,7 +84,6 @@ def _apply_env_overrides(data: dict) -> dict:
 
     env_map = {
         "COMFYUI_URL": ("comfyui", "url"),
-        "COMFYUI_TOKEN": ("comfyui", "token"),
         "COMFYUI_TLS_VERIFY": ("comfyui", "tls_verify"),
         "COMFYUI_TIMEOUT_CONNECT": ("comfyui", "timeout_connect"),
         "COMFYUI_TIMEOUT_READ": ("comfyui", "timeout_read"),

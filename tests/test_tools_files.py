@@ -16,7 +16,7 @@ from comfyui_mcp.security.sanitizer import PathSanitizer, PathValidationError
 
 @pytest.fixture
 def components(tmp_path):
-    client = ComfyUIClient(base_url="http://test:8188", token="")
+    client = ComfyUIClient(base_url="http://test:8188")
     audit = AuditLogger(audit_file=tmp_path / "audit.log")
     limiter = RateLimiter(max_per_minute=60)
     sanitizer = PathSanitizer(
@@ -32,7 +32,9 @@ class TestUploadImage:
     async def test_upload_valid_image(self, components):
         client, audit, limiter, sanitizer = components
         respx.post("http://test:8188/upload/image").mock(
-            return_value=httpx.Response(200, json={"name": "test.png", "subfolder": "", "type": "input"})
+            return_value=httpx.Response(
+                200, json={"name": "test.png", "subfolder": "", "type": "input"}
+            )
         )
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
@@ -47,7 +49,9 @@ class TestUploadImage:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         image_b64 = base64.b64encode(b"fake").decode()
         with pytest.raises(PathValidationError):
-            await tools["upload_image"](filename="../../etc/passwd.png", image_data=image_b64)
+            await tools["upload_image"](
+                filename="../../etc/passwd.png", image_data=image_b64
+            )
 
     @pytest.mark.asyncio
     async def test_upload_bad_extension_blocked(self, components):
@@ -65,7 +69,9 @@ class TestGetImage:
     async def test_get_image_returns_base64(self, components):
         client, audit, limiter, sanitizer = components
         respx.get("http://test:8188/view").mock(
-            return_value=httpx.Response(200, content=b"image-bytes", headers={"content-type": "image/png"})
+            return_value=httpx.Response(
+                200, content=b"image-bytes", headers={"content-type": "image/png"}
+            )
         )
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)

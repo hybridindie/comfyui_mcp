@@ -14,7 +14,7 @@ from comfyui_mcp.security.node_auditor import NodeAuditor
 
 @pytest.fixture
 def components(tmp_path):
-    client = ComfyUIClient(base_url="http://test:8188", token="")
+    client = ComfyUIClient(base_url="http://test:8188")
     audit = AuditLogger(audit_file=tmp_path / "audit.log")
     limiter = RateLimiter(max_per_minute=60)
     return client, audit, limiter
@@ -22,7 +22,7 @@ def components(tmp_path):
 
 @pytest.fixture
 def components_with_auditor(tmp_path):
-    client = ComfyUIClient(base_url="http://test:8188", token="")
+    client = ComfyUIClient(base_url="http://test:8188")
     audit = AuditLogger(audit_file=tmp_path / "audit.log")
     limiter = RateLimiter(max_per_minute=60)
     auditor = NodeAuditor()

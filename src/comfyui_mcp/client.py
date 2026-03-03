@@ -9,13 +9,11 @@ class ComfyUIClient:
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:8188",
-        token: str = "",
         timeout_connect: int = 30,
         timeout_read: int = 300,
         tls_verify: bool = True,
     ) -> None:
         self._base_url = base_url.rstrip("/")
-        self._token = token
         self._timeout = httpx.Timeout(
             connect=timeout_connect, read=timeout_read, write=30, pool=30
         )
@@ -23,10 +21,7 @@ class ComfyUIClient:
         self._client: httpx.AsyncClient | None = None
 
     def _get_headers(self) -> dict[str, str]:
-        headers: dict[str, str] = {}
-        if self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
-        return headers
+        return {}
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:

@@ -49,7 +49,6 @@ class TestSettingsFromYAML:
         config = {
             "comfyui": {
                 "url": "https://gpu-server:8188",
-                "token": "secret-token",
             },
             "security": {"mode": "enforce"},
         }
@@ -58,7 +57,6 @@ class TestSettingsFromYAML:
 
         settings = load_settings(config_path=config_file)
         assert settings.comfyui.url == "https://gpu-server:8188"
-        assert settings.comfyui.token == "secret-token"
         assert settings.security.mode == "enforce"
 
     def test_missing_yaml_uses_defaults(self, tmp_path):
@@ -71,11 +69,6 @@ class TestSettingsEnvOverrides:
         monkeypatch.setenv("COMFYUI_URL", "https://env-server:8188")
         settings = load_settings()
         assert settings.comfyui.url == "https://env-server:8188"
-
-    def test_env_overrides_token(self, monkeypatch):
-        monkeypatch.setenv("COMFYUI_TOKEN", "env-token")
-        settings = load_settings()
-        assert settings.comfyui.token == "env-token"
 
     def test_env_overrides_security_mode(self, monkeypatch):
         monkeypatch.setenv("COMFYUI_SECURITY_MODE", "enforce")
