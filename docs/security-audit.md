@@ -235,6 +235,24 @@ All immediate security recommendations have been implemented:
 1. ✅ **Expanded Dangerous Node List** - Now blocks 19 node types
 2. ✅ **URL Validation** - Validates http/https schemes and host presence
 3. ✅ **Request Size Limits** - max_workflow_size_mb and max_prompt_length configurable
+4. ✅ **CSP Headers** - Documented for production deployments (requires reverse proxy)
+
+### Production Deployment
+
+For production deployments, run the MCP server behind a reverse proxy (nginx, Traefik, etc.) to add:
+
+- CSP headers for SSE transport
+- TLS termination
+- Additional authentication
+
+Example nginx config snippet:
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    add_header Content-Security-Policy "default-src 'self'; connect-src 'self' http://127.0.0.1:8080;";
+}
+```
 
 ---
 
