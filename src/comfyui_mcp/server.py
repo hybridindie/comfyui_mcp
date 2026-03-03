@@ -10,6 +10,7 @@ from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.config import Settings, load_settings
 from comfyui_mcp.security.inspector import WorkflowInspector
+from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
 from comfyui_mcp.tools.discovery import register_discovery_tools
@@ -42,6 +43,8 @@ def _build_server(settings: Settings | None = None) -> FastMCP:
         allowed_nodes=settings.security.allowed_nodes,
     )
 
+    node_auditor = NodeAuditor()
+
     sanitizer = PathSanitizer(
         allowed_extensions=settings.security.allowed_extensions,
         max_size_mb=settings.security.max_upload_size_mb,
@@ -63,7 +66,7 @@ def _build_server(settings: Settings | None = None) -> FastMCP:
     )
 
     # Register all tool groups
-    register_discovery_tools(server, client, audit, read_limiter)
+    register_discovery_tools(server, client, audit, read_limiter, node_auditor)
     register_history_tools(server, client, audit, read_limiter)
     register_job_tools(server, client, audit, workflow_limiter)
     register_file_tools(server, client, audit, file_limiter, sanitizer)
@@ -80,7 +83,11 @@ def main() -> None:
     """Run the MCP server."""
     settings = load_settings()
     if settings.transport.sse.enabled:
-        mcp.run(transport="sse", host=settings.transport.sse.host, port=settings.transport.sse.port)
+        mcp.run(
+            transport="sse",
+            host=settings.transport.sse.host,
+            port=settings.transport.sse.port,
+        )
     else:
         mcp.run()
 

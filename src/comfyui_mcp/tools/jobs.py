@@ -58,4 +58,36 @@ def register_job_tools(
 
     tool_fns["interrupt"] = interrupt
 
+    @mcp.tool()
+    async def get_queue_status() -> dict:
+        """Get detailed queue status including currently running and pending prompts."""
+        limiter.check("get_queue_status")
+        audit.log(tool="get_queue_status", action="called")
+        return await client.get_prompt_status()
+
+    tool_fns["get_queue_status"] = get_queue_status
+
+    @mcp.tool()
+    async def clear_queue(
+        clear_running: bool = False, clear_pending: bool = True
+    ) -> str:
+        """Clear items from the execution queue.
+
+        Args:
+            clear_running: Stop the currently running workflow
+            clear_pending: Remove pending workflows from the queue
+        """
+        limiter.check("clear_queue")
+        audit.log(
+            tool="clear_queue",
+            action="called",
+            extra={"clear_running": clear_running, "clear_pending": clear_pending},
+        )
+        await client.clear_queue(
+            clear_running=clear_running, clear_pending=clear_pending
+        )
+        return f"Queue cleared (running={clear_running}, pending={clear_pending})"
+
+    tool_fns["clear_queue"] = clear_queue
+
     return tool_fns
