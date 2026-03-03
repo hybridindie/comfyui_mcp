@@ -1,0 +1,8 @@
+comfyui:
+  url: "http://comfyui:8188"
+
+security:
+  mode: "audit"
+
+logging:
+  level: "INFO"

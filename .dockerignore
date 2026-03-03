@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+.mypy_cache
+.ruff_cache
+.benchmarks
+.venv
+.git
+.github
+tests
+docs
+config.yaml
+config.example.yaml
