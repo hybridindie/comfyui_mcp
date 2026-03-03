@@ -278,7 +278,7 @@ The following are not planned for this project as they are overkill for typical 
 - **Request signing** - ComfyUI has no native auth; TLS provides sufficient transport security
 - **WebSocket authentication** - Not implemented in this version
 - **Input schema validation** - MCP SDK handles basic validation; Pydantic adds complexity
-- **CSP headers** - SSE is localhost-only by default
+- **CSP headers** - Best handled by reverse proxy in production
 - **Audit log encryption** - Not needed for typical development/prototyping use
 
 ---
