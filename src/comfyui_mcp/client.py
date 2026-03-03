@@ -44,136 +44,109 @@ class ComfyUIClient:
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         await self.close()
 
-    async def get_queue(self) -> dict:
+    async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
+        """Make an HTTP request to the ComfyUI API."""
         c = await self._get_client()
-        r = await c.get("/queue")
+        r = await getattr(c, method)(path, **kwargs)
         r.raise_for_status()
+        return r
+
+    async def get_queue(self) -> dict:
+        r = await self._request("get", "/queue")
         return r.json()
 
     async def post_prompt(self, workflow: dict) -> dict:
-        c = await self._get_client()
-        r = await c.post("/prompt", json={"prompt": workflow})
-        r.raise_for_status()
+        r = await self._request("post", "/prompt", json={"prompt": workflow})
         return r.json()
 
     async def get_models(self, folder: str) -> list:
-        c = await self._get_client()
-        r = await c.get(f"/models/{folder}")
-        r.raise_for_status()
+        r = await self._request("get", f"/models/{folder}")
         return r.json()
 
     async def get_object_info(self, node_class: str | None = None) -> dict:
         path = f"/object_info/{node_class}" if node_class else "/object_info"
-        c = await self._get_client()
-        r = await c.get(path)
-        r.raise_for_status()
+        r = await self._request("get", path)
         return r.json()
 
     async def get_history(self) -> dict:
-        c = await self._get_client()
-        r = await c.get("/history")
-        r.raise_for_status()
+        r = await self._request("get", "/history")
         return r.json()
 
     async def get_history_item(self, prompt_id: str) -> dict:
-        c = await self._get_client()
-        r = await c.get(f"/history/{prompt_id}")
-        r.raise_for_status()
+        r = await self._request("get", f"/history/{prompt_id}")
         return r.json()
 
     async def interrupt(self) -> None:
-        c = await self._get_client()
-        r = await c.post("/interrupt")
-        r.raise_for_status()
+        await self._request("post", "/interrupt")
 
     async def delete_queue_item(self, prompt_id: str) -> None:
-        c = await self._get_client()
-        r = await c.post("/queue", json={"delete": [prompt_id]})
-        r.raise_for_status()
+        await self._request("post", "/queue", json={"delete": [prompt_id]})
 
     async def upload_image(
         self, data: bytes, filename: str, subfolder: str = ""
     ) -> dict:
-        c = await self._get_client()
         files = {"image": (filename, data, "image/png")}
-        form_data = {}
+        form_data: dict[str, str] = {}
         if subfolder:
             form_data["subfolder"] = subfolder
-        r = await c.post("/upload/image", files=files, data=form_data)
-        r.raise_for_status()
+        r = await self._request("post", "/upload/image", files=files, data=form_data)
         return r.json()
 
     async def get_image(
         self, filename: str, subfolder: str = "output"
     ) -> tuple[bytes, str]:
-        c = await self._get_client()
-        r = await c.get("/view", params={"filename": filename, "subfolder": subfolder})
-        r.raise_for_status()
+        r = await self._request(
+            "get", "/view", params={"filename": filename, "subfolder": subfolder}
+        )
         content_type = r.headers.get("content-type", "image/png")
         return r.content, content_type
 
     async def get_embeddings(self) -> list:
-        c = await self._get_client()
-        r = await c.get("/embeddings")
-        r.raise_for_status()
+        r = await self._request("get", "/embeddings")
         return r.json()
 
     async def get_workflow_templates(self) -> list:
-        c = await self._get_client()
-        r = await c.get("/workflow_templates")
-        r.raise_for_status()
+        r = await self._request("get", "/workflow_templates")
         return r.json()
 
     async def get_extensions(self) -> list:
-        c = await self._get_client()
-        r = await c.get("/extensions")
-        r.raise_for_status()
+        r = await self._request("get", "/extensions")
         return r.json()
 
     async def get_features(self) -> dict:
-        c = await self._get_client()
-        r = await c.get("/features")
-        r.raise_for_status()
+        r = await self._request("get", "/features")
         return r.json()
 
     async def get_model_types(self) -> list:
-        c = await self._get_client()
-        r = await c.get("/models")
-        r.raise_for_status()
+        r = await self._request("get", "/models")
         return r.json()
 
     async def get_view_metadata(self, folder: str, filename: str) -> dict:
-        c = await self._get_client()
-        r = await c.get(f"/view_metadata/{folder}", params={"filename": filename})
-        r.raise_for_status()
+        r = await self._request(
+            "get", f"/view_metadata/{folder}", params={"filename": filename}
+        )
         return r.json()
 
     async def get_prompt_status(self) -> dict:
-        c = await self._get_client()
-        r = await c.get("/prompt")
-        r.raise_for_status()
+        r = await self._request("get", "/prompt")
         return r.json()
 
     async def clear_queue(
         self, clear_running: bool = False, clear_pending: bool = False
     ) -> None:
-        c = await self._get_client()
         data: dict[str, list[str]] = {"clear": []}
         if clear_running:
             data["clear"].append("running")
         if clear_pending:
             data["clear"].append("pending")
-        r = await c.post("/queue", json=data)
-        r.raise_for_status()
+        await self._request("post", "/queue", json=data)
 
     async def upload_mask(
         self, data: bytes, filename: str, subfolder: str = ""
     ) -> dict:
-        c = await self._get_client()
         files = {"mask": (filename, data, "image/png")}
         form_data: dict[str, str] = {}
         if subfolder:
             form_data["subfolder"] = subfolder
-        r = await c.post("/upload/mask", files=files, data=form_data)
-        r.raise_for_status()
+        r = await self._request("post", "/upload/mask", files=files, data=form_data)
         return r.json()

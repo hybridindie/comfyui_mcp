@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -80,8 +81,6 @@ class Settings(BaseModel):
 
 def _apply_env_overrides(data: dict) -> dict:
     """Apply environment variable overrides."""
-    import os
-
     env_map = {
         "COMFYUI_URL": ("comfyui", "url"),
         "COMFYUI_TLS_VERIFY": ("comfyui", "tls_verify"),
@@ -97,13 +96,10 @@ def _apply_env_overrides(data: dict) -> dict:
             section, key = path
             if section not in data:
                 data[section] = {}
-            if key in ("timeout_connect", "timeout_read", "tls_verify"):
-                import ast
-
-                try:
-                    data[section][key] = ast.literal_eval(value)
-                except (ValueError, SyntaxError):
-                    data[section][key] = value
+            if key in ("timeout_connect", "timeout_read"):
+                data[section][key] = int(value)
+            elif key == "tls_verify":
+                data[section][key] = value.lower() in ("true", "1", "yes")
             else:
                 data[section][key] = value
     return data

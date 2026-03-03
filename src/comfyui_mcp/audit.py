@@ -16,7 +16,9 @@ def _redact_sensitive(data: dict) -> dict:
 
 
 class AuditRecord(BaseModel):
-    timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
     tool: str
     action: str
     prompt_id: str = ""
@@ -55,7 +57,12 @@ class AuditLogger:
     def log(self, *, tool: str, action: str, **kwargs) -> AuditRecord:
         """Write an audit record as a JSON line."""
         record = AuditRecord(tool=tool, action=action, **kwargs)
-        self._audit_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._audit_file, "a") as f:
-            f.write(record.model_dump_json() + "\n")
+        try:
+            self._audit_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._audit_file, "a") as f:
+                f.write(record.model_dump_json() + "\n")
+        except OSError as e:
+            import sys
+
+            print(f"AUDIT LOG FAILURE: {e}", file=sys.stderr)
         return record
