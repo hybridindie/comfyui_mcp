@@ -16,7 +16,7 @@ from comfyui_mcp.security.rate_limit import RateLimiter
 
 @pytest.fixture
 def components(tmp_path):
-    client = ComfyUIClient(base_url="http://test:8188", token="")
+    client = ComfyUIClient(base_url="http://test:8188")
     audit = AuditLogger(audit_file=tmp_path / "audit.log")
     limiter = RateLimiter(max_per_minute=60)
     inspector = WorkflowInspector(
@@ -29,13 +29,20 @@ def components(tmp_path):
 
 @pytest.fixture
 def enforce_components(tmp_path):
-    client = ComfyUIClient(base_url="http://test:8188", token="")
+    client = ComfyUIClient(base_url="http://test:8188")
     audit = AuditLogger(audit_file=tmp_path / "audit.log")
     limiter = RateLimiter(max_per_minute=60)
     inspector = WorkflowInspector(
         mode="enforce",
         dangerous_nodes=["EvalNode"],
-        allowed_nodes=["KSampler", "CLIPTextEncode", "VAEDecode", "SaveImage", "CheckpointLoaderSimple", "EmptyLatentImage"],
+        allowed_nodes=[
+            "KSampler",
+            "CLIPTextEncode",
+            "VAEDecode",
+            "SaveImage",
+            "CheckpointLoaderSimple",
+            "EmptyLatentImage",
+        ],
     )
     return client, audit, limiter, inspector
 
@@ -88,5 +95,7 @@ class TestGenerateImage:
         )
         mcp = FastMCP("test")
         tools = register_generation_tools(mcp, client, audit, limiter, inspector)
-        result = await tools["generate_image"](prompt="a beautiful sunset over mountains")
+        result = await tools["generate_image"](
+            prompt="a beautiful sunset over mountains"
+        )
         assert "img-001" in result
