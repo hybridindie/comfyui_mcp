@@ -16,13 +16,55 @@ Existing ComfyUI MCP servers are thin wrappers that pass everything to ComfyUI's
 
 ## Architecture
 
-```
-LLM Client  <--MCP (stdio/SSE)-->  ComfyUI MCP Server  <--HTTPS/WSS-->  ComfyUI (Remote)
-                                    ├── Audit Logger
-                                    ├── Workflow Inspector
-                                    ├── Path Sanitizer
-                                    ├── Rate Limiter
-                                    └── ComfyUI Client (HTTP + WebSocket)
+```mermaid
+flowchart TB
+    subgraph Client["LLM Client"]
+        MC[Claude / AI Assistant]
+    end
+
+    subgraph MCP["ComfyUI MCP Server"]
+        STDIO[MCP stdio]
+        SSE[MCP SSE]
+        
+        subgraph Security["Security Layer"]
+            WI[Workflow Inspector]
+            PS[Path Sanitizer]
+            RL[Rate Limiter]
+            AL[Audit Logger]
+        end
+        
+        subgraph Tools["MCP Tools"]
+            GEN[Generation]
+            JOB[Job Management]
+            DISC[Discovery]
+            HIST[History]
+            FILE[File Operations]
+        end
+        
+        API[ComfyUI API Client<br/>httpx + websockets]
+    end
+
+    subgraph ComfyUI["ComfyUI Server"]
+        UI[Web UI]
+        API_C[API Endpoints]
+        EXEC[Execution Engine]
+    end
+
+    MC <--MCP Protocol--> STDIO
+    MC <--MCP Protocol--> SSE
+    
+    STDIO --> WI
+    SSE --> WI
+    
+    WI --> PS
+    PS --> RL
+    RL --> AL
+    AL --> Tools
+    
+    Tools --> API
+    API --HTTPS/WSS--> API_C
+    API_C --> EXEC
+    EXEC --> UI
 ```
 
 **Tech stack**: Python 3.12, `mcp` SDK (FastMCP), `httpx` (async HTTP), `websockets` (WS client), `pydantic` (config/validation), `structlog` (structured logging), `pyyaml` (config)

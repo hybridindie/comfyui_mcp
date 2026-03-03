@@ -294,40 +294,41 @@ Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        LLM (Claude, etc.)                        │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │ MCP
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     ComfyUI MCP Server                           │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Config    │  │   Audit     │  │   Security Layers       │  │
-│  │  (YAML/env) │  │   Logger    │  │  ┌───────────────────┐  │  │
-│  └─────────────┘  └─────────────┘  │  │ Workflow Inspector│  │  │
-│                                     │  │ - Dangerous nodes │  │  │
-│                                     │  │ - Suspicious input│  │  │
-│                                     │  ├───────────────────┤  │  │
-│                                     │  │  Path Sanitizer   │  │  │
-│                                     │  │ - Traversal block │  │  │
-│                                     │  │ - Extension filter│  │  │
-│                                     │  ├───────────────────┤  │  │
-│                                     │  │  Rate Limiter     │  │  │
-│                                     │  │  (token-bucket)   │  │  │
-│                                     │  └───────────────────┘  │  │
-│                                     └─────────────────────────┘  │
-│  ┌─────────────────────────────────────────────────────────────┐ │
-│  │                    Tool Groups                               │ │
-│  │  generation.py | jobs.py | discovery.py | history.py | files.py│
-│  └─────────────────────────────────────────────────────────────┘ │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │ httpx
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     ComfyUI Server                               │
-│              (REST API - port 8188)                              │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Client["LLM Client"]
+        MC[Claude / AI Assistant]
+    end
+
+    subgraph MCP["ComfyUI MCP Server"]
+        CONFIG[Config<br/>YAML/env]
+        AL[Audit Logger<br/>JSON logs]
+        
+        subgraph Security["Security Layers"]
+            WI[Workflow Inspector<br/>Dangerous nodes<br/>Suspicious input]
+            PS[Path Sanitizer<br/>Traversal block<br/>Extension filter]
+            RL[Rate Limiter<br/>Token-bucket]
+        end
+        
+        subgraph Tools["Tool Groups"]
+            TG[generation.py<br/>jobs.py<br/>discovery.py<br/>history.py<br/>files.py]
+        end
+        
+        API[ComfyUI Client<br/>httpx]
+    end
+
+    subgraph ComfyUI["ComfyUI Server"]
+        CS[REST API<br/>port 8188]
+    end
+
+    MC <--MCP--> MCP
+    CONFIG --> MCP
+    AL --> MCP
+    
+    MCP --> Security
+    Security --> Tools
+    Tools --> API
+    API --httpx--> CS
 ```
 
 ### Components
