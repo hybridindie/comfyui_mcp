@@ -1,0 +1,177 @@
+"""Generation tools: generate_image, run_workflow."""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from mcp.server.fastmcp import FastMCP
+
+from comfyui_mcp.audit import AuditLogger
+from comfyui_mcp.client import ComfyUIClient
+from comfyui_mcp.security.inspector import WorkflowInspector
+from comfyui_mcp.security.rate_limit import RateLimiter
+
+MAX_WIDTH = 4096
+MAX_HEIGHT = 4096
+MIN_DIMENSION = 64
+
+# Default txt2img workflow — uses standard ComfyUI nodes
+_DEFAULT_TXT2IMG = {
+    "3": {
+        "class_type": "KSampler",
+        "inputs": {
+            "seed": 0,
+            "steps": 20,
+            "cfg": 7.0,
+            "sampler_name": "euler",
+            "scheduler": "normal",
+            "denoise": 1.0,
+            "model": ["4", 0],
+            "positive": ["6", 0],
+            "negative": ["7", 0],
+            "latent_image": ["5", 0],
+        },
+    },
+    "4": {
+        "class_type": "CheckpointLoaderSimple",
+        "inputs": {"ckpt_name": "v1-5-pruned-emaonly.safetensors"},
+    },
+    "5": {
+        "class_type": "EmptyLatentImage",
+        "inputs": {"width": 512, "height": 512, "batch_size": 1},
+    },
+    "6": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {"text": "", "clip": ["4", 1]},
+    },
+    "7": {
+        "class_type": "CLIPTextEncode",
+        "inputs": {"text": "bad quality, blurry", "clip": ["4", 1]},
+    },
+    "8": {
+        "class_type": "VAEDecode",
+        "inputs": {"samples": ["3", 0], "vae": ["4", 2]},
+    },
+    "9": {
+        "class_type": "SaveImage",
+        "inputs": {"filename_prefix": "comfyui-mcp", "images": ["8", 0]},
+    },
+}
+
+
+def _build_txt2img_workflow(
+    prompt: str,
+    negative_prompt: str = "bad quality, blurry",
+    width: int = 512,
+    height: int = 512,
+    steps: int = 20,
+    cfg: float = 7.0,
+    model: str = "",
+) -> dict:
+    """Build a txt2img workflow from parameters."""
+    import copy
+
+    wf = copy.deepcopy(_DEFAULT_TXT2IMG)
+    wf["6"]["inputs"]["text"] = prompt
+    wf["7"]["inputs"]["text"] = negative_prompt
+    wf["5"]["inputs"]["width"] = width
+    wf["5"]["inputs"]["height"] = height
+    wf["3"]["inputs"]["steps"] = steps
+    wf["3"]["inputs"]["cfg"] = cfg
+    if model:
+        wf["4"]["inputs"]["ckpt_name"] = model
+    return wf
+
+
+def register_generation_tools(
+    mcp: FastMCP,
+    client: ComfyUIClient,
+    audit: AuditLogger,
+    limiter: RateLimiter,
+    inspector: WorkflowInspector,
+) -> dict[str, Any]:
+    """Register generation tools."""
+    tool_fns: dict[str, Any] = {}
+
+    @mcp.tool()
+    async def run_workflow(workflow: str) -> str:
+        """Submit an arbitrary ComfyUI workflow for execution.
+
+        Args:
+            workflow: JSON string of a ComfyUI workflow (API format).
+                      Each key is a node ID, each value has 'class_type' and 'inputs'.
+        """
+        limiter.check("run_workflow")
+        wf = json.loads(workflow)
+
+        # Inspect the workflow
+        result = inspector.inspect(wf)
+        audit.log(
+            tool="run_workflow",
+            action="inspected",
+            nodes_used=result.nodes_used,
+            warnings=result.warnings,
+            status="allowed" if not result.blocked else "blocked",
+        )
+
+        # Submit to ComfyUI
+        response = await client.post_prompt(wf)
+        prompt_id = response.get("prompt_id", "unknown")
+        audit.log(tool="run_workflow", action="submitted", prompt_id=prompt_id)
+        return f"Workflow submitted. prompt_id: {prompt_id}"
+
+    tool_fns["run_workflow"] = run_workflow
+
+    @mcp.tool()
+    async def generate_image(
+        prompt: str,
+        negative_prompt: str = "bad quality, blurry",
+        width: int = 512,
+        height: int = 512,
+        steps: int = 20,
+        cfg: float = 7.0,
+        model: str = "",
+    ) -> str:
+        """Generate an image from a text prompt using a default txt2img workflow.
+
+        Args:
+            prompt: Text description of the image to generate
+            negative_prompt: What to avoid in the image
+            width: Image width in pixels (64-4096)
+            height: Image height in pixels (64-4096)
+            steps: Number of sampling steps (more = better quality, slower)
+            cfg: Classifier-free guidance scale (higher = more prompt adherence)
+            model: Checkpoint model name (leave empty for default)
+        """
+        if not MIN_DIMENSION <= width <= MAX_WIDTH:
+            raise ValueError(f"width must be between {MIN_DIMENSION} and {MAX_WIDTH}")
+        if not MIN_DIMENSION <= height <= MAX_HEIGHT:
+            raise ValueError(f"height must be between {MIN_DIMENSION} and {MAX_HEIGHT}")
+        if steps < 1 or steps > 100:
+            raise ValueError("steps must be between 1 and 100")
+        if cfg < 1.0 or cfg > 30.0:
+            raise ValueError("cfg must be between 1.0 and 30.0")
+
+        limiter.check("generate_image")
+        wf = _build_txt2img_workflow(
+            prompt, negative_prompt, width, height, steps, cfg, model
+        )
+
+        result = inspector.inspect(wf)
+        audit.log(
+            tool="generate_image",
+            action="inspected",
+            nodes_used=result.nodes_used,
+            warnings=result.warnings,
+            extra={"prompt": prompt, "width": width, "height": height},
+        )
+
+        response = await client.post_prompt(wf)
+        prompt_id = response.get("prompt_id", "unknown")
+        audit.log(tool="generate_image", action="submitted", prompt_id=prompt_id)
+        return f"Image generation started. prompt_id: {prompt_id}"
+
+    tool_fns["generate_image"] = generate_image
+
+    return tool_fns
