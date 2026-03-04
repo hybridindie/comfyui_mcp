@@ -10,8 +10,8 @@ services:
       - COMFYUI_SECURITY_MODE=${COMFYUI_SECURITY_MODE:-audit}
       - COMFYUI_LOG_LEVEL=${COMFYUI_LOG_LEVEL:-INFO}
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
-      - comfyui-mcp-data:/root/.comfyui-mcp
+      - ./config.yaml:/root/.comfyui-mcp/config.yaml:ro
+      - comfyui-mcp-data:/root/.comfyui-mcp/logs
     restart: unless-stopped
 
 volumes:
