@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from typing import Any
 
@@ -78,8 +79,6 @@ def _build_txt2img_workflow(
     model: str = "",
 ) -> dict:
     """Build a txt2img workflow from parameters."""
-    import copy
-
     wf = copy.deepcopy(_DEFAULT_TXT2IMG)
     wf["6"]["inputs"]["text"] = prompt
     wf["7"]["inputs"]["text"] = negative_prompt
@@ -123,7 +122,7 @@ def register_generation_tools(
             action="inspected",
             nodes_used=result.nodes_used,
             warnings=result.warnings,
-            status="allowed" if not result.blocked else "blocked",
+            status="allowed",
         )
 
         warning_msg = _format_warnings(result.warnings)

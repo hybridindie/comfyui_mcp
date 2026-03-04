@@ -42,8 +42,6 @@ class ComfyUISettings(BaseModel):
     tls_verify: bool = True
     timeout_connect: int = 30
     timeout_read: int = 300
-    max_workflow_size_mb: int = 10
-    max_prompt_length: int = 10000
 
     @field_validator("url")
     @classmethod
@@ -62,15 +60,6 @@ class SecuritySettings(BaseModel):
     dangerous_nodes: list[str] = list(_DEFAULT_DANGEROUS_NODES)
     max_upload_size_mb: int = 50
     allowed_extensions: list[str] = list(_DEFAULT_ALLOWED_EXTENSIONS)
-
-    @field_validator("mode")
-    @classmethod
-    def validate_mode(cls, v: str) -> str:
-        if v not in ("audit", "enforce"):
-            raise ValueError(
-                f"Invalid security mode: {v!r}. Must be 'audit' or 'enforce'."
-            )
-        return v
 
     @field_validator("max_upload_size_mb")
     @classmethod
@@ -109,7 +98,6 @@ class SSESettings(BaseModel):
 
 
 class TransportSettings(BaseModel):
-    stdio: bool = True
     sse: SSESettings = SSESettings()
 
 
