@@ -18,6 +18,16 @@ _DANGEROUS_NAME_PATTERNS = [
     re.compile(r"\bterminal\b", re.IGNORECASE),
     re.compile(r"\bconsole\b", re.IGNORECASE),
     re.compile(r"\bscript\b.*exec\b", re.IGNORECASE),
+    re.compile(r"\bhttp\b", re.IGNORECASE),
+    re.compile(r"\brequest\b", re.IGNORECASE),
+    re.compile(r"\bfetch\b", re.IGNORECASE),
+    re.compile(r"\bdownload\b", re.IGNORECASE),
+    re.compile(r"\bupload\b", re.IGNORECASE),
+    re.compile(r"file.{0,20}path", re.IGNORECASE),
+    re.compile(r"load.{0,20}file", re.IGNORECASE),
+    re.compile(r"save.{0,20}file", re.IGNORECASE),
+    re.compile(r"interpreter", re.IGNORECASE),
+    re.compile(r"python", re.IGNORECASE),
 ]
 
 _DANGEROUS_INPUT_TYPES = {
@@ -25,6 +35,10 @@ _DANGEROUS_INPUT_TYPES = {
     "PYTHON",
     "COMMAND",
     "COMMANDLINE",
+    "URL",
+    "FILE_PATH",
+    "FILEPATH",
+    "SCRIPT",
 }
 
 _DANGEROUS_CATEGORY_PATTERNS = [

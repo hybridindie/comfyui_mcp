@@ -72,6 +72,26 @@ class TestNodeAuditor:
         result = auditor.audit_node_class("CLIPTextEncode", node_info)
         assert result is None
 
+    def test_common_safe_nodes_not_flagged(self):
+        """Verify common ComfyUI nodes are not flagged as dangerous."""
+        auditor = NodeAuditor()
+        safe_node_info = {"input": {}, "output": ["IMAGE"]}
+
+        safe_nodes = [
+            "SaveImage",
+            "LoadImage",
+            "PreviewImage",
+            "KSampler",
+            "VAEDecode",
+            "VAEEncode",
+            "CheckpointLoaderSimple",
+            "LoraLoader",
+            "ImageUpscaleWithModel",
+        ]
+        for node_name in safe_nodes:
+            result = auditor.audit_node_class(node_name, safe_node_info)
+            assert result is None, f"{node_name} was incorrectly flagged: {result}"
+
     def test_handles_list_input_type(self):
         auditor = NodeAuditor()
 
@@ -100,6 +120,99 @@ class TestNodeAuditor:
 
         result = auditor.audit_node_class("SomeNode", node_info)
         assert result is None
+
+    def test_flags_http_pattern(self):
+        auditor = NodeAuditor()
+        node_info = {"input": {}, "output": ["IMAGE"]}
+        result = auditor.audit_node_class("Image Send HTTP", node_info)
+        assert result is not None
+        assert result.category == "dangerous"
+
+    def test_flags_request_pattern(self):
+        auditor = NodeAuditor()
+        node_info = {"input": {}, "output": ["STRING"]}
+        result = auditor.audit_node_class("Get Request Node", node_info)
+        assert result is not None
+        assert result.category == "dangerous"
+
+    def test_flags_file_path_pattern(self):
+        auditor = NodeAuditor()
+        node_info = {"input": {}, "output": ["STRING"]}
+        result = auditor.audit_node_class("CustomFilePath", node_info)
+        assert result is not None
+        assert result.category == "dangerous"
+
+    def test_flags_load_file_pattern(self):
+        auditor = NodeAuditor()
+        node_info = {"input": {}, "output": ["STRING"]}
+        result = auditor.audit_node_class("Load Text File", node_info)
+        assert result is not None
+        assert result.category == "dangerous"
+
+    def test_flags_save_file_pattern(self):
+        auditor = NodeAuditor()
+        node_info = {"input": {}, "output": ["STRING"]}
+        result = auditor.audit_node_class("Save Text File", node_info)
+        assert result is not None
+        assert result.category == "dangerous"
+
+    def test_flags_interpreter_pattern(self):
+        auditor = NodeAuditor()
+        node_info = {"input": {}, "output": ["STRING"]}
+        result = auditor.audit_node_class("interpreter_tool", node_info)
+        assert result is not None
+        assert result.category == "dangerous"
+
+    def test_flags_python_pattern(self):
+        auditor = NodeAuditor()
+        node_info = {"input": {}, "output": ["STRING"]}
+        result = auditor.audit_node_class("KY_Eval_Python", node_info)
+        assert result is not None
+        assert result.category == "dangerous"
+
+    def test_flags_url_input_type(self):
+        auditor = NodeAuditor()
+        node_info = {
+            "input": {"target": {"type": "URL"}},
+            "output": ["STRING"],
+        }
+        result = auditor.audit_node_class("SafeLookingNode", node_info)
+        assert result is not None
+        assert "URL" in result.reason
+
+    def test_flags_file_path_input_type(self):
+        auditor = NodeAuditor()
+        node_info = {
+            "input": {"path": {"type": "FILE_PATH"}},
+            "output": ["STRING"],
+        }
+        result = auditor.audit_node_class("SafeLookingNode", node_info)
+        assert result is not None
+        assert "FILE_PATH" in result.reason
+
+    def test_flags_script_input_type(self):
+        auditor = NodeAuditor()
+        node_info = {
+            "input": {"code": {"type": "SCRIPT"}},
+            "output": ["STRING"],
+        }
+        result = auditor.audit_node_class("SafeLookingNode", node_info)
+        assert result is not None
+        assert "SCRIPT" in result.reason
+
+    def test_flags_download_pattern(self):
+        auditor = NodeAuditor()
+        node_info = {"input": {}, "output": ["IMAGE"]}
+        result = auditor.audit_node_class("Download Image", node_info)
+        assert result is not None
+        assert result.category == "dangerous"
+
+    def test_flags_fetch_pattern(self):
+        auditor = NodeAuditor()
+        node_info = {"input": {}, "output": ["STRING"]}
+        result = auditor.audit_node_class("Fetch URL", node_info)
+        assert result is not None
+        assert result.category == "dangerous"
 
 
 class TestAuditAllNodes:
