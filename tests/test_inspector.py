@@ -24,7 +24,7 @@ class TestWorkflowInspector:
     def audit_inspector(self):
         return WorkflowInspector(
             mode="audit",
-            dangerous_nodes=["EvalNode", "ExecuteAnything"],
+            dangerous_nodes=["Terminal", "KY_Eval_Python"],
             allowed_nodes=[],
         )
 
@@ -32,7 +32,7 @@ class TestWorkflowInspector:
     def enforce_inspector(self):
         return WorkflowInspector(
             mode="enforce",
-            dangerous_nodes=["EvalNode"],
+            dangerous_nodes=["Terminal"],
             allowed_nodes=["KSampler", "CLIPTextEncode", "VAEDecode", "SaveImage"],
         )
 
@@ -42,13 +42,13 @@ class TestWorkflowInspector:
         assert set(result.nodes_used) == {"KSampler", "CLIPTextEncode", "VAEDecode"}
 
     def test_audit_mode_flags_dangerous_nodes(self, audit_inspector):
-        workflow = _make_workflow("KSampler", "EvalNode")
+        workflow = _make_workflow("KSampler", "Terminal")
         result = audit_inspector.inspect(workflow)
         assert len(result.warnings) > 0
-        assert any("EvalNode" in w for w in result.warnings)
+        assert any("Terminal" in w for w in result.warnings)
 
     def test_audit_mode_never_blocks(self, audit_inspector):
-        workflow = _make_workflow("EvalNode", "ExecuteAnything")
+        workflow = _make_workflow("Terminal", "KY_Eval_Python")
         result = audit_inspector.inspect(workflow)
         assert len(result.warnings) > 0
 
@@ -63,8 +63,8 @@ class TestWorkflowInspector:
             enforce_inspector.inspect(workflow)
 
     def test_enforce_mode_blocks_dangerous_nodes(self, enforce_inspector):
-        workflow = _make_workflow("KSampler", "EvalNode")
-        with pytest.raises(WorkflowBlockedError, match="EvalNode"):
+        workflow = _make_workflow("KSampler", "Terminal")
+        with pytest.raises(WorkflowBlockedError, match="Terminal"):
             enforce_inspector.inspect(workflow)
 
     def test_empty_workflow(self, audit_inspector):

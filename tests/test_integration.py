@@ -75,10 +75,10 @@ class TestImageGenerationFlow:
         server, _ = _build_server(settings)
 
         run_workflow_fn = server._tool_manager._tools["run_workflow"].fn
-        workflow = json.dumps({"1": {"class_type": "EvalNode", "inputs": {}}})
+        workflow = json.dumps({"1": {"class_type": "Terminal", "inputs": {}}})
         result = await run_workflow_fn(workflow=workflow)
         assert "danger-001" in result
-        assert "EvalNode" in result
+        assert "Terminal" in result
 
     async def test_run_workflow_blocked_in_enforce_mode(self):
         """Enforce mode blocks workflows with unapproved nodes."""
