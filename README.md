@@ -71,8 +71,8 @@ Add to your Claude Code MCP configuration (`~/.claude/claude_desktop_config.json
 ### Verify
 
 ```bash
-# Check server starts and lists tools
-uv run python -c "from comfyui_mcp.server import mcp; print([t.name for t in mcp._tool_manager.list_tools()])"
+# Check server starts
+uv run python -c "from comfyui_mcp.server import mcp; print(f'Server {mcp.name!r} ready')"
 ```
 
 ## Tools
@@ -92,6 +92,8 @@ uv run python -c "from comfyui_mcp.server import mcp; print([t.name for t in mcp
 | `get_job` | Check status of a job by prompt_id. |
 | `cancel_job` | Cancel a running or queued job. |
 | `interrupt` | Interrupt the currently executing workflow. |
+| `get_queue_status` | Get detailed queue status including running and pending prompts. |
+| `clear_queue` | Clear pending and/or running items from the queue. |
 
 ### Discovery
 
@@ -101,13 +103,17 @@ uv run python -c "from comfyui_mcp.server import mcp; print([t.name for t in mcp
 | `list_nodes` | List all available node types. |
 | `get_node_info` | Get detailed info about a specific node type. |
 | `list_workflows` | List saved workflow templates. |
+| `list_extensions` | List available ComfyUI extensions. |
+| `get_server_features` | Get ComfyUI server features and capabilities. |
+| `list_model_folders` | List available model folder types. |
+| `get_model_metadata` | Get metadata for a specific model file. |
+| `audit_dangerous_nodes` | Scan all installed nodes to identify potentially dangerous ones. |
 
 ### History
 
 | Tool | Description |
 |------|-------------|
 | `get_history` | Browse execution history (read-only). |
-| `get_history_item` | Get details of a specific history entry. |
 
 ### File Operations
 
@@ -116,6 +122,7 @@ uv run python -c "from comfyui_mcp.server import mcp; print([t.name for t in mcp
 | `upload_image` | Upload a base64-encoded image to ComfyUI's input directory. Path-sanitized. |
 | `get_image` | Download a generated image. Returns base64-encoded data URI. Path-sanitized. |
 | `list_outputs` | List generated output filenames from history. |
+| `upload_mask` | Upload a mask image to ComfyUI's input directory. Path-sanitized. |
 
 ### Deliberately not exposed
 
@@ -169,7 +176,6 @@ logging:
   audit_file: "~/.comfyui-mcp/audit.log"
 
 transport:
-  stdio: true
   sse:
     enabled: false
     host: "127.0.0.1"
@@ -184,7 +190,11 @@ Environment variables override config file values:
 |----------|-----------|
 | `COMFYUI_URL` | `comfyui.url` |
 | `COMFYUI_TLS_VERIFY` | `comfyui.tls_verify` |
+| `COMFYUI_TIMEOUT_CONNECT` | `comfyui.timeout_connect` |
+| `COMFYUI_TIMEOUT_READ` | `comfyui.timeout_read` |
+| `COMFYUI_SECURITY_MODE` | `security.mode` |
 | `COMFYUI_LOG_LEVEL` | `logging.level` |
+| `COMFYUI_AUDIT_FILE` | `logging.audit_file` |
 
 ## Security modes
 
@@ -292,6 +302,48 @@ grep '"warnings":\[' ~/.comfyui-mcp/audit.log | grep -v '"warnings":\[\]'
 
 Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are automatically redacted from log entries.
 
+## Security
+
+### Threat model
+
+| Threat | Impact | Mitigation |
+|--------|--------|------------|
+| Arbitrary code execution via workflow nodes | Critical | Workflow inspector (audit/enforce mode) |
+| Path traversal via file operations | High | Path sanitizer blocks `..`, null bytes, encoded attacks, absolute paths |
+| Denial of service via request flooding | Medium | Token-bucket rate limiter per tool category |
+| Credential leakage in logs | Medium | Automatic redaction of `token`, `password`, `secret`, `api_key`, `authorization` |
+| Information disclosure via API | Low | Dangerous endpoints (`/userdata`, `/free`, `/system_stats`) never proxied |
+| MITM on ComfyUI connection | Medium | Configurable TLS verification |
+
+### Security controls by component
+
+**Workflow Inspector** (`security/inspector.py`)
+- Parses workflow JSON, extracts node types, checks against configurable blocklist
+- Recursive pattern matching for `__import__()`, `eval()`, `exec()`, `os.system()`, `subprocess` in all input values (including nested dicts/lists)
+- Audit mode: logs warnings, allows execution. Enforce mode: blocks unapproved nodes
+- Limitation: static blocklist can be bypassed with obfuscation or unknown custom nodes
+
+**Path Sanitizer** (`security/sanitizer.py`)
+- Validates filenames and subfolders: blocks path traversal, null bytes, absolute paths, control characters
+- Allowlist-based extension filtering (default: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.json`)
+- Handles percent-encoded inputs (URL decoding before validation)
+- Enforces max upload size (default 50MB), max filename length (255 chars)
+
+**Rate Limiter** (`security/rate_limit.py`)
+- Token-bucket per tool category: workflow (10/min), generation (10/min), file_ops (30/min), read_only (60/min)
+- In-memory only (resets on restart, no distributed support)
+
+**HTTP Client** (`client.py`)
+- Configurable TLS verification, connect/read timeouts
+- Retries on connection errors with backoff (3 retries default). HTTP 4xx/5xx errors raised immediately (no retry)
+
+**Configuration** (`config.py`)
+- `yaml.safe_load` only, env var overrides limited to specific keys, Pydantic type validation
+
+### Production deployment
+
+For production, run behind a reverse proxy (nginx, Traefik) to add TLS termination, authentication, and CSP headers. No PII is collected. No external telemetry.
+
 ## Architecture
 
 ```mermaid
@@ -303,17 +355,17 @@ flowchart TB
     subgraph MCP["ComfyUI MCP Server"]
         CONFIG[Config<br/>YAML/env]
         AL[Audit Logger<br/>JSON logs]
-        
+
         subgraph Security["Security Layers"]
             WI[Workflow Inspector<br/>Dangerous nodes<br/>Suspicious input]
             PS[Path Sanitizer<br/>Traversal block<br/>Extension filter]
             RL[Rate Limiter<br/>Token-bucket]
         end
-        
+
         subgraph Tools["Tool Groups"]
             TG[generation.py<br/>jobs.py<br/>discovery.py<br/>history.py<br/>files.py]
         end
-        
+
         API[ComfyUI Client<br/>httpx]
     end
 
@@ -324,7 +376,7 @@ flowchart TB
     MC <--MCP--> MCP
     CONFIG --> MCP
     AL --> MCP
-    
+
     MCP --> Security
     Security --> Tools
     Tools --> API
@@ -340,16 +392,9 @@ flowchart TB
 | Client | `client.py` | Async HTTP client for ComfyUI REST API |
 | Audit | `audit.py` | Structured JSON logging with redaction |
 | Workflow Inspector | `security/inspector.py` | Node type detection, dangerous pattern matching |
+| Node Auditor | `security/node_auditor.py` | Scans installed nodes for dangerous patterns |
 | Path Sanitizer | `security/sanitizer.py` | Path traversal, extension filtering |
 | Rate Limiter | `security/rate_limit.py` | Token-bucket per tool category |
-
-### Tool registration pattern
-
-Each `tools/*.py` module exports `register_*_tools(server, client, audit, limiter, ...)` which:
-1. Defines `@server.tool()` decorated async functions
-2. Checks rate limits
-3. Logs audit events
-4. Returns results to the LLM
 
 ## Development
 
@@ -372,17 +417,17 @@ docker build -t comfyui-mcp .
 docker run -d \
   --name comfyui-mcp \
   -e COMFYUI_URL=http://host.docker.internal:8188 \
-  -v ~/.comfyui-mcp:/app/config \
+  -v ~/.comfyui-mcp:/root/.comfyui-mcp:ro \
   comfyui-mcp
 ```
 
 ### Configuration
 
-The container expects config at `/app/config/config.yaml`. Mount your config directory:
+The app reads config from `~/.comfyui-mcp/config.yaml` (which resolves to `/root/.comfyui-mcp/config.yaml` in Docker). Mount your config:
 
 ```bash
 docker run -d \
-  -v ~/.comfyui-mcp:/app/config:ro \
+  -v ~/.comfyui-mcp:/root/.comfyui-mcp:ro \
   -e COMFYUI_URL=http://your-comfyui:8188 \
   comfyui-mcp
 ```
@@ -401,7 +446,7 @@ services:
   comfyui-mcp:
     image: ghcr.io/hybridindie/comfyui-mcp:latest
     volumes:
-      - ~/.comfyui-mcp:/app/config:ro
+      - ~/.comfyui-mcp:/root/.comfyui-mcp:ro
     environment:
       - COMFYUI_URL=http://comfyui:8188
       - COMFYUI_SECURITY_MODE=audit
@@ -419,14 +464,15 @@ src/comfyui_mcp/
 ├── audit.py               # Structured JSON audit logger
 ├── security/
 │   ├── inspector.py       # Workflow node inspection (audit/enforce)
+│   ├── node_auditor.py    # Scans installed nodes for dangerous patterns
 │   ├── sanitizer.py       # File path validation
 │   └── rate_limit.py      # Token-bucket rate limiter
 └── tools/
     ├── generation.py      # generate_image, run_workflow
-    ├── jobs.py            # get_queue, get_job, cancel_job, interrupt
-    ├── discovery.py       # list_models, list_nodes, get_node_info, list_workflows
-    ├── history.py         # get_history, get_history_item
-    └── files.py           # upload_image, get_image, list_outputs
+    ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, clear_queue
+    ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
+    ├── history.py         # get_history
+    └── files.py           # upload_image, get_image, list_outputs, upload_mask
 ```
 
 ## License
