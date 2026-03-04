@@ -87,16 +87,7 @@ class RateLimitSettings(BaseModel):
 
 
 class LoggingSettings(BaseModel):
-    level: str = "INFO"
     audit_file: str = "~/.comfyui-mcp/audit.log"
-
-    @field_validator("level")
-    @classmethod
-    def validate_level(cls, v: str) -> str:
-        valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-        if v.upper() not in valid_levels:
-            raise ValueError(f"Level must be one of {valid_levels}")
-        return v.upper()
 
 
 class SSESettings(BaseModel):
@@ -125,7 +116,6 @@ def _apply_env_overrides(data: dict) -> dict:
         "COMFYUI_TIMEOUT_CONNECT": ("comfyui", "timeout_connect"),
         "COMFYUI_TIMEOUT_READ": ("comfyui", "timeout_read"),
         "COMFYUI_SECURITY_MODE": ("security", "mode"),
-        "COMFYUI_LOG_LEVEL": ("logging", "level"),
         "COMFYUI_AUDIT_FILE": ("logging", "audit_file"),
     }
     for env_var, path in env_map.items():
