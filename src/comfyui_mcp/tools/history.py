@@ -1,4 +1,4 @@
-"""History tools: get_history, get_history_item."""
+"""History tools: get_history."""
 
 from __future__ import annotations
 
@@ -28,14 +28,5 @@ def register_history_tools(
         return await client.get_history()
 
     tool_fns["get_history"] = get_history
-
-    @mcp.tool()
-    async def get_history_item(prompt_id: str) -> dict:
-        """Get details of a specific history entry by prompt_id."""
-        limiter.check("get_history_item")
-        audit.log(tool="get_history_item", action="called", extra={"prompt_id": prompt_id})
-        return await client.get_history_item(prompt_id)
-
-    tool_fns["get_history_item"] = get_history_item
 
     return tool_fns

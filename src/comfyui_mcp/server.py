@@ -82,7 +82,7 @@ def _register_all_tools(
     )
 
 
-def _build_server(settings: Settings | None = None) -> FastMCP:
+def _build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
     """Build and configure the MCP server with all tools registered."""
     if settings is None:
         settings = load_settings()
@@ -116,18 +116,21 @@ def _build_server(settings: Settings | None = None) -> FastMCP:
         server, client, audit, rate_limiters, inspector, sanitizer, node_auditor
     )
 
-    return server
+    return server, settings
 
 
 # Module-level server instance for import and CLI use
-mcp = _build_server()
+mcp, _settings = _build_server()
 
 
 def main() -> None:
     """Run the MCP server."""
-    settings = load_settings()
-    if settings.transport.sse.enabled:
-        mcp.run(transport="sse")
+    if _settings.transport.sse.enabled:
+        mcp.run(
+            transport="sse",
+            host=_settings.transport.sse.host,
+            port=_settings.transport.sse.port,
+        )
     else:
         mcp.run()
 

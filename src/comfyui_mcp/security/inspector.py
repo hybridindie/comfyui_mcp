@@ -24,7 +24,6 @@ class WorkflowBlockedError(Exception):
 class InspectionResult:
     nodes_used: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    blocked: bool = False
 
 
 def _check_value_for_suspicious(
@@ -96,5 +95,4 @@ class WorkflowInspector:
         return InspectionResult(
             nodes_used=nodes_used,
             warnings=warnings,
-            blocked=False,
         )
