@@ -193,7 +193,6 @@ Environment variables override config file values:
 | `COMFYUI_TIMEOUT_CONNECT` | `comfyui.timeout_connect` |
 | `COMFYUI_TIMEOUT_READ` | `comfyui.timeout_read` |
 | `COMFYUI_SECURITY_MODE` | `security.mode` |
-| `COMFYUI_LOG_LEVEL` | `logging.level` |
 | `COMFYUI_AUDIT_FILE` | `logging.audit_file` |
 
 ## Security modes

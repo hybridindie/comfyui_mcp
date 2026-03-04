@@ -117,6 +117,16 @@ These are non-negotiable. This is a security-focused project.
 3. Add config fields to `config.py` if needed — every field must be read somewhere
 4. Add tests in `tests/test_*.py`
 
+### Maintaining the dangerous nodes list
+
+The `_DEFAULT_DANGEROUS_NODES` list in `config.py` contains real ComfyUI custom node `class_type` values grouped by threat category (code execution, network access, filesystem access). To audit a new custom node package:
+
+1. Check the package source for calls to `exec`, `eval`, `subprocess`, `os.system`, `open()`, `requests`, `urllib`, or `httpx`
+2. Look for nodes that accept arbitrary file paths, URLs, or code as input
+3. Add confirmed dangerous nodes to the appropriate category in `_DEFAULT_DANGEROUS_NODES` with a comment noting the source package and reason
+4. If the node follows a naming pattern not yet covered, add a regex to `_DANGEROUS_NAME_PATTERNS` in `node_auditor.py`
+5. Add tests for any new patterns
+
 ## Configuration
 
 Config file: `~/.comfyui-mcp/config.yaml`
