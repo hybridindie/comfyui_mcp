@@ -13,25 +13,33 @@ from pydantic import BaseModel, field_validator
 _DEFAULT_CONFIG_PATH = Path.home() / ".comfyui-mcp" / "config.yaml"
 
 _DEFAULT_DANGEROUS_NODES = [
-    "ExecuteAnything",
-    "EvalNode",
-    "ExecNode",
-    "PythonExec",
-    "RunPython",
-    "ShellNode",
-    "CommandExecutor",
-    "PythonCode",
-    "PythonScript",
-    "ExecPython",
-    "ExecutePython",
-    "PythonRunner",
-    "AdvancedPython",
-    "PythonFunction",
-    "SimplePython",
-    "FN_pyeval",
-    "PyFunctional",
-    "PyTorchLayer",
-    "TensorFlowOp",
+    # Code execution — shell, eval, exec
+    "Terminal",  # comfyui-colab: shell via subprocess
+    "interpreter_tool",  # comfyui_LLM_party: exec/eval
+    "interpreter_function",  # comfyui_LLM_party: exec/eval
+    "KY_Eval_Python",  # ComfyUI-KYNode: exec Python
+    "CustomScriptNumpy",  # ComfyUI-FuncAsTexture-CoiiNode: exec formula
+    "Equation1param _O",  # QualityOfLifeSuit_Omar92: raw eval
+    "Equation2params _O",  # QualityOfLifeSuit_Omar92: raw eval
+    "Evaluate Integers",  # efficiency-nodes-comfyui: simpleeval
+    "Evaluate Floats",  # efficiency-nodes-comfyui: simpleeval
+    "Evaluate Strings",  # efficiency-nodes-comfyui: simpleeval
+    "Simple Eval Examples",  # efficiency-nodes-comfyui: simpleeval
+    # Network access — arbitrary HTTP requests
+    "Image Send HTTP",  # was-node-suite: arbitrary HTTP
+    "Get Request Node",  # ComfyUI-RequestNodes: HTTP GET
+    "Post Request Node",  # ComfyUI-RequestNodes: HTTP POST
+    "Form Post Request Node",  # ComfyUI-RequestNodes: HTTP POST
+    "Rest Api Node",  # ComfyUI-RequestNodes: REST calls
+    # Filesystem access — read/write arbitrary paths
+    "Load Text File",  # was-node-suite: reads arbitrary files
+    "Save Text File",  # was-node-suite: writes arbitrary files
+    "Text Load Line From File",  # was-node-suite: reads arbitrary files
+    "Video Dump Frames",  # was-node-suite: reads/writes arbitrary paths
+    "Create Morph Image from Path",  # was-node-suite: reads arbitrary paths
+    "Create Video from Path",  # was-node-suite: reads/writes arbitrary paths
+    "Export API",  # was-node-suite: writes to arbitrary paths
+    "saveTextToFile _O",  # QualityOfLifeSuit_Omar92: writes arbitrary files
 ]
 
 _DEFAULT_ALLOWED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".json"]
