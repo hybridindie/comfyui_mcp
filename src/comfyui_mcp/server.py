@@ -77,7 +77,14 @@ def _register_all_tools(
     register_history_tools(server, client, audit, rate_limiters["read"])
     register_job_tools(server, client, audit, rate_limiters["workflow"])
     register_file_tools(server, client, audit, rate_limiters["file"], sanitizer)
-    register_generation_tools(server, client, audit, rate_limiters["generation"], inspector)
+    register_generation_tools(
+        server,
+        client,
+        audit,
+        rate_limiters["generation"],
+        inspector,
+        read_limiter=rate_limiters["read"],
+    )
 
 
 def _build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
