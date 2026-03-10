@@ -480,6 +480,12 @@ class TestSummarizeWorkflow:
         assert "txt2img" in result
         assert "model.safetensors" in result
         assert "Load Checkpoint" in result
+        # Verify audit log was written
+        audit_lines = audit._audit_file.read_text().strip().split("\n")
+        audit_entries = [json.loads(line) for line in audit_lines]
+        summary_entries = [e for e in audit_entries if e["tool"] == "summarize_workflow"]
+        assert len(summary_entries) == 1
+        assert summary_entries[0]["action"] == "summarized"
 
     @respx.mock
     async def test_fallback_when_object_info_fails(self, components):
