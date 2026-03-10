@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import graphlib
 import json
@@ -281,6 +282,8 @@ def register_generation_tools(
     audit: AuditLogger,
     limiter: RateLimiter,
     inspector: WorkflowInspector,
+    *,
+    read_limiter: RateLimiter | None = None,
 ) -> dict[str, Any]:
     """Register generation tools."""
     tool_fns: dict[str, Any] = {}
@@ -369,5 +372,42 @@ def register_generation_tools(
         return f"Image generation started. prompt_id: {prompt_id}{warning_msg}"
 
     tool_fns["generate_image"] = generate_image
+
+    @mcp.tool()
+    async def summarize_workflow(workflow: str) -> str:
+        """Summarize a ComfyUI workflow's structure, data flow, and key parameters.
+
+        Parses the workflow graph, extracts models, parameters, and execution flow.
+        Enriches with display names from the ComfyUI server when available.
+
+        Args:
+            workflow: JSON string of a ComfyUI workflow (API format).
+                      Each key is a node ID, each value has 'class_type' and 'inputs'.
+        """
+        summary_limiter = read_limiter if read_limiter is not None else limiter
+        summary_limiter.check("summarize_workflow")
+
+        try:
+            wf = json.loads(workflow)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON workflow: {e}") from e
+
+        # Best-effort API enrichment
+        object_info: dict[str, Any] | None = None
+        with contextlib.suppress(Exception):
+            object_info = await client.get_object_info()
+
+        analysis = _analyze_workflow(wf, object_info)
+        audit.log(
+            tool="summarize_workflow",
+            action="summarized",
+            extra={
+                "node_count": analysis["node_count"],
+                "pipeline": analysis["pipeline"],
+            },
+        )
+        return _format_summary(analysis)
+
+    tool_fns["summarize_workflow"] = summarize_workflow
 
     return tool_fns

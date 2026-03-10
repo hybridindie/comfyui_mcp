@@ -410,3 +410,112 @@ class TestFormatSummary:
         }
         result = _format_summary(analysis)
         assert "Parameters:" not in result
+
+
+class TestSummarizeWorkflow:
+    @respx.mock
+    async def test_summarizes_txt2img_workflow(self, components):
+        client, audit, limiter, inspector = components
+        read_limiter = RateLimiter(max_per_minute=60)
+        respx.get("http://test:8188/object_info").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "KSampler": {"display_name": "KSampler"},
+                    "CheckpointLoaderSimple": {"display_name": "Load Checkpoint"},
+                },
+            )
+        )
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            read_limiter=read_limiter,
+        )
+        workflow = {
+            "4": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": "model.safetensors"},
+            },
+            "5": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {"width": 512, "height": 512, "batch_size": 1},
+            },
+            "3": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "steps": 20,
+                    "cfg": 7.0,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                    "model": ["4", 0],
+                    "positive": ["6", 0],
+                    "negative": ["7", 0],
+                    "latent_image": ["5", 0],
+                },
+            },
+            "6": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": "a cat", "clip": ["4", 1]},
+            },
+            "7": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {"text": "bad", "clip": ["4", 1]},
+            },
+            "8": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["3", 0], "vae": ["4", 2]},
+            },
+            "9": {
+                "class_type": "SaveImage",
+                "inputs": {"filename_prefix": "test", "images": ["8", 0]},
+            },
+        }
+        result = await tools["summarize_workflow"](workflow=json.dumps(workflow))
+        assert "7 nodes" in result
+        assert "txt2img" in result
+        assert "model.safetensors" in result
+        assert "Load Checkpoint" in result
+
+    @respx.mock
+    async def test_fallback_when_object_info_fails(self, components):
+        client, audit, limiter, inspector = components
+        read_limiter = RateLimiter(max_per_minute=60)
+        respx.get("http://test:8188/object_info").mock(side_effect=httpx.ConnectError("offline"))
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            read_limiter=read_limiter,
+        )
+        workflow = {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": "model.safetensors"},
+            },
+        }
+        result = await tools["summarize_workflow"](workflow=json.dumps(workflow))
+        assert "1 nodes" in result
+        assert "CheckpointLoaderSimple" in result
+
+    async def test_rejects_invalid_json(self, components):
+        client, audit, limiter, inspector = components
+        read_limiter = RateLimiter(max_per_minute=60)
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            read_limiter=read_limiter,
+        )
+        with pytest.raises(ValueError, match="Invalid JSON"):
+            await tools["summarize_workflow"](workflow="not json")
