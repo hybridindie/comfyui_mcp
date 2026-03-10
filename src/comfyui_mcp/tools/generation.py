@@ -149,6 +149,8 @@ def _analyze_workflow(
             continue
         class_type = node_data.get("class_type", "")
         inputs = node_data.get("inputs", {})
+        if not isinstance(inputs, dict):
+            inputs = {}
         deps.setdefault(node_id, set())
 
         display_name = class_type
@@ -251,7 +253,9 @@ def _format_summary(analysis: WorkflowAnalysis) -> str:
     """Format an analysis dict into a human-readable summary."""
     lines: list[str] = []
 
-    lines.append(f"Workflow: {analysis['node_count']} nodes")
+    node_count = analysis["node_count"]
+    node_word = "node" if node_count == 1 else "nodes"
+    lines.append(f"Workflow: {node_count} {node_word}")
     lines.append(f"Pipeline: {analysis['pipeline']}")
 
     if analysis["models"]:
@@ -405,6 +409,9 @@ def register_generation_tools(
             wf = json.loads(workflow)
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON workflow: {e}") from e
+
+        if not isinstance(wf, dict):
+            raise ValueError("Workflow must be a JSON object keyed by node IDs")
 
         # Best-effort API enrichment
         object_info: dict[str, Any] | None = None

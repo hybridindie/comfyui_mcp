@@ -508,8 +508,48 @@ class TestSummarizeWorkflow:
             },
         }
         result = await tools["summarize_workflow"](workflow=json.dumps(workflow))
-        assert "1 nodes" in result
+        assert "1 node" in result
         assert "CheckpointLoaderSimple" in result
+
+    async def test_rejects_non_object_workflow(self, components):
+        client, audit, limiter, inspector = components
+        read_limiter = RateLimiter(max_per_minute=60)
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            read_limiter=read_limiter,
+        )
+        with pytest.raises(ValueError, match="JSON object"):
+            await tools["summarize_workflow"](workflow="[1, 2, 3]")
+        with pytest.raises(ValueError, match="JSON object"):
+            await tools["summarize_workflow"](workflow='"just a string"')
+
+    @respx.mock
+    async def test_handles_non_dict_inputs(self, components):
+        client, audit, limiter, inspector = components
+        read_limiter = RateLimiter(max_per_minute=60)
+        respx.get("http://test:8188/object_info").mock(return_value=httpx.Response(200, json={}))
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            read_limiter=read_limiter,
+        )
+        workflow = {
+            "1": {
+                "class_type": "KSampler",
+                "inputs": [1, 2, 3],
+            },
+        }
+        result = await tools["summarize_workflow"](workflow=json.dumps(workflow))
+        assert "1 node" in result
 
     async def test_rejects_invalid_json(self, components):
         client, audit, limiter, inspector = components
