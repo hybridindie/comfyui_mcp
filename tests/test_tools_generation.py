@@ -181,6 +181,9 @@ class TestAnalyzeWorkflow:
         assert flow.index("CheckpointLoaderSimple") < flow.index("KSampler")
         assert flow.index("KSampler") < flow.index("VAEDecode")
         assert flow.index("VAEDecode") < flow.index("SaveImage")
+        # Prompt/negative node detection
+        assert result["prompt_nodes"] == ["6"]
+        assert result["negative_nodes"] == ["7"]
 
     def test_extracts_multiple_models(self):
         workflow = {
