@@ -106,7 +106,6 @@ _MODEL_LOADERS: dict[str, tuple[str, str]] = {
 }
 
 _INPUT_NODE_TYPES = {"LoadImage", "LoadImageMask", "EmptyLatentImage"}
-_OUTPUT_NODE_TYPES = {"SaveImage", "PreviewImage", "SaveAnimatedWEBP", "SaveAnimatedPNG"}
 _SAMPLER_NODE_TYPES = {"KSampler", "KSamplerAdvanced", "SamplerCustom"}
 
 
