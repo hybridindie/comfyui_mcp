@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 import pytest
@@ -175,3 +176,46 @@ class TestDisconnect:
         ops = [{"op": "disconnect", "node_id": "2", "input_name": "nonexistent"}]
         with pytest.raises(ValueError, match="no input"):
             apply_operations(wf, ops)
+
+
+class TestBatchBehavior:
+    def test_operations_apply_sequentially(self):
+        """Adding a node then connecting to it should work."""
+        wf = _simple_workflow()
+        ops = [
+            {"op": "add_node", "node_id": "3", "class_type": "VAEDecode"},
+            {
+                "op": "connect",
+                "from_node": "1",
+                "from_output": 2,
+                "to_node": "3",
+                "to_input": "vae",
+            },
+        ]
+        result = apply_operations(wf, ops)
+        assert result["3"]["inputs"]["vae"] == ["1", 2]
+
+    def test_atomic_failure_preserves_original(self):
+        """If op 2 fails, op 1 should not be applied to the original."""
+        wf = _simple_workflow()
+        original = copy.deepcopy(wf)
+        ops = [
+            {"op": "add_node", "node_id": "3", "class_type": "VAEDecode"},
+            {"op": "connect", "from_node": "99", "from_output": 0, "to_node": "3", "to_input": "x"},
+        ]
+        with pytest.raises(ValueError):
+            apply_operations(wf, ops)
+        # Original workflow should be unchanged
+        assert wf == original
+
+    def test_unknown_op_raises(self):
+        wf = _simple_workflow()
+        ops = [{"op": "explode"}]
+        with pytest.raises(ValueError, match="unknown op"):
+            apply_operations(wf, ops)
+
+    def test_empty_operations_returns_copy(self):
+        wf = _simple_workflow()
+        result = apply_operations(wf, [])
+        assert result == wf
+        assert result is not wf
