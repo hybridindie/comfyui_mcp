@@ -26,10 +26,24 @@ This server adds five security layers between the AI assistant and ComfyUI:
 
 ### Install
 
+**Option A: From source (recommended for development)**
+
 ```bash
 git clone https://github.com/hybridindie/comfyui_mcp.git
 cd comfyui_mcp
 uv sync
+```
+
+**Option B: Docker**
+
+```bash
+docker build -t comfyui-mcp .
+```
+
+Or with Docker Compose:
+
+```bash
+docker compose build
 ```
 
 ### Configure
@@ -53,26 +67,51 @@ comfyui:
 EOF
 ```
 
-### Add to Claude Code
+### Add to Claude Code / Claude Desktop
 
-Add to your Claude Code MCP configuration (`~/.claude/claude_desktop_config.json` or equivalent):
+The MCP server communicates over stdio. Add one of the following configurations depending on how you installed.
+
+**From source (uv):**
 
 ```json
 {
   "mcpServers": {
     "comfyui": {
       "command": "uv",
-      "args": ["--directory", "/path/to/comfyui-mcp", "run", "comfyui-mcp"]
+      "args": ["--directory", "/path/to/comfyui_mcp", "run", "comfyui-mcp"]
     }
   }
 }
 ```
 
+**Docker:**
+
+```json
+{
+  "mcpServers": {
+    "comfyui": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "-e", "COMFYUI_URL=http://host.docker.internal:8188",
+        "-v", "~/.comfyui-mcp:/root/.comfyui-mcp:ro",
+        "comfyui-mcp"
+      ]
+    }
+  }
+}
+```
+
+> **Note:** `host.docker.internal` routes to your host machine from inside Docker. If ComfyUI runs on a remote server, replace with that server's URL. On Linux, you may need to add `--add-host=host.docker.internal:host-gateway`.
+
 ### Verify
 
 ```bash
-# Check server starts
+# From source
 uv run python -c "from comfyui_mcp.server import mcp; print(f'Server {mcp.name!r} ready')"
+
+# Docker
+docker run --rm -i comfyui-mcp --help
 ```
 
 ## Tools
@@ -397,6 +436,27 @@ flowchart TB
 
 ## Development
 
+### Project structure
+
+```text
+src/comfyui_mcp/
+├── server.py              # MCP server entry point, wires all components
+├── config.py              # Pydantic settings, YAML loading, env overrides
+├── client.py              # Async HTTP client for ComfyUI API
+├── audit.py               # Structured JSON audit logger
+├── security/
+│   ├── inspector.py       # Workflow node inspection (audit/enforce)
+│   ├── node_auditor.py    # Scans installed nodes for dangerous patterns
+│   ├── sanitizer.py       # File path validation
+│   └── rate_limit.py      # Token-bucket rate limiter
+└── tools/
+    ├── generation.py      # generate_image, run_workflow
+    ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, clear_queue
+    ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
+    ├── history.py         # get_history
+    └── files.py           # upload_image, get_image, list_outputs, upload_mask
+```
+
 ### Run tests
 
 ```bash
@@ -404,43 +464,42 @@ uv sync
 uv run pytest -v
 ```
 
-## Docker Deployment
+## Docker
 
-### Quick start
+The Docker image runs the MCP server over stdio, making it compatible with Claude Code, Claude Desktop, and any MCP client.
+
+### How it works
+
+The container runs `uv run comfyui-mcp` as its entrypoint, communicating over stdin/stdout. Config is read from `/root/.comfyui-mcp/config.yaml` inside the container — mount your local config directory to provide it, or use environment variables.
+
+### Running standalone
 
 ```bash
-# Build the image
+# Build
 docker build -t comfyui-mcp .
 
-# Run with environment variables
-docker run -d \
-  --name comfyui-mcp \
+# Run interactively (stdio mode for MCP clients)
+docker run --rm -i \
   -e COMFYUI_URL=http://host.docker.internal:8188 \
   -v ~/.comfyui-mcp:/root/.comfyui-mcp:ro \
   comfyui-mcp
 ```
 
-### Configuration
+> **Linux users:** Add `--add-host=host.docker.internal:host-gateway` if using `host.docker.internal`.
 
-The app reads config from `~/.comfyui-mcp/config.yaml` (which resolves to `/root/.comfyui-mcp/config.yaml` in Docker). Mount your config:
+### Docker Compose
+
+A `docker-compose.yml` is included for persistent deployments:
 
 ```bash
-docker run -d \
-  -v ~/.comfyui-mcp:/root/.comfyui-mcp:ro \
-  -e COMFYUI_URL=http://your-comfyui:8188 \
-  comfyui-mcp
+# Start
+COMFYUI_URL=http://your-comfyui:8188 docker compose up -d
+
+# View logs
+docker compose logs -f comfyui-mcp
 ```
 
-### Environment variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `COMFYUI_URL` | ComfyUI server URL | Required |
-| `COMFYUI_SECURITY_MODE` | `audit` or `enforce` | `audit` |
-
-### Using Docker Compose
-
-A `docker-compose.yml` is included in the repo:
+The compose file mounts `./config.yaml` and persists audit logs to a named volume:
 
 ```yaml
 services:
@@ -460,26 +519,14 @@ volumes:
   comfyui-mcp-data:
 ```
 
-### Project structure
+### Connecting to Claude Code / Claude Desktop via Docker
 
-```
-src/comfyui_mcp/
-├── server.py              # MCP server entry point, wires all components
-├── config.py              # Pydantic settings, YAML loading, env overrides
-├── client.py              # Async HTTP client for ComfyUI API
-├── audit.py               # Structured JSON audit logger
-├── security/
-│   ├── inspector.py       # Workflow node inspection (audit/enforce)
-│   ├── node_auditor.py    # Scans installed nodes for dangerous patterns
-│   ├── sanitizer.py       # File path validation
-│   └── rate_limit.py      # Token-bucket rate limiter
-└── tools/
-    ├── generation.py      # generate_image, run_workflow
-    ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, clear_queue
-    ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
-    ├── history.py         # get_history
-    └── files.py           # upload_image, get_image, list_outputs, upload_mask
-```
+See the [Docker configuration](#add-to-claude-code--claude-desktop) in Quick Start above. The key points:
+
+- Use `docker run --rm -i` (interactive, no detach) so stdio works
+- Mount your config: `-v ~/.comfyui-mcp:/root/.comfyui-mcp:ro`
+- Set `COMFYUI_URL` to reach your ComfyUI instance from inside the container
+- Use `host.docker.internal` to reach ComfyUI running on your host machine
 
 ## License
 
