@@ -29,6 +29,63 @@ def _apply_add_node(workflow: dict[str, Any], op: dict[str, Any]) -> None:
     workflow[node_id] = {"class_type": class_type, "inputs": inputs}
 
 
+def _apply_remove_node(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+    """Remove a node and clean up dangling references."""
+    node_id = op.get("node_id")
+    if node_id not in workflow:
+        raise ValueError(f"Node '{node_id}' not found")
+    del workflow[node_id]
+    # Clean up references to the removed node in other nodes' inputs
+    for node_data in workflow.values():
+        inputs = node_data.get("inputs", {})
+        to_remove = []
+        for key, value in inputs.items():
+            if (
+                isinstance(value, list)
+                and len(value) == 2
+                and isinstance(value[0], str)
+                and value[0] == node_id
+            ):
+                to_remove.append(key)
+        for key in to_remove:
+            del inputs[key]
+
+
+def _apply_set_input(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+    """Set an input value on a node."""
+    node_id = op.get("node_id")
+    if node_id not in workflow:
+        raise ValueError(f"Node '{node_id}' not found")
+    input_name = op.get("input_name")
+    value = op.get("value")
+    workflow[node_id]["inputs"][input_name] = value
+
+
+def _apply_connect(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+    """Connect one node's output to another node's input."""
+    from_node = op.get("from_node")
+    to_node = op.get("to_node")
+    if from_node not in workflow:
+        raise ValueError(f"Source node '{from_node}' not found")
+    if to_node not in workflow:
+        raise ValueError(f"Target node '{to_node}' not found")
+    from_output = op.get("from_output", 0)
+    to_input = op.get("to_input")
+    workflow[to_node]["inputs"][to_input] = [from_node, from_output]
+
+
+def _apply_disconnect(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+    """Clear a connection on a node's input."""
+    node_id = op.get("node_id")
+    if node_id not in workflow:
+        raise ValueError(f"Node '{node_id}' not found")
+    input_name = op.get("input_name")
+    inputs = workflow[node_id]["inputs"]
+    if input_name not in inputs:
+        raise ValueError(f"Node '{node_id}' has no input '{input_name}'")
+    del inputs[input_name]
+
+
 def apply_operations(workflow: dict[str, Any], operations: list[dict[str, Any]]) -> dict[str, Any]:
     """Apply a list of operations to a workflow. Returns a new workflow dict.
 
@@ -38,6 +95,10 @@ def apply_operations(workflow: dict[str, Any], operations: list[dict[str, Any]])
     result = copy.deepcopy(workflow)
     dispatch = {
         "add_node": _apply_add_node,
+        "remove_node": _apply_remove_node,
+        "set_input": _apply_set_input,
+        "connect": _apply_connect,
+        "disconnect": _apply_disconnect,
     }
     for i, op in enumerate(operations):
         op_type = op.get("op")
