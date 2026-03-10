@@ -232,6 +232,49 @@ def _analyze_workflow(
     }
 
 
+def _format_summary(analysis: dict[str, Any]) -> str:
+    """Format an analysis dict into a human-readable summary."""
+    lines: list[str] = []
+
+    lines.append(f"Workflow: {analysis['node_count']} nodes")
+    lines.append(f"Pipeline: {analysis['pipeline']}")
+
+    if analysis["models"]:
+        model_strs = [f"{m['name']} ({m['type']})" for m in analysis["models"]]
+        lines.append(f"Models: {', '.join(model_strs)}")
+
+    if analysis["flow"]:
+        flow_parts: list[str] = []
+        for node in analysis["flow"]:
+            label = node["display_name"]
+            # Add key inline params for specific node types
+            ct = node["class_type"]
+            inputs = node["inputs"]
+            if ct == "EmptyLatentImage" and "width" in inputs and "height" in inputs:
+                label += f"({inputs['width']}x{inputs['height']})"
+            elif ct in _SAMPLER_NODE_TYPES:
+                params = []
+                if "steps" in inputs:
+                    params.append(f"steps={inputs['steps']}")
+                if "cfg" in inputs:
+                    params.append(f"cfg={inputs['cfg']}")
+                if params:
+                    label += f"({', '.join(params)})"
+            flow_parts.append(label)
+        lines.append(f"Flow: {' -> '.join(flow_parts)}")
+
+    for node_id in analysis["prompt_nodes"]:
+        lines.append(f"Prompt: node {node_id} (CLIPTextEncode)")
+    for node_id in analysis["negative_nodes"]:
+        lines.append(f"Negative: node {node_id} (CLIPTextEncode)")
+
+    if analysis["parameters"]:
+        param_strs = [f"{k}={v}" for k, v in analysis["parameters"].items()]
+        lines.append(f"Parameters: {', '.join(param_strs)}")
+
+    return "\n".join(lines)
+
+
 def register_generation_tools(
     mcp: FastMCP,
     client: ComfyUIClient,
