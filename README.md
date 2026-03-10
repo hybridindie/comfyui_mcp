@@ -163,6 +163,7 @@ docker run --rm ghcr.io/hybridindie/comfyui-mcp:latest --help
 | `get_image` | Download a generated image. Returns base64-encoded data URI. Path-sanitized. |
 | `list_outputs` | List generated output filenames from history. |
 | `upload_mask` | Upload a mask image to ComfyUI's input directory. Path-sanitized. |
+| `get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |
 
 ### Deliberately not exposed
 
@@ -455,7 +456,7 @@ src/comfyui_mcp/
     ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, clear_queue
     ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
     ├── history.py         # get_history
-    └── files.py           # upload_image, get_image, list_outputs, upload_mask
+    └── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
 ```
 
 ### Run tests
