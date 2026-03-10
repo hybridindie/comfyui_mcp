@@ -11,7 +11,11 @@ from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.security.inspector import WorkflowBlockedError, WorkflowInspector
 from comfyui_mcp.security.rate_limit import RateLimiter
-from comfyui_mcp.tools.generation import _analyze_workflow, register_generation_tools
+from comfyui_mcp.tools.generation import (
+    _analyze_workflow,
+    _format_summary,
+    register_generation_tools,
+)
 
 
 @pytest.fixture
@@ -246,3 +250,163 @@ class TestAnalyzeWorkflow:
         }
         result = _analyze_workflow(workflow, object_info=None)
         assert result["pipeline"] == "img2img"
+
+
+class TestFormatSummary:
+    def test_formats_txt2img_summary(self):
+        analysis = {
+            "node_count": 7,
+            "class_types": [
+                "CheckpointLoaderSimple",
+                "EmptyLatentImage",
+                "CLIPTextEncode",
+                "CLIPTextEncode",
+                "KSampler",
+                "VAEDecode",
+                "SaveImage",
+            ],
+            "flow": [
+                {
+                    "node_id": "4",
+                    "class_type": "CheckpointLoaderSimple",
+                    "display_name": "CheckpointLoaderSimple",
+                    "inputs": {},
+                },
+                {
+                    "node_id": "5",
+                    "class_type": "EmptyLatentImage",
+                    "display_name": "EmptyLatentImage",
+                    "inputs": {"width": 512, "height": 512},
+                },
+                {
+                    "node_id": "6",
+                    "class_type": "CLIPTextEncode",
+                    "display_name": "CLIPTextEncode",
+                    "inputs": {},
+                },
+                {
+                    "node_id": "7",
+                    "class_type": "CLIPTextEncode",
+                    "display_name": "CLIPTextEncode",
+                    "inputs": {},
+                },
+                {
+                    "node_id": "3",
+                    "class_type": "KSampler",
+                    "display_name": "KSampler",
+                    "inputs": {"steps": 20, "cfg": 7.0},
+                },
+                {
+                    "node_id": "8",
+                    "class_type": "VAEDecode",
+                    "display_name": "VAEDecode",
+                    "inputs": {},
+                },
+                {
+                    "node_id": "9",
+                    "class_type": "SaveImage",
+                    "display_name": "SaveImage",
+                    "inputs": {},
+                },
+            ],
+            "models": [{"name": "v1-5-pruned-emaonly.safetensors", "type": "checkpoint"}],
+            "parameters": {
+                "steps": 20,
+                "cfg": 7.0,
+                "sampler": "euler",
+                "scheduler": "normal",
+                "denoise": 1.0,
+                "width": 512,
+                "height": 512,
+            },
+            "pipeline": "txt2img",
+            "prompt_nodes": ["6"],
+            "negative_nodes": ["7"],
+        }
+        result = _format_summary(analysis)
+        assert "Workflow: 7 nodes" in result
+        assert "Pipeline: txt2img" in result
+        assert "v1-5-pruned-emaonly.safetensors (checkpoint)" in result
+        assert "steps=20" in result
+        assert "Prompt: node 6" in result
+        assert "Negative: node 7" in result
+        # Flow uses -> separator
+        assert " -> " in result
+
+    def test_formats_empty_workflow(self):
+        analysis = {
+            "node_count": 0,
+            "class_types": [],
+            "flow": [],
+            "models": [],
+            "parameters": {},
+            "pipeline": "unknown",
+            "prompt_nodes": [],
+            "negative_nodes": [],
+        }
+        result = _format_summary(analysis)
+        assert "Workflow: 0 nodes" in result
+
+    def test_uses_display_names_in_flow(self):
+        analysis = {
+            "node_count": 1,
+            "class_types": ["CheckpointLoaderSimple"],
+            "flow": [
+                {
+                    "node_id": "1",
+                    "class_type": "CheckpointLoaderSimple",
+                    "display_name": "Load Checkpoint",
+                    "inputs": {},
+                },
+            ],
+            "models": [],
+            "parameters": {},
+            "pipeline": "unknown",
+            "prompt_nodes": [],
+            "negative_nodes": [],
+        }
+        result = _format_summary(analysis)
+        assert "Load Checkpoint" in result
+
+    def test_omits_prompt_line_when_no_prompt_nodes(self):
+        analysis = {
+            "node_count": 1,
+            "class_types": ["SaveImage"],
+            "flow": [
+                {
+                    "node_id": "1",
+                    "class_type": "SaveImage",
+                    "display_name": "SaveImage",
+                    "inputs": {},
+                }
+            ],
+            "models": [],
+            "parameters": {},
+            "pipeline": "unknown",
+            "prompt_nodes": [],
+            "negative_nodes": [],
+        }
+        result = _format_summary(analysis)
+        assert "Prompt:" not in result
+        assert "Negative:" not in result
+
+    def test_omits_parameters_line_when_no_params(self):
+        analysis = {
+            "node_count": 1,
+            "class_types": ["SaveImage"],
+            "flow": [
+                {
+                    "node_id": "1",
+                    "class_type": "SaveImage",
+                    "display_name": "SaveImage",
+                    "inputs": {},
+                }
+            ],
+            "models": [],
+            "parameters": {},
+            "pipeline": "unknown",
+            "prompt_nodes": [],
+            "negative_nodes": [],
+        }
+        result = _format_summary(analysis)
+        assert "Parameters:" not in result
