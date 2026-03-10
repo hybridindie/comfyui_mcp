@@ -1,4 +1,4 @@
-"""Generation tools: generate_image, run_workflow."""
+"""Generation tools: generate_image, run_workflow, summarize_workflow."""
 
 from __future__ import annotations
 
