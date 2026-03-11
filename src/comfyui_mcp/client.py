@@ -69,8 +69,11 @@ class ComfyUIClient:
         r = await self._request("get", "/queue")
         return r.json()
 
-    async def post_prompt(self, workflow: dict) -> dict:
-        r = await self._request("post", "/prompt", json={"prompt": workflow})
+    async def post_prompt(self, workflow: dict, *, client_id: str | None = None) -> dict:
+        payload: dict = {"prompt": workflow}
+        if client_id is not None:
+            payload["client_id"] = client_id
+        r = await self._request("post", "/prompt", json=payload)
         return r.json()
 
     async def get_models(self, folder: str) -> list:
