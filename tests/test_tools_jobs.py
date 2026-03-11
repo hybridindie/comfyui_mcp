@@ -1,5 +1,7 @@
 """Tests for job management MCP tools."""
 
+import json
+
 import httpx
 import pytest
 import respx
@@ -7,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
+from comfyui_mcp.progress import WebSocketProgress
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.tools.jobs import register_job_tools
 
@@ -17,6 +20,16 @@ def components(tmp_path):
     audit = AuditLogger(audit_file=tmp_path / "audit.log")
     limiter = RateLimiter(max_per_minute=60)
     return client, audit, limiter
+
+
+@pytest.fixture
+def progress_components(tmp_path):
+    client = ComfyUIClient(base_url="http://test:8188")
+    audit = AuditLogger(audit_file=tmp_path / "audit.log")
+    limiter = RateLimiter(max_per_minute=60)
+    read_limiter = RateLimiter(max_per_minute=60)
+    progress = WebSocketProgress(client, timeout=10.0)
+    return client, audit, limiter, read_limiter, progress
 
 
 class TestGetQueue:
@@ -92,3 +105,71 @@ class TestClearQueue:
         result = await tools["clear_queue"](clear_pending=True)
         assert "pending" in result.lower()
         assert route.called
+
+
+class TestGetProgress:
+    @respx.mock
+    async def test_returns_completed_state(self, progress_components):
+        client, audit, limiter, read_limiter, progress = progress_components
+        respx.get("http://test:8188/history/abc-123").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "abc-123": {
+                        "outputs": {
+                            "9": {"images": [{"filename": "out.png", "subfolder": "output"}]}
+                        },
+                        "status": {"completed": True},
+                    }
+                },
+            )
+        )
+        respx.get("http://test:8188/queue").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "queue_running": [],
+                    "queue_pending": [],
+                },
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_job_tools(
+            mcp,
+            client,
+            audit,
+            limiter,
+            read_limiter=read_limiter,
+            progress=progress,
+        )
+        result = await tools["get_progress"](prompt_id="abc-123")
+        data = json.loads(result)
+        assert data["status"] == "completed"
+        assert data["prompt_id"] == "abc-123"
+        assert len(data["outputs"]) == 1
+
+    @respx.mock
+    async def test_returns_unknown_when_not_found(self, progress_components):
+        client, audit, limiter, read_limiter, progress = progress_components
+        respx.get("http://test:8188/history/nope").mock(return_value=httpx.Response(200, json={}))
+        respx.get("http://test:8188/queue").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "queue_running": [],
+                    "queue_pending": [],
+                },
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_job_tools(
+            mcp,
+            client,
+            audit,
+            limiter,
+            read_limiter=read_limiter,
+            progress=progress,
+        )
+        result = await tools["get_progress"](prompt_id="nope")
+        data = json.loads(result)
+        assert data["status"] == "unknown"
