@@ -170,9 +170,26 @@ docker run --rm ghcr.io/hybridindie/comfyui-mcp:latest --help
 | `search_models` | Search HuggingFace or CivitAI for models. Returns name, download URL, size, and stats. |
 | `download_model` | Download a model via [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager). URL and extension validated. |
 | `get_download_tasks` | Check status of active model downloads (progress, speed, status). |
-| `cancel_download` | Cancel a model download task. |
+| `cancel_download` | Cancel or clean up a model download task. |
 
 > **Requires:** [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager) installed in your ComfyUI instance. Download tools are gated behind lazy detection — if Model Manager is not installed, these tools return a helpful error message. `search_models` works without it.
+
+#### Model Manager download lifecycle
+
+Model Manager tracks downloads as tasks. After a download completes, the task remains in the list with `status: "pause"` and `progress: 100` — this is upstream Model Manager behavior. Call `cancel_download` to remove it:
+
+```
+download_model(url="...", folder="checkpoints", filename="model.safetensors")
+→ { "taskId": "abc123", ... }
+
+get_download_tasks()
+→ { "tasks": [{ "taskId": "abc123", "status": "pause", "progress": 100, ... }] }
+
+cancel_download(task_id="abc123")
+→ { "success": true, ... }
+```
+
+The `download_model` tool always sends a `previewFile` field (required by Model Manager even when empty). Omitting it causes the server to silently fail and delete the task.
 
 ### File Operations
 
@@ -231,6 +248,11 @@ rate_limits:                       # Requests per minute
   file_ops: 30
   read_only: 60
 
+model_search:
+  huggingface_token: ""            # Optional; needed for gated/private HF models
+  civitai_api_key: ""              # Optional; needed for auth-only CivitAI access
+  max_search_results: 10
+
 logging:
   audit_file: "~/.comfyui-mcp/audit.log"
 
@@ -257,6 +279,29 @@ Environment variables override config file values:
 | `COMFYUI_CIVITAI_API_KEY` | `model_search.civitai_api_key` |
 | `COMFYUI_MAX_SEARCH_RESULTS` | `model_search.max_search_results` |
 | `COMFYUI_ALLOWED_DOWNLOAD_DOMAINS` | `security.allowed_download_domains` |
+
+### HuggingFace and CivitAI API keys
+
+`search_models` and `download_model` work without API keys for many public models. Add keys when you need access to gated/private resources or higher provider limits.
+
+Set them in config:
+
+```yaml
+model_search:
+  huggingface_token: "hf_xxx"
+  civitai_api_key: "xxx"
+```
+
+Or via environment variables:
+
+```bash
+export COMFYUI_HUGGINGFACE_TOKEN="hf_xxx"
+export COMFYUI_CIVITAI_API_KEY="xxx"
+```
+
+Security notes:
+- Prefer environment variables in production so secrets do not live in files committed to git.
+- Audit logs redact sensitive fields (`token`, `api_key`, etc.), but avoid printing secrets in shell history when possible.
 
 ## Security modes
 
@@ -512,6 +557,23 @@ src/comfyui_mcp/
 uv sync
 uv run pytest -v
 ```
+
+### Smoke test against a live instance
+
+Verify connectivity, Model Manager availability, and download lifecycle against a running ComfyUI server:
+
+```bash
+# Full test (connectivity + folder listing + download task lifecycle)
+uv run python scripts/smoke_test.py
+
+# Quick connectivity + folder check only
+uv run python scripts/smoke_test.py --no-download
+
+# Target a different server
+uv run python scripts/smoke_test.py --url http://localhost:8188
+```
+
+The download probe uses a tiny (~520 KB) safetensors file from `hf-internal-testing/tiny-random-bert`. The file is created with a timestamped name and cleaned up automatically on every run.
 
 ## Docker
 
