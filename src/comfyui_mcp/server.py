@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.config import Settings, load_settings
+from comfyui_mcp.progress import WebSocketProgress
 from comfyui_mcp.security.inspector import WorkflowInspector
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
@@ -72,11 +73,19 @@ def _register_all_tools(
     inspector: WorkflowInspector,
     sanitizer: PathSanitizer,
     node_auditor: NodeAuditor,
+    progress: WebSocketProgress,
 ) -> None:
     """Register all MCP tool groups with their dependencies."""
     register_discovery_tools(server, client, audit, rate_limiters["read"], sanitizer, node_auditor)
     register_history_tools(server, client, audit, rate_limiters["read"])
-    register_job_tools(server, client, audit, rate_limiters["workflow"])
+    register_job_tools(
+        server,
+        client,
+        audit,
+        rate_limiters["workflow"],
+        read_limiter=rate_limiters["read"],
+        progress=progress,
+    )
     register_file_tools(server, client, audit, rate_limiters["file"], sanitizer)
     register_generation_tools(
         server,
@@ -85,6 +94,7 @@ def _register_all_tools(
         rate_limiters["generation"],
         inspector,
         read_limiter=rate_limiters["read"],
+        progress=progress,
     )
     register_workflow_tools(server, client, audit, rate_limiters["read"], inspector)
 
@@ -120,7 +130,21 @@ def _build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
 
     server = FastMCP(**server_kwargs)
 
-    _register_all_tools(server, client, audit, rate_limiters, inspector, sanitizer, node_auditor)
+    progress = WebSocketProgress(
+        client,
+        timeout=float(settings.comfyui.timeout_read),
+        tls_verify=settings.comfyui.tls_verify,
+    )
+    _register_all_tools(
+        server,
+        client,
+        audit,
+        rate_limiters,
+        inspector,
+        sanitizer,
+        node_auditor,
+        progress,
+    )
 
     return server, settings
 
