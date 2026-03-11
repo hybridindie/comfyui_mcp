@@ -157,3 +157,56 @@ class ComfyUIClient:
             form_data["subfolder"] = subfolder
         r = await self._request("post", "/upload/mask", files=files, data=form_data)
         return r.json()
+
+    # --- Model Manager endpoints ---
+
+    async def check_model_manager(self) -> bool:
+        """Check if ComfyUI-Model-Manager is installed."""
+        try:
+            await self._request("get", "/model-manager/models")
+            return True
+        except (httpx.HTTPStatusError, httpx.RequestError):
+            return False
+
+    async def get_model_manager_folders(self) -> list[str]:
+        """GET /model-manager/models — list available model folder types."""
+        r = await self._request("get", "/model-manager/models")
+        return r.json()
+
+    async def create_download_task(
+        self,
+        *,
+        model_type: str,
+        path_index: int,
+        fullname: str,
+        download_platform: str,
+        download_url: str,
+        size_bytes: int,
+        preview_url: str = "",
+        description: str = "",
+    ) -> dict:
+        """POST /model-manager/model — create a model download task."""
+        form_data = {
+            "type": model_type,
+            "pathIndex": str(path_index),
+            "fullname": fullname,
+            "downloadPlatform": download_platform,
+            "downloadUrl": download_url,
+            "sizeBytes": str(size_bytes),
+        }
+        if preview_url:
+            form_data["previewFile"] = preview_url
+        if description:
+            form_data["description"] = description
+        r = await self._request("post", "/model-manager/model", data=form_data)
+        return r.json()
+
+    async def get_download_tasks(self) -> list[dict]:
+        """GET /model-manager/download/task — list download tasks with progress."""
+        r = await self._request("get", "/model-manager/download/task")
+        return r.json()
+
+    async def delete_download_task(self, task_id: str) -> dict:
+        """DELETE /model-manager/download/{task_id} — cancel and remove a download."""
+        r = await self._request("delete", f"/model-manager/download/{task_id}")
+        return r.json()
