@@ -77,6 +77,10 @@ check_untyped_defs = true
 module = "comfyui_mcp.client"
 disable_error_code = ["no-any-return"]
 
+[[tool.mypy.overrides]]
+module = "websockets.*"
+ignore_missing_imports = true
+
 [tool.coverage.run]
 source = ["src/comfyui_mcp"]
 
