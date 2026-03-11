@@ -33,7 +33,7 @@ import httpx
 # Defaults
 # ---------------------------------------------------------------------------
 
-DEFAULT_URL = "https://comfyui.johndstudios.net"
+DEFAULT_URL = "http://127.0.0.1:8188"
 
 _TEST_DOWNLOAD_URL = (
     "https://huggingface.co/hf-internal-testing/tiny-random-bert/resolve/main/model.safetensors"
@@ -234,16 +234,20 @@ async def check_download_task(
             f"downloaded={downloaded}/{total}"
         )
 
-        if status in ("pause", "done", "error"):
+        if status in ("pause", "done"):
             if progress >= 99:
                 _ok(f"Download reached {progress:.0f}% (status={status!r})")
                 _warn(
                     "Note: Model Manager marks completed downloads as 'pause' at 100%. "
                     "This is expected upstream behavior — use cancel_download to clean up."
                 )
+                completed = True
             else:
                 _warn(f"Task stopped at {progress:.0f}% with status={status!r}")
-            completed = True
+            break
+
+        if status == "error":
+            _warn(f"Task failed with status={status!r} at {progress:.0f}%")
             break
 
     if not completed:

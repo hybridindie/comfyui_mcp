@@ -172,7 +172,7 @@ class ComfyUIClient:
         r = await self._request("get", "/model-manager/models")
         payload = self._unwrap_model_manager_response(r.json())
         if isinstance(payload, dict):
-            return list(payload.keys())
+            return sorted(payload.keys())
         if isinstance(payload, list):
             return payload
         raise TypeError("Unexpected response payload for /model-manager/models")
@@ -218,4 +218,7 @@ class ComfyUIClient:
     async def delete_download_task(self, task_id: str) -> dict:
         """DELETE /model-manager/download/{task_id} — cancel and remove a download."""
         r = await self._request("delete", f"/model-manager/download/{task_id}")
-        return r.json()
+        payload = self._unwrap_model_manager_response(r.json())
+        if isinstance(payload, dict):
+            return payload
+        raise TypeError("Unexpected response payload for /model-manager/download/{task_id}")
