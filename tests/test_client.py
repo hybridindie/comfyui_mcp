@@ -216,9 +216,9 @@ class TestModelManagerClient:
                 json={
                     "success": True,
                     "data": {
-                        "checkpoints": ["/models/checkpoints"],
-                        "loras": ["/models/loras"],
                         "vae": ["/models/vae"],
+                        "loras": ["/models/loras"],
+                        "checkpoints": ["/models/checkpoints"],
                     },
                 },
             )
@@ -261,7 +261,10 @@ class TestModelManagerClient:
     @respx.mock
     async def test_delete_download_task(self, client):
         respx.delete("http://test-comfyui:8188/model-manager/download/task-1").mock(
-            return_value=httpx.Response(200, json={"success": True})
+            return_value=httpx.Response(
+                200,
+                json={"success": True, "data": {"taskId": "task-1", "removed": True}},
+            )
         )
         result = await client.delete_download_task("task-1")
-        assert result["success"] is True
+        assert result == {"taskId": "task-1", "removed": True}
