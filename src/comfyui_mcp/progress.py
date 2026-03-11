@@ -60,6 +60,11 @@ class WebSocketProgress:
         self._tls_verify = tls_verify
         self._client_id = uuid.uuid4().hex
 
+    @property
+    def client_id(self) -> str:
+        """Return the client_id used for WebSocket connections."""
+        return self._client_id
+
     def _ws_url(self) -> str:
         """Derive WebSocket URL from client's HTTP base URL."""
         parsed = urlparse(self._client.base_url)

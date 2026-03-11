@@ -184,8 +184,9 @@ def register_generation_tools(
 
         warning_msg = _format_warnings(inspection.warnings)
 
-        # Submit to ComfyUI
-        response = await client.post_prompt(wf)
+        # Submit to ComfyUI — pass client_id when waiting so WebSocket receives events
+        ws_client_id = progress.client_id if wait and progress is not None else None
+        response = await client.post_prompt(wf, client_id=ws_client_id)
         prompt_id = response.get("prompt_id", "unknown")
         audit.log(tool="run_workflow", action="submitted", prompt_id=prompt_id)
 
@@ -253,7 +254,8 @@ def register_generation_tools(
 
         warning_msg = _format_warnings(inspection.warnings)
 
-        response = await client.post_prompt(wf)
+        ws_client_id = progress.client_id if wait and progress is not None else None
+        response = await client.post_prompt(wf, client_id=ws_client_id)
         prompt_id = response.get("prompt_id", "unknown")
         audit.log(tool="generate_image", action="submitted", prompt_id=prompt_id)
 
