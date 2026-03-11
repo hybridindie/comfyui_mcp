@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
+from comfyui_mcp.progress import WebSocketProgress
 from comfyui_mcp.security.inspector import WorkflowBlockedError, WorkflowInspector
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.tools.generation import (
@@ -49,6 +50,21 @@ def enforce_components(tmp_path):
         ],
     )
     return client, audit, limiter, inspector
+
+
+@pytest.fixture
+def progress_components(tmp_path, monkeypatch):
+    """Components with progress tracking enabled."""
+    client = ComfyUIClient(base_url="http://test:8188")
+    audit = AuditLogger(audit_file=tmp_path / "audit.log")
+    limiter = RateLimiter(max_per_minute=60)
+    inspector = WorkflowInspector(
+        mode="audit",
+        dangerous_nodes=["EvalNode"],
+        allowed_nodes=[],
+    )
+    progress = WebSocketProgress(client, timeout=10.0)
+    return client, audit, limiter, inspector, progress, monkeypatch
 
 
 class TestRunWorkflow:
@@ -565,3 +581,121 @@ class TestSummarizeWorkflow:
         )
         with pytest.raises(ValueError, match="Invalid JSON"):
             await tools["summarize_workflow"](workflow="not json")
+
+
+class TestGenerateImageWait:
+    @respx.mock
+    async def test_wait_true_returns_structured_result(self, progress_components):
+        client, audit, limiter, inspector, progress, monkeypatch = progress_components
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(200, json={"prompt_id": "img-wait-1"})
+        )
+
+        from comfyui_mcp.progress import ProgressState
+
+        async def fake_wait(prompt_id):
+            return ProgressState(
+                prompt_id=prompt_id,
+                status="completed",
+                elapsed_seconds=12.3,
+                outputs=[{"node_id": "9", "filename": "cat.png", "subfolder": "output"}],
+            )
+
+        monkeypatch.setattr(progress, "wait_for_completion", fake_wait)
+
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            progress=progress,
+        )
+        result = await tools["generate_image"](prompt="a cat", wait=True)
+        data = json.loads(result)
+        assert data["prompt_id"] == "img-wait-1"
+        assert data["status"] == "completed"
+        assert len(data["outputs"]) == 1
+
+    @respx.mock
+    async def test_wait_false_returns_prompt_id_string(self, progress_components):
+        client, audit, limiter, inspector, progress, _ = progress_components
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(200, json={"prompt_id": "img-nowait"})
+        )
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            progress=progress,
+        )
+        result = await tools["generate_image"](prompt="a dog", wait=False)
+        assert "img-nowait" in result
+        assert not result.startswith("{")
+
+
+class TestRunWorkflowWait:
+    @respx.mock
+    async def test_wait_true_returns_structured_result(self, progress_components):
+        client, audit, limiter, inspector, progress, monkeypatch = progress_components
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(200, json={"prompt_id": "wait-123"})
+        )
+
+        from comfyui_mcp.progress import ProgressState
+
+        async def fake_wait(prompt_id):
+            return ProgressState(
+                prompt_id=prompt_id,
+                status="completed",
+                elapsed_seconds=5.2,
+                outputs=[{"node_id": "9", "filename": "out.png", "subfolder": "output"}],
+            )
+
+        monkeypatch.setattr(progress, "wait_for_completion", fake_wait)
+
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            progress=progress,
+        )
+        result = await tools["run_workflow"](
+            workflow=json.dumps({"1": {"class_type": "KSampler", "inputs": {}}}),
+            wait=True,
+        )
+        data = json.loads(result)
+        assert data["prompt_id"] == "wait-123"
+        assert data["status"] == "completed"
+        assert data["elapsed_seconds"] == 5.2
+        assert len(data["outputs"]) == 1
+
+    @respx.mock
+    async def test_wait_false_returns_prompt_id_string(self, progress_components):
+        client, audit, limiter, inspector, progress, _ = progress_components
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(200, json={"prompt_id": "nowait-456"})
+        )
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            progress=progress,
+        )
+        result = await tools["run_workflow"](
+            workflow=json.dumps({"1": {"class_type": "KSampler", "inputs": {}}}),
+            wait=False,
+        )
+        assert "nowait-456" in result
+        # Should be plain string, not JSON
+        assert not result.startswith("{")

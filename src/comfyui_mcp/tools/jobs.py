@@ -1,13 +1,15 @@
-"""Job management tools: get_queue, get_job, cancel_job, interrupt."""
+"""Job management tools: get_queue, get_job, cancel_job, interrupt, get_progress."""
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
+from comfyui_mcp.progress import WebSocketProgress
 from comfyui_mcp.security.rate_limit import RateLimiter
 
 
@@ -16,6 +18,9 @@ def register_job_tools(
     client: ComfyUIClient,
     audit: AuditLogger,
     limiter: RateLimiter,
+    *,
+    read_limiter: RateLimiter | None = None,
+    progress: WebSocketProgress | None = None,
 ) -> dict[str, Any]:
     """Register job management tools."""
     tool_fns: dict[str, Any] = {}
@@ -85,5 +90,32 @@ def register_job_tools(
         return f"Queue cleared (running={clear_running}, pending={clear_pending})"
 
     tool_fns["clear_queue"] = clear_queue
+
+    @mcp.tool()
+    async def get_progress(prompt_id: str) -> str:
+        """Get the current execution progress for a workflow via HTTP.
+
+        Returns status (queued/running/completed/error/unknown), queue position,
+        and output files when available. Step progress and current node are only
+        available when using wait=True on run_workflow/generate_image (WebSocket).
+
+        Args:
+            prompt_id: The prompt_id returned by run_workflow or generate_image.
+        """
+        progress_limiter = read_limiter if read_limiter is not None else limiter
+        progress_limiter.check("get_progress")
+        audit.log(tool="get_progress", action="called", extra={"prompt_id": prompt_id})
+        if progress is None:
+            return json.dumps(
+                {
+                    "prompt_id": prompt_id,
+                    "status": "unknown",
+                    "error": "Progress tracking not configured",
+                }
+            )
+        state = await progress.get_state(prompt_id)
+        return json.dumps(state.to_dict())
+
+    tool_fns["get_progress"] = get_progress
 
     return tool_fns

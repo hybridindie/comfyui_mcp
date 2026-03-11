@@ -22,6 +22,11 @@ class ComfyUIClient:
         self._client: httpx.AsyncClient | None = None
         self._max_retries = max_retries
 
+    @property
+    def base_url(self) -> str:
+        """Return the base URL for the ComfyUI server."""
+        return self._base_url
+
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
             self._client = httpx.AsyncClient(

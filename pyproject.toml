@@ -9,6 +9,7 @@ dependencies = [
     "httpx>=0.28.0",
     "pydantic>=2.10.0",
     "pyyaml>=6.0.0",
+    "websockets>=15.0",
 ]
 
 [project.scripts]
@@ -75,6 +76,10 @@ check_untyped_defs = true
 [[tool.mypy.overrides]]
 module = "comfyui_mcp.client"
 disable_error_code = ["no-any-return"]
+
+[[tool.mypy.overrides]]
+module = "websockets.*"
+ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ["src/comfyui_mcp"]
