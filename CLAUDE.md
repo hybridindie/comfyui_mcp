@@ -26,17 +26,30 @@ src/comfyui_mcp/
 ├── config.py              # Pydantic settings, YAML loading, env overrides
 ├── client.py              # Async HTTP client for ComfyUI API
 ├── audit.py               # Structured JSON audit logger
+├── model_manager.py       # Lazy Model Manager detection and folder caching
+├── progress.py            # WebSocket progress tracking with HTTP polling fallback
 ├── security/
 │   ├── inspector.py       # Workflow node inspection (audit/enforce)
 │   ├── node_auditor.py    # Scans installed nodes for dangerous patterns
 │   ├── sanitizer.py       # File path validation
-│   └── rate_limit.py      # Token-bucket rate limiter
+│   ├── rate_limit.py      # Token-bucket rate limiter
+│   ├── download_validator.py  # URL domain/path and extension validation
+│   └── model_checker.py   # Proactive model availability checking
+├── workflow/
+│   ├── templates.py       # Built-in workflow templates (txt2img, img2img, etc.)
+│   ├── operations.py      # Workflow graph operations (add/remove nodes, connect)
+│   └── validation.py      # Workflow analysis and validation
 └── tools/
-    ├── generation.py      # generate_image, run_workflow
-    ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, clear_queue
+    ├── generation.py      # generate_image, run_workflow, summarize_workflow
+    ├── workflow.py        # create_workflow, modify_workflow, validate_workflow
+    ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
     ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
     ├── history.py         # get_history
-    └── files.py           # upload_image, get_image, list_outputs, upload_mask
+    ├── files.py           # upload_image, get_image, list_outputs, upload_mask
+    └── models.py          # search_models, download_model, get_download_tasks, cancel_download
+
+scripts/
+└── smoke_test.py          # Operator smoke-test against a live ComfyUI instance
 
 tests/                     # pytest with asyncio_mode = auto
 pyproject.toml            # Project config (hatchling build)
@@ -53,6 +66,11 @@ uv run ruff format src/ tests/        # Format (in-place)
 uv run ruff format --check src/ tests/  # Format check (CI)
 uv run mypy src/comfyui_mcp/          # Type check
 uv run pre-commit run --all-files     # Run all pre-commit hooks
+
+# Smoke-test against a live ComfyUI instance
+uv run python scripts/smoke_test.py                          # Full (connectivity + folders + download)
+uv run python scripts/smoke_test.py --no-download            # Connectivity + folder listing only
+uv run python scripts/smoke_test.py --url http://host:8188   # Target a specific server
 ```
 
 ## Rules
@@ -144,3 +162,12 @@ Environment variables override config: `COMFYUI_URL`, `COMFYUI_SECURITY_MODE`, e
 - Uses `pytest-asyncio` with `asyncio_mode = auto`
 - Mock ComfyUI API responses with `respx`
 - Tests mirror `src/comfyui_mcp/` structure
+
+## ComfyUI-Model-Manager API notes
+
+The [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager) plugin wraps all its responses in a `{"success": bool, "data": <payload>}` envelope. The MCP client normalizes this in `_unwrap_model_manager_response()` before returning data to callers. All `respx` mocks for Model Manager endpoints must use this shape.
+
+Two known quirks discovered against the live API:
+
+1. **`previewFile` is always required** — `POST /model-manager/model` calls `save_model_preview()` server-side regardless. Omitting the field causes the task to be silently deleted with a misleading "Task not found" error. The client always sends `previewFile` (empty string is fine).
+2. **Completed tasks stay as `pause`** — After a download finishes, the task remains in the list with `status: "pause"` and `progress: 100`. This is upstream behavior. Use `cancel_download` (which calls `DELETE /model-manager/download/{task_id}`) to remove it.
