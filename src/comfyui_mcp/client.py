@@ -160,14 +160,6 @@ class ComfyUIClient:
 
     # --- Model Manager endpoints ---
 
-    async def check_model_manager(self) -> bool:
-        """Check if ComfyUI-Model-Manager is installed."""
-        try:
-            await self._request("get", "/model-manager/models")
-            return True
-        except (httpx.HTTPStatusError, httpx.RequestError):
-            return False
-
     async def get_model_manager_folders(self) -> list[str]:
         """GET /model-manager/models — list available model folder types."""
         r = await self._request("get", "/model-manager/models")

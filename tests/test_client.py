@@ -209,32 +209,6 @@ class TestComfyUIClient:
 
 class TestModelManagerClient:
     @respx.mock
-    async def test_check_model_manager_available(self, client):
-        respx.get("http://test-comfyui:8188/model-manager/models").mock(
-            return_value=httpx.Response(200, json=["checkpoints", "loras", "vae"])
-        )
-        result = await client.check_model_manager()
-        assert result is True
-
-    @respx.mock
-    async def test_check_model_manager_not_available(self, client):
-        respx.get("http://test-comfyui:8188/model-manager/models").mock(
-            return_value=httpx.Response(404)
-        )
-        result = await client.check_model_manager()
-        assert result is False
-
-    @respx.mock
-    async def test_check_model_manager_connection_error(self):
-        # Use max_retries=1 to avoid slow retry backoff in tests
-        fast_client = ComfyUIClient(base_url="http://test-comfyui:8188", max_retries=1)
-        respx.get("http://test-comfyui:8188/model-manager/models").mock(
-            side_effect=httpx.ConnectError("Connection refused")
-        )
-        result = await fast_client.check_model_manager()
-        assert result is False
-
-    @respx.mock
     async def test_get_model_manager_folders(self, client):
         respx.get("http://test-comfyui:8188/model-manager/models").mock(
             return_value=httpx.Response(200, json=["checkpoints", "loras", "vae"])
