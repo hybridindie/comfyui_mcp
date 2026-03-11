@@ -271,11 +271,10 @@ class TestCancelDownload:
             return_value=httpx.Response(200, json={"success": True})
         )
         result = await registered_tools["cancel_download"](task_id="task-1")
-        assert (
-            "cancelled" in result.lower()
-            or "canceled" in result.lower()
-            or "success" in result.lower()
-        )
+        parsed = json.loads(result)
+        assert parsed["success"] is True
+        assert parsed["task_id"] == "task-1"
+        assert parsed["result"] == {"success": True}
 
 
 class TestServerWiring:

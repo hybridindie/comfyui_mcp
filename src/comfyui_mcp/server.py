@@ -8,7 +8,7 @@ from mcp.server.fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
-from comfyui_mcp.config import Settings, load_settings
+from comfyui_mcp.config import ModelSearchSettings, Settings, load_settings
 from comfyui_mcp.model_manager import ModelManagerDetector
 from comfyui_mcp.progress import WebSocketProgress
 from comfyui_mcp.security.download_validator import DownloadValidator
@@ -82,7 +82,7 @@ def _register_all_tools(
     model_sanitizer: PathSanitizer,
     download_validator: DownloadValidator,
     model_checker: ModelChecker,
-    model_search_settings: Settings,
+    model_search_settings: ModelSearchSettings,
 ) -> None:
     """Register all MCP tool groups with their dependencies."""
     register_discovery_tools(server, client, audit, rate_limiters["read"], sanitizer, node_auditor)
@@ -116,7 +116,7 @@ def _register_all_tools(
         sanitizer=model_sanitizer,
         detector=detector,
         validator=download_validator,
-        search_settings=model_search_settings.model_search,
+        search_settings=model_search_settings,
     )
 
 
@@ -181,7 +181,7 @@ def _build_server(settings: Settings | None = None) -> tuple[FastMCP, Settings]:
         model_sanitizer=model_sanitizer,
         download_validator=download_validator,
         model_checker=model_checker,
-        model_search_settings=settings,
+        model_search_settings=settings.model_search,
     )
 
     return server, settings

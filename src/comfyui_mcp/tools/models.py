@@ -89,49 +89,48 @@ async def _search_huggingface(
         r.raise_for_status()
         models = r.json()
 
-    results: list[dict[str, Any]] = []
-    for model in models:
-        model_id = model.get("id", "")
+        results: list[dict[str, Any]] = []
+        for model in models:
+            model_id = model.get("id", "")
 
-        # Fetch file details to find the primary model file
-        detail_url = f"{_HF_API}/{model_id}"
-        try:
-            async with httpx.AsyncClient() as http:
+            # Fetch file details to find the primary model file
+            detail_url = f"{_HF_API}/{model_id}"
+            try:
                 dr = await http.get(detail_url, headers=headers, timeout=30)
                 dr.raise_for_status()
                 detail = dr.json()
-        except httpx.HTTPError:
-            detail = {}
+            except httpx.HTTPError:
+                detail = {}
 
-        # Find the largest model file
-        siblings = detail.get("siblings", [])
-        model_file = None
-        model_size = 0
-        for sib in siblings:
-            fname = sib.get("rfilename", "")
-            ext = "." + fname.rsplit(".", 1)[-1] if "." in fname else ""
-            if ext.lower() in _MODEL_EXTENSIONS:
-                size = sib.get("size", 0)
-                if size > model_size:
-                    model_size = size
-                    model_file = fname
+            # Find the largest model file
+            siblings = detail.get("siblings", [])
+            model_file = None
+            model_size = 0
+            for sib in siblings:
+                fname = sib.get("rfilename", "")
+                ext = "." + fname.rsplit(".", 1)[-1] if "." in fname else ""
+                if ext.lower() in _MODEL_EXTENSIONS:
+                    size = sib.get("size", 0)
+                    if size > model_size:
+                        model_size = size
+                        model_file = fname
 
-        download_url = ""
-        if model_file:
-            download_url = f"https://huggingface.co/{model_id}/resolve/main/{model_file}"
+            download_url = ""
+            if model_file:
+                download_url = f"https://huggingface.co/{model_id}/resolve/main/{model_file}"
 
-        results.append(
-            {
-                "name": model_id,
-                "type": model.get("pipeline_tag", ""),
-                "url": download_url,
-                "filename": model_file or "",
-                "size_mb": round(model_size / (1024 * 1024), 1) if model_size else 0,
-                "downloads": model.get("downloads", 0),
-                "likes": model.get("likes", 0),
-                "source": "huggingface",
-            }
-        )
+            results.append(
+                {
+                    "name": model_id,
+                    "type": model.get("pipeline_tag", ""),
+                    "url": download_url,
+                    "filename": model_file or "",
+                    "size_mb": round(model_size / (1024 * 1024), 1) if model_size else 0,
+                    "downloads": model.get("downloads", 0),
+                    "likes": model.get("likes", 0),
+                    "source": "huggingface",
+                }
+            )
     return results
 
 
@@ -174,7 +173,7 @@ def register_model_tools(
         if source not in ("civitai", "huggingface"):
             raise ValueError("source must be 'civitai' or 'huggingface'")
 
-        cap = min(limit, search_settings.max_search_results)
+        cap = max(1, min(limit, search_settings.max_search_results))
 
         audit.log(
             tool="search_models",
@@ -311,13 +310,15 @@ def register_model_tools(
 
         result = await client.delete_download_task(task_id)
 
+        success = bool(result.get("success", True)) if isinstance(result, dict) else True
+
         audit.log(
             tool="cancel_download",
             action="cancelled",
-            extra={"task_id": task_id, "result": result},
+            extra={"task_id": task_id, "result": result, "success": success},
         )
 
-        return json.dumps({"success": True, "task_id": task_id, "message": "Download cancelled"})
+        return json.dumps({"success": success, "task_id": task_id, "result": result})
 
     tool_fns["cancel_download"] = cancel_download
 
