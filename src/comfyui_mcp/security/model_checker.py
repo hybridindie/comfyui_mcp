@@ -64,15 +64,18 @@ class ModelChecker:
             return []
 
         folder_models: dict[str, set[str]] = {}
+        failed_folders: set[str] = set()
         warnings: list[str] = []
 
         for model_name, folder in to_check:
+            if folder in failed_folders:
+                continue
             if folder not in folder_models:
                 try:
                     models = await client.get_models(folder)
                     folder_models[folder] = set(models)
                 except (httpx.HTTPError, OSError):
-                    folder_models[folder] = set()
+                    failed_folders.add(folder)
                     continue
 
             if model_name not in folder_models[folder]:
