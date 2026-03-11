@@ -205,3 +205,47 @@ class TestComfyUIClient:
         with pytest.raises(httpx.HTTPStatusError):
             await client.get_queue()
         assert route.call_count == 1
+
+
+class TestModelManagerClient:
+    @respx.mock
+    async def test_get_model_manager_folders(self, client):
+        respx.get("http://test-comfyui:8188/model-manager/models").mock(
+            return_value=httpx.Response(200, json=["checkpoints", "loras", "vae"])
+        )
+        result = await client.get_model_manager_folders()
+        assert result == ["checkpoints", "loras", "vae"]
+
+    @respx.mock
+    async def test_create_download_task(self, client):
+        respx.post("http://test-comfyui:8188/model-manager/model").mock(
+            return_value=httpx.Response(200, json={"success": True, "data": {"taskId": "task-1"}})
+        )
+        result = await client.create_download_task(
+            model_type="checkpoints",
+            path_index=0,
+            fullname="model.safetensors",
+            download_platform="huggingface",
+            download_url="https://huggingface.co/org/repo/resolve/main/model.safetensors",
+            size_bytes=1000000,
+        )
+        assert result["success"] is True
+
+    @respx.mock
+    async def test_get_download_tasks(self, client):
+        respx.get("http://test-comfyui:8188/model-manager/download/task").mock(
+            return_value=httpx.Response(
+                200, json=[{"taskId": "t1", "status": "doing", "progress": 50}]
+            )
+        )
+        result = await client.get_download_tasks()
+        assert len(result) == 1
+        assert result[0]["taskId"] == "t1"
+
+    @respx.mock
+    async def test_delete_download_task(self, client):
+        respx.delete("http://test-comfyui:8188/model-manager/download/task-1").mock(
+            return_value=httpx.Response(200, json={"success": True})
+        )
+        result = await client.delete_download_task("task-1")
+        assert result["success"] is True
