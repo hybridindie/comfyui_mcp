@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -197,5 +198,127 @@ def register_model_tools(
         return json.dumps({"results": results, "source": source, "query": query})
 
     tool_fns["search_models"] = search_models
+
+    @mcp.tool()
+    async def download_model(
+        url: str,
+        folder: str,
+        filename: str = "",
+    ) -> str:
+        """Download a model from HuggingFace or CivitAI via ComfyUI-Model-Manager.
+
+        Args:
+            url: Direct download URL (must be from an allowed domain)
+            folder: Target model folder (e.g. "checkpoints", "loras", "vae")
+            filename: Filename to save as (optional — inferred from URL if empty)
+
+        Returns:
+            JSON with download task status. Use get_download_tasks to check progress.
+        """
+        file_limiter.check("download_model")
+
+        # Validate URL domain and path pattern
+        validator.validate_url(url)
+
+        # Validate folder
+        sanitizer.validate_path_segment(folder, label="folder")
+        await detector.validate_folder(folder)
+
+        # Infer filename from URL if not provided
+        if not filename:
+            path = urlparse(url).path
+            filename = path.rsplit("/", 1)[-1] if "/" in path else ""
+            if not filename:
+                raise ValueError("Could not infer filename from URL. Please provide a filename.")
+
+        # Validate extension and filename
+        validator.validate_extension(filename)
+        sanitizer.validate_filename(filename)
+
+        # Infer download platform from URL
+        hostname = (urlparse(url).hostname or "").lower()
+        if "civitai" in hostname:
+            platform = "civitai"
+        elif "huggingface" in hostname:
+            platform = "huggingface"
+        else:
+            platform = "other"
+
+        audit.log(
+            tool="download_model",
+            action="downloading",
+            extra={"url": url, "folder": folder, "filename": filename, "platform": platform},
+        )
+
+        result = await client.create_download_task(
+            model_type=folder,
+            path_index=0,
+            fullname=filename,
+            download_platform=platform,
+            download_url=url,
+            size_bytes=0,
+        )
+
+        audit.log(
+            tool="download_model",
+            action="download_started",
+            extra={"result": result, "folder": folder, "filename": filename},
+        )
+
+        return json.dumps(result)
+
+    tool_fns["download_model"] = download_model
+
+    @mcp.tool()
+    async def get_download_tasks() -> str:
+        """Check the status of active model downloads.
+
+        Returns:
+            JSON with list of download tasks including progress, speed, and status.
+        """
+        read_limiter.check("get_download_tasks")
+        await detector.get_folders()  # Ensure Model Manager is available
+
+        audit.log(tool="get_download_tasks", action="checking")
+
+        tasks = await client.get_download_tasks()
+
+        audit.log(
+            tool="get_download_tasks",
+            action="checked",
+            extra={"task_count": len(tasks)},
+        )
+
+        return json.dumps({"tasks": tasks})
+
+    tool_fns["get_download_tasks"] = get_download_tasks
+
+    @mcp.tool()
+    async def cancel_download(task_id: str) -> str:
+        """Cancel and remove a model download task.
+
+        Args:
+            task_id: ID of the download task to cancel
+        """
+        file_limiter.check("cancel_download")
+        await detector.get_folders()  # Ensure Model Manager is available
+
+        audit.log(
+            tool="cancel_download",
+            action="cancelling",
+            extra={"task_id": task_id},
+        )
+
+        result = await client.delete_download_task(task_id)
+
+        audit.log(
+            tool="cancel_download",
+            action="cancelled",
+            extra={"task_id": task_id, "result": result},
+        )
+
+        return json.dumps({"success": True, "task_id": task_id, "message": "Download cancelled"})
+
+    tool_fns["cancel_download"] = cancel_download
 
     return tool_fns

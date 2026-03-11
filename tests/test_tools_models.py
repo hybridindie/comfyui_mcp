@@ -153,3 +153,125 @@ class TestSearchModels:
         )
         await tools["search_models"](query="test", source="civitai")
         assert route.calls[0].request.headers.get("authorization") == "Bearer test_key"
+
+
+class TestDownloadModel:
+    @respx.mock
+    async def test_download_valid_model(self, registered_tools):
+        respx.get("http://test:8188/model-manager/models").mock(
+            return_value=httpx.Response(200, json=["checkpoints", "loras", "vae"])
+        )
+        respx.post("http://test:8188/model-manager/model").mock(
+            return_value=httpx.Response(200, json={"success": True, "data": {"taskId": "t-1"}})
+        )
+        result = await registered_tools["download_model"](
+            url="https://civitai.com/api/download/models/12345",
+            folder="checkpoints",
+            filename="epicrealism.safetensors",
+        )
+        parsed = json.loads(result)
+        assert parsed["success"] is True
+
+    @respx.mock
+    async def test_download_blocked_domain(self, registered_tools):
+        respx.get("http://test:8188/model-manager/models").mock(
+            return_value=httpx.Response(200, json=["checkpoints"])
+        )
+        with pytest.raises(Exception, match="not in allowed domains"):
+            await registered_tools["download_model"](
+                url="https://evil.com/model.safetensors",
+                folder="checkpoints",
+                filename="model.safetensors",
+            )
+
+    @respx.mock
+    async def test_download_bad_extension(self, registered_tools):
+        respx.get("http://test:8188/model-manager/models").mock(
+            return_value=httpx.Response(200, json=["checkpoints"])
+        )
+        with pytest.raises(Exception, match="extension"):
+            await registered_tools["download_model"](
+                url="https://civitai.com/api/download/models/123",
+                folder="checkpoints",
+                filename="model.exe",
+            )
+
+    @respx.mock
+    async def test_download_invalid_folder(self, registered_tools):
+        respx.get("http://test:8188/model-manager/models").mock(
+            return_value=httpx.Response(200, json=["checkpoints", "loras"])
+        )
+        with pytest.raises(ValueError, match="not a valid model folder"):
+            await registered_tools["download_model"](
+                url="https://civitai.com/api/download/models/123",
+                folder="invalid_folder",
+                filename="model.safetensors",
+            )
+
+    @respx.mock
+    async def test_download_model_manager_unavailable(self, registered_tools):
+        respx.get("http://test:8188/model-manager/models").mock(return_value=httpx.Response(404))
+        with pytest.raises(Exception, match="not detected"):
+            await registered_tools["download_model"](
+                url="https://civitai.com/api/download/models/123",
+                folder="checkpoints",
+                filename="model.safetensors",
+            )
+
+    @respx.mock
+    async def test_download_infers_platform_huggingface(self, registered_tools):
+        respx.get("http://test:8188/model-manager/models").mock(
+            return_value=httpx.Response(200, json=["checkpoints"])
+        )
+        route = respx.post("http://test:8188/model-manager/model").mock(
+            return_value=httpx.Response(200, json={"success": True})
+        )
+        await registered_tools["download_model"](
+            url="https://huggingface.co/org/repo/resolve/main/model.safetensors",
+            folder="checkpoints",
+            filename="model.safetensors",
+        )
+        body = route.calls[0].request.content.decode()
+        assert "huggingface" in body
+
+
+class TestGetDownloadTasks:
+    @respx.mock
+    async def test_get_tasks(self, registered_tools):
+        respx.get("http://test:8188/model-manager/models").mock(
+            return_value=httpx.Response(200, json=["checkpoints"])
+        )
+        respx.get("http://test:8188/model-manager/download/task").mock(
+            return_value=httpx.Response(
+                200,
+                json=[
+                    {
+                        "taskId": "t1",
+                        "status": "doing",
+                        "progress": 75,
+                        "totalSize": 1000,
+                        "downloadedSize": 750,
+                    }
+                ],
+            )
+        )
+        result = await registered_tools["get_download_tasks"]()
+        parsed = json.loads(result)
+        assert len(parsed["tasks"]) == 1
+
+
+class TestCancelDownload:
+    @respx.mock
+    async def test_cancel_task(self, registered_tools):
+        respx.get("http://test:8188/model-manager/models").mock(
+            return_value=httpx.Response(200, json=["checkpoints"])
+        )
+        respx.delete("http://test:8188/model-manager/download/task-1").mock(
+            return_value=httpx.Response(200, json={"success": True})
+        )
+        result = await registered_tools["cancel_download"](task_id="task-1")
+        assert (
+            "cancelled" in result.lower()
+            or "canceled" in result.lower()
+            or "success" in result.lower()
+        )
