@@ -43,6 +43,8 @@ _DEFAULT_DANGEROUS_NODES = [
 ]
 
 _DEFAULT_ALLOWED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".json"]
+_DEFAULT_ALLOWED_DOWNLOAD_DOMAINS = ["huggingface.co", "civitai.com"]
+_DEFAULT_ALLOWED_MODEL_EXTENSIONS = [".safetensors", ".ckpt", ".pt", ".pth", ".bin"]
 
 
 class ComfyUISettings(BaseModel):
@@ -68,6 +70,8 @@ class SecuritySettings(BaseModel):
     dangerous_nodes: list[str] = list(_DEFAULT_DANGEROUS_NODES)
     max_upload_size_mb: int = 50
     allowed_extensions: list[str] = list(_DEFAULT_ALLOWED_EXTENSIONS)
+    allowed_download_domains: list[str] = list(_DEFAULT_ALLOWED_DOWNLOAD_DOMAINS)
+    allowed_model_extensions: list[str] = list(_DEFAULT_ALLOWED_MODEL_EXTENSIONS)
 
     @field_validator("max_upload_size_mb")
     @classmethod
@@ -77,6 +81,12 @@ class SecuritySettings(BaseModel):
         if v > 500:
             raise ValueError("max_upload_size_mb must not exceed 500")
         return v
+
+
+class ModelSearchSettings(BaseModel):
+    huggingface_token: str = ""
+    civitai_api_key: str = ""
+    max_search_results: int = 10
 
 
 class RateLimitSettings(BaseModel):
@@ -106,6 +116,7 @@ class Settings(BaseModel):
     rate_limits: RateLimitSettings = RateLimitSettings()
     logging: LoggingSettings = LoggingSettings()
     transport: TransportSettings = TransportSettings()
+    model_search: ModelSearchSettings = ModelSearchSettings()
 
 
 def _apply_env_overrides(data: dict) -> dict:
@@ -117,6 +128,10 @@ def _apply_env_overrides(data: dict) -> dict:
         "COMFYUI_TIMEOUT_READ": ("comfyui", "timeout_read"),
         "COMFYUI_SECURITY_MODE": ("security", "mode"),
         "COMFYUI_AUDIT_FILE": ("logging", "audit_file"),
+        "COMFYUI_HUGGINGFACE_TOKEN": ("model_search", "huggingface_token"),
+        "COMFYUI_CIVITAI_API_KEY": ("model_search", "civitai_api_key"),
+        "COMFYUI_MAX_SEARCH_RESULTS": ("model_search", "max_search_results"),
+        "COMFYUI_ALLOWED_DOWNLOAD_DOMAINS": ("security", "allowed_download_domains"),
     }
     for env_var, path in env_map.items():
         value = os.environ.get(env_var)
@@ -124,10 +139,12 @@ def _apply_env_overrides(data: dict) -> dict:
             section, key = path
             if section not in data:
                 data[section] = {}
-            if key in ("timeout_connect", "timeout_read"):
+            if key in ("timeout_connect", "timeout_read", "max_search_results"):
                 data[section][key] = int(value)
             elif key == "tls_verify":
                 data[section][key] = value.lower() in ("true", "1", "yes")
+            elif key == "allowed_download_domains":
+                data[section][key] = [d.strip() for d in value.split(",") if d.strip()]
             else:
                 data[section][key] = value
     return data
