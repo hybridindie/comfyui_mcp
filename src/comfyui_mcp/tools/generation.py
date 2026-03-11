@@ -12,6 +12,7 @@ from mcp.server.fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
+from comfyui_mcp.progress import WebSocketProgress
 from comfyui_mcp.security.inspector import WorkflowInspector
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.workflow.validation import SAMPLER_NODE_TYPES as _SAMPLER_NODE_TYPES
@@ -149,17 +150,21 @@ def register_generation_tools(
     inspector: WorkflowInspector,
     *,
     read_limiter: RateLimiter | None = None,
+    progress: WebSocketProgress | None = None,
 ) -> dict[str, Any]:
     """Register generation tools."""
     tool_fns: dict[str, Any] = {}
 
     @mcp.tool()
-    async def run_workflow(workflow: str) -> str:
+    async def run_workflow(workflow: str, wait: bool = False) -> str:
         """Submit an arbitrary ComfyUI workflow for execution.
 
         Args:
             workflow: JSON string of a ComfyUI workflow (API format).
                       Each key is a node ID, each value has 'class_type' and 'inputs'.
+            wait: If True, block until execution completes and return structured result
+                  with status, outputs, and elapsed time. If False (default), return
+                  immediately with just the prompt_id.
         """
         limiter.check("run_workflow")
         try:
@@ -168,21 +173,35 @@ def register_generation_tools(
             raise ValueError(f"Invalid JSON workflow: {e}") from e
 
         # Inspect the workflow
-        result = inspector.inspect(wf)
+        inspection = inspector.inspect(wf)
         audit.log(
             tool="run_workflow",
             action="inspected",
-            nodes_used=result.nodes_used,
-            warnings=result.warnings,
+            nodes_used=inspection.nodes_used,
+            warnings=inspection.warnings,
             status="allowed",
         )
 
-        warning_msg = _format_warnings(result.warnings)
+        warning_msg = _format_warnings(inspection.warnings)
 
         # Submit to ComfyUI
         response = await client.post_prompt(wf)
         prompt_id = response.get("prompt_id", "unknown")
         audit.log(tool="run_workflow", action="submitted", prompt_id=prompt_id)
+
+        if wait and progress is not None:
+            state = await progress.wait_for_completion(prompt_id)
+            audit.log(
+                tool="run_workflow",
+                action="completed",
+                prompt_id=prompt_id,
+                extra={"status": state.status, "elapsed": state.elapsed_seconds},
+            )
+            result_dict = state.to_dict()
+            if inspection.warnings:
+                result_dict["warnings"] = inspection.warnings
+            return json.dumps(result_dict)
+
         return f"Workflow submitted. prompt_id: {prompt_id}{warning_msg}"
 
     tool_fns["run_workflow"] = run_workflow
@@ -196,6 +215,7 @@ def register_generation_tools(
         steps: int = 20,
         cfg: float = 7.0,
         model: str = "",
+        wait: bool = False,
     ) -> str:
         """Generate an image from a text prompt using a default txt2img workflow.
 
@@ -207,6 +227,8 @@ def register_generation_tools(
             steps: Number of sampling steps (more = better quality, slower)
             cfg: Classifier-free guidance scale (higher = more prompt adherence)
             model: Checkpoint model name (leave empty for default)
+            wait: If True, block until generation completes and return structured result.
+                  If False (default), return immediately with just the prompt_id.
         """
         if not MIN_DIMENSION <= width <= MAX_WIDTH:
             raise ValueError(f"width must be between {MIN_DIMENSION} and {MAX_WIDTH}")
@@ -220,20 +242,34 @@ def register_generation_tools(
         limiter.check("generate_image")
         wf = _build_txt2img_workflow(prompt, negative_prompt, width, height, steps, cfg, model)
 
-        result = inspector.inspect(wf)
+        inspection = inspector.inspect(wf)
         audit.log(
             tool="generate_image",
             action="inspected",
-            nodes_used=result.nodes_used,
-            warnings=result.warnings,
+            nodes_used=inspection.nodes_used,
+            warnings=inspection.warnings,
             extra={"prompt": prompt, "width": width, "height": height},
         )
 
-        warning_msg = _format_warnings(result.warnings)
+        warning_msg = _format_warnings(inspection.warnings)
 
         response = await client.post_prompt(wf)
         prompt_id = response.get("prompt_id", "unknown")
         audit.log(tool="generate_image", action="submitted", prompt_id=prompt_id)
+
+        if wait and progress is not None:
+            state = await progress.wait_for_completion(prompt_id)
+            audit.log(
+                tool="generate_image",
+                action="completed",
+                prompt_id=prompt_id,
+                extra={"status": state.status, "elapsed": state.elapsed_seconds},
+            )
+            result_dict = state.to_dict()
+            if inspection.warnings:
+                result_dict["warnings"] = inspection.warnings
+            return json.dumps(result_dict)
+
         return f"Image generation started. prompt_id: {prompt_id}{warning_msg}"
 
     tool_fns["generate_image"] = generate_image
