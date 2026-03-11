@@ -150,6 +150,24 @@ class TestModelChecker:
         assert len(warnings) == 1
 
     @respx.mock
+    async def test_dual_clip_loader_checks_both_fields(self, checker, client):
+        respx.get("http://test:8188/models/clip").mock(
+            return_value=httpx.Response(200, json=["clip_l.safetensors"])
+        )
+        workflow = {
+            "8": {
+                "class_type": "DualCLIPLoader",
+                "inputs": {
+                    "clip_name1": "clip_l.safetensors",
+                    "clip_name2": "missing_clip_g.safetensors",
+                },
+            }
+        }
+        warnings = await checker.check_models(workflow, client)
+        assert len(warnings) == 1
+        assert "missing_clip_g.safetensors" in warnings[0]
+
+    @respx.mock
     async def test_input_is_reference_not_string(self, checker, client):
         """When input is a node reference like ['4', 0], skip it."""
         workflow = {
