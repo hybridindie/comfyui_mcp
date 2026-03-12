@@ -9,6 +9,9 @@ RUN uv sync --frozen --no-dev
 
 COPY src/ ./src/
 
+RUN groupadd --system app && useradd --system --gid app app
+USER app
+
 ENV PYTHONPATH=/app
 
 ENTRYPOINT ["uv", "run", "comfyui-mcp"]

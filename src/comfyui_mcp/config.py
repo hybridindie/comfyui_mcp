@@ -105,6 +105,19 @@ class SSESettings(BaseModel):
     host: str = "127.0.0.1"
     port: int = 8080
 
+    @field_validator("host")
+    @classmethod
+    def warn_non_localhost(cls, v: str) -> str:
+        if v not in ("127.0.0.1", "::1", "localhost"):
+            import logging
+
+            logging.getLogger("comfyui_mcp.config").warning(
+                "SSE transport binding to %s — this exposes all MCP tools without "
+                "authentication. Only use behind a reverse proxy with auth and TLS.",
+                v,
+            )
+        return v
+
 
 class TransportSettings(BaseModel):
     sse: SSESettings = SSESettings()

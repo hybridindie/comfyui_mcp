@@ -47,8 +47,8 @@ class FakeWebSocket:
 
 class TestProgressState:
     def test_default_state(self):
-        state = ProgressState(prompt_id="abc-123")
-        assert state.prompt_id == "abc-123"
+        state = ProgressState(prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        assert state.prompt_id == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         assert state.status == "unknown"
         assert state.step is None
         assert state.total_steps is None
@@ -56,9 +56,11 @@ class TestProgressState:
         assert state.outputs == []
 
     def test_to_dict_omits_none_fields(self):
-        state = ProgressState(prompt_id="abc-123", status="queued", queue_position=3)
+        state = ProgressState(
+            prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", status="queued", queue_position=3
+        )
         d = state.to_dict()
-        assert d["prompt_id"] == "abc-123"
+        assert d["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         assert d["status"] == "queued"
         assert d["queue_position"] == 3
         assert "step" not in d
@@ -67,7 +69,7 @@ class TestProgressState:
 
     def test_to_dict_includes_set_fields(self):
         state = ProgressState(
-            prompt_id="abc-123",
+            prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
             status="running",
             step=5,
             total_steps=20,
@@ -118,7 +120,7 @@ class TestWebSocketProgress:
 
         monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fake_connect)
 
-        state = await progress.wait_for_completion("prompt-1")
+        state = await progress.wait_for_completion("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert state.status == "completed"
         assert state.step == 20
         assert state.total_steps == 20
@@ -148,7 +150,7 @@ class TestWebSocketProgress:
 
         monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fake_connect)
 
-        state = await progress.wait_for_completion("prompt-1")
+        state = await progress.wait_for_completion("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert state.status == "error"
 
     async def test_wait_for_completion_timeout(self, monkeypatch):
@@ -174,7 +176,7 @@ class TestWebSocketProgress:
 
         monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fake_connect)
 
-        state = await progress.wait_for_completion("prompt-1")
+        state = await progress.wait_for_completion("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert state.status == "timeout"
 
     @respx.mock
@@ -188,6 +190,7 @@ class TestWebSocketProgress:
         monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fail_connect)
 
         # Simulate: first poll returns "running", second returns "completed"
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         history_call_count = 0
 
         def history_side_effect(request):
@@ -197,7 +200,7 @@ class TestWebSocketProgress:
                 return httpx.Response(
                     200,
                     json={
-                        "prompt-1": {
+                        prompt_id: {
                             "outputs": {
                                 "9": {"images": [{"filename": "out.png", "subfolder": ""}]}
                             },
@@ -207,12 +210,12 @@ class TestWebSocketProgress:
                 )
             return httpx.Response(200, json={})
 
-        respx.get("http://test:8188/history/prompt-1").mock(side_effect=history_side_effect)
+        respx.get(f"http://test:8188/history/{prompt_id}").mock(side_effect=history_side_effect)
         respx.get("http://test:8188/queue").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "queue_running": [["0", "prompt-1", {}, {}]],
+                    "queue_running": [["0", prompt_id, {}, {}]],
                     "queue_pending": [],
                 },
             )
@@ -221,7 +224,7 @@ class TestWebSocketProgress:
         # Patch sleep to avoid real delays in tests
         monkeypatch.setattr("comfyui_mcp.progress.asyncio.sleep", AsyncMock())
 
-        state = await progress.wait_for_completion("prompt-1")
+        state = await progress.wait_for_completion(prompt_id)
         assert state.status == "completed"
         assert state.elapsed_seconds is not None
 
@@ -230,11 +233,11 @@ class TestWebSocketProgress:
         client = ComfyUIClient(base_url="http://test:8188")
         progress = WebSocketProgress(client, timeout=10.0)
 
-        respx.get("http://test:8188/history/abc-123").mock(
+        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "abc-123": {
+                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {
                         "outputs": {
                             "9": {"images": [{"filename": "img.png", "subfolder": "output"}]}
                         },
@@ -253,7 +256,7 @@ class TestWebSocketProgress:
             )
         )
 
-        state = await progress.get_state("abc-123")
+        state = await progress.get_state("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert state.status == "completed"
         assert len(state.outputs) == 1
         assert state.outputs[0]["filename"] == "img.png"
@@ -263,7 +266,7 @@ class TestWebSocketProgress:
         client = ComfyUIClient(base_url="http://test:8188")
         progress = WebSocketProgress(client, timeout=10.0)
 
-        respx.get("http://test:8188/history/abc-123").mock(
+        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
             return_value=httpx.Response(200, json={})
         )
         respx.get("http://test:8188/queue").mock(
@@ -273,13 +276,13 @@ class TestWebSocketProgress:
                     "queue_running": [],
                     "queue_pending": [
                         [0, "other-id", {}, {}],
-                        [1, "abc-123", {}, {}],
+                        [1, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {}, {}],
                     ],
                 },
             )
         )
 
-        state = await progress.get_state("abc-123")
+        state = await progress.get_state("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert state.status == "queued"
         assert state.queue_position == 2
 
@@ -288,18 +291,18 @@ class TestWebSocketProgress:
         client = ComfyUIClient(base_url="http://test:8188")
         progress = WebSocketProgress(client, timeout=10.0)
 
-        respx.get("http://test:8188/history/abc-123").mock(
+        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
             return_value=httpx.Response(200, json={})
         )
         respx.get("http://test:8188/queue").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "queue_running": [[0, "abc-123", {}, {}]],
+                    "queue_running": [[0, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {}, {}]],
                     "queue_pending": [],
                 },
             )
         )
 
-        state = await progress.get_state("abc-123")
+        state = await progress.get_state("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert state.status == "running"
