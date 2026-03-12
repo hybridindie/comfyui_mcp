@@ -193,7 +193,8 @@ def register_discovery_tools(
                 entry["torch_vram_total_mb"] = round(device["torch_vram_total"] / (1024 * 1024))
             if "torch_vram_free" in device and isinstance(device["torch_vram_free"], int | float):
                 entry["torch_vram_free_mb"] = round(device["torch_vram_free"] / (1024 * 1024))
-            devices.append(entry)
+            if entry:
+                devices.append(entry)
 
         running = len(queue_raw.get("queue_running", []))
         pending = len(queue_raw.get("queue_pending", []))
