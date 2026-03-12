@@ -52,7 +52,7 @@ class TestCancelJob:
         route = respx.post("http://test:8188/queue").mock(return_value=httpx.Response(200, json={}))
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        await tools["cancel_job"](prompt_id="abc-123")
+        await tools["cancel_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert route.called
 
 
@@ -73,13 +73,16 @@ class TestGetJob:
     @respx.mock
     async def test_get_job_returns_history_item(self, components):
         client, audit, limiter = components
-        respx.get("http://test:8188/history/abc-123").mock(
-            return_value=httpx.Response(200, json={"abc-123": {"outputs": {"9": {"images": []}}}})
+        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
+            return_value=httpx.Response(
+                200,
+                json={"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {"outputs": {"9": {"images": []}}}},
+            )
         )
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        result = await tools["get_job"](prompt_id="abc-123")
-        assert "abc-123" in result
+        result = await tools["get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
 
 class TestGetQueueStatus:
@@ -111,11 +114,11 @@ class TestGetProgress:
     @respx.mock
     async def test_returns_completed_state(self, progress_components):
         client, audit, limiter, read_limiter, progress = progress_components
-        respx.get("http://test:8188/history/abc-123").mock(
+        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "abc-123": {
+                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {
                         "outputs": {
                             "9": {"images": [{"filename": "out.png", "subfolder": "output"}]}
                         },
@@ -142,16 +145,19 @@ class TestGetProgress:
             read_limiter=read_limiter,
             progress=progress,
         )
-        result = await tools["get_progress"](prompt_id="abc-123")
+        result = await tools["get_progress"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         data = json.loads(result)
         assert data["status"] == "completed"
-        assert data["prompt_id"] == "abc-123"
+        assert data["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         assert len(data["outputs"]) == 1
 
     @respx.mock
     async def test_returns_unknown_when_not_found(self, progress_components):
         client, audit, limiter, read_limiter, progress = progress_components
-        respx.get("http://test:8188/history/nope").mock(return_value=httpx.Response(200, json={}))
+        not_found_id = "11111111-2222-3333-4444-555555555555"
+        respx.get(f"http://test:8188/history/{not_found_id}").mock(
+            return_value=httpx.Response(200, json={})
+        )
         respx.get("http://test:8188/queue").mock(
             return_value=httpx.Response(
                 200,
@@ -170,6 +176,6 @@ class TestGetProgress:
             read_limiter=read_limiter,
             progress=progress,
         )
-        result = await tools["get_progress"](prompt_id="nope")
+        result = await tools["get_progress"](prompt_id=not_found_id)
         data = json.loads(result)
         assert data["status"] == "unknown"

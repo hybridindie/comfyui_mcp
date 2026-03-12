@@ -75,25 +75,29 @@ class TestRunWorkflow:
     async def test_submits_workflow(self, components):
         client, audit, limiter, inspector = components
         respx.post("http://test:8188/prompt").mock(
-            return_value=httpx.Response(200, json={"prompt_id": "abc-123"})
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
         )
         mcp = FastMCP("test")
         tools = register_generation_tools(mcp, client, audit, limiter, inspector)
         workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
         result = await tools["run_workflow"](workflow=json.dumps(workflow))
-        assert "abc-123" in result
+        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
     @respx.mock
     async def test_audit_mode_logs_dangerous_nodes(self, components):
         client, audit, limiter, inspector = components
         respx.post("http://test:8188/prompt").mock(
-            return_value=httpx.Response(200, json={"prompt_id": "abc-123"})
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
         )
         mcp = FastMCP("test")
         tools = register_generation_tools(mcp, client, audit, limiter, inspector)
         workflow = {"1": {"class_type": "EvalNode", "inputs": {}}}
         result = await tools["run_workflow"](workflow=json.dumps(workflow))
-        assert "abc-123" in result
+        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
         assert "EvalNode" in result
 
     async def test_enforce_mode_blocks_unapproved(self, enforce_components):
@@ -812,7 +816,9 @@ class TestModelCheckIntegration:
             return_value=httpx.Response(200, json=["other_model.safetensors"])
         )
         respx.post("http://test:8188/prompt").mock(
-            return_value=httpx.Response(200, json={"prompt_id": "abc-123"})
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
         )
         mcp_server = FastMCP("test")
         model_checker = ModelChecker()
