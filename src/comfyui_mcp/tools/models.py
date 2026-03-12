@@ -170,6 +170,15 @@ def register_model_tools(
         """
         read_limiter.check("search_models")
 
+        # Input validation
+        stripped_query = query.strip()
+        if not stripped_query:
+            raise ValueError("query must not be empty")
+        if len(stripped_query) > 200:
+            raise ValueError("query must not exceed 200 characters")
+        if model_type and len(model_type) > 100:
+            raise ValueError("model_type must not exceed 100 characters")
+
         if source not in ("civitai", "huggingface"):
             raise ValueError("source must be 'civitai' or 'huggingface'")
 
@@ -178,14 +187,16 @@ def register_model_tools(
         audit.log(
             tool="search_models",
             action="searching",
-            extra={"query": query, "source": source, "model_type": model_type},
+            extra={"query": stripped_query, "source": source, "model_type": model_type},
         )
 
         if source == "civitai":
-            results = await _search_civitai(query, model_type, cap, search_settings.civitai_api_key)
+            results = await _search_civitai(
+                stripped_query, model_type, cap, search_settings.civitai_api_key
+            )
         else:
             results = await _search_huggingface(
-                query, model_type, cap, search_settings.huggingface_token
+                stripped_query, model_type, cap, search_settings.huggingface_token
             )
 
         audit.log(
@@ -194,7 +205,7 @@ def register_model_tools(
             extra={"source": source, "result_count": len(results)},
         )
 
-        return json.dumps({"results": results, "source": source, "query": query})
+        return json.dumps({"results": results, "source": source, "query": stripped_query})
 
     tool_fns["search_models"] = search_models
 
