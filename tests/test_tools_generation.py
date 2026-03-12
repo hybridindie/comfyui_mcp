@@ -584,6 +584,76 @@ class TestSummarizeWorkflow:
         with pytest.raises(ValueError, match="Invalid JSON"):
             await tools["summarize_workflow"](workflow="not json")
 
+    @respx.mock
+    async def test_supports_mermaid_output(self, components):
+        client, audit, limiter, inspector = components
+        read_limiter = RateLimiter(max_per_minute=60)
+        respx.get("http://test:8188/object_info").mock(return_value=httpx.Response(200, json={}))
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            read_limiter=read_limiter,
+        )
+        workflow = {
+            "4": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": "model.safetensors"},
+            },
+            "5": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {"width": 512, "height": 512, "batch_size": 1},
+            },
+            "3": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "steps": 20,
+                    "cfg": 7.0,
+                    "model": ["4", 0],
+                    "latent_image": ["5", 0],
+                },
+            },
+            "8": {
+                "class_type": "VAEDecode",
+                "inputs": {"samples": ["3", 0], "vae": ["4", 2]},
+            },
+            "9": {
+                "class_type": "SaveImage",
+                "inputs": {"filename_prefix": "test", "images": ["8", 0]},
+            },
+        }
+
+        result = await tools["summarize_workflow"](
+            workflow=json.dumps(workflow),
+            format="mermaid",
+        )
+
+        assert "flowchart LR" in result
+        assert "-->|MODEL|" in result
+        assert "-->|LATENT|" in result
+        assert "classDef loader" in result
+        assert "classDef sampler" in result
+        assert "classDef output" in result
+
+    async def test_rejects_invalid_format(self, components):
+        client, audit, limiter, inspector = components
+        read_limiter = RateLimiter(max_per_minute=60)
+        mcp_server = FastMCP("test")
+        tools = register_generation_tools(
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            read_limiter=read_limiter,
+        )
+
+        with pytest.raises(ValueError, match='format must be either "text" or "mermaid"'):
+            await tools["summarize_workflow"](workflow="{}", format="yaml")
+
 
 class TestGenerateImageWait:
     @respx.mock

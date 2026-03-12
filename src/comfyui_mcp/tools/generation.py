@@ -16,6 +16,7 @@ from comfyui_mcp.progress import WebSocketProgress
 from comfyui_mcp.security.inspector import WorkflowBlockedError, WorkflowInspector
 from comfyui_mcp.security.model_checker import ModelChecker
 from comfyui_mcp.security.rate_limit import RateLimiter
+from comfyui_mcp.workflow.validation import INPUT_NODE_TYPES as _INPUT_NODE_TYPES
 from comfyui_mcp.workflow.validation import SAMPLER_NODE_TYPES as _SAMPLER_NODE_TYPES
 from comfyui_mcp.workflow.validation import WorkflowAnalysis
 from comfyui_mcp.workflow.validation import analyze_workflow as _analyze_workflow
@@ -139,6 +140,103 @@ def _format_summary(analysis: WorkflowAnalysis) -> str:
     if analysis["parameters"]:
         param_strs = [f"{k}={v}" for k, v in analysis["parameters"].items()]
         lines.append(f"Parameters: {', '.join(param_strs)}")
+
+    return "\n".join(lines)
+
+
+def _escape_mermaid_text(value: Any) -> str:
+    """Escape text used in Mermaid node labels."""
+    text = str(value)
+    text = text.replace('"', "'")
+    return text.replace("\n", " ")
+
+
+def _classify_node_style(class_type: str) -> str:
+    """Map class types to Mermaid style categories."""
+    if class_type in _SAMPLER_NODE_TYPES:
+        return "sampler"
+    if class_type in {"SaveImage", "PreviewImage", "SaveAnimatedWEBP", "SaveVideo"}:
+        return "output"
+    if "Encode" in class_type or class_type.endswith("Encoder"):
+        return "encoder"
+    if class_type in _INPUT_NODE_TYPES or "Loader" in class_type:
+        return "loader"
+    return "default"
+
+
+def _format_node_subtitle(node: dict[str, Any]) -> str:
+    """Build compact node subtitle with key parameters for diagram readability."""
+    ct = node["class_type"]
+    inputs = node["inputs"]
+    if ct in {"CheckpointLoaderSimple", "CheckpointLoader"} and "ckpt_name" in inputs:
+        return _escape_mermaid_text(inputs["ckpt_name"])
+    if ct == "EmptyLatentImage" and "width" in inputs and "height" in inputs:
+        return f"{inputs['width']}x{inputs['height']}"
+    if ct in _SAMPLER_NODE_TYPES:
+        parts: list[str] = []
+        if "steps" in inputs:
+            parts.append(f"steps={inputs['steps']}")
+        if "cfg" in inputs:
+            parts.append(f"cfg={inputs['cfg']}")
+        return ", ".join(parts)
+    if ct == "CLIPTextEncode" and "text" in inputs:
+        text = _escape_mermaid_text(inputs["text"])
+        return text if len(text) <= 48 else f"{text[:45]}..."
+    return ""
+
+
+def _edge_label_for_input(input_name: str) -> str:
+    """Map ComfyUI input names to readable Mermaid edge labels."""
+    mapping = {
+        "model": "MODEL",
+        "clip": "CLIP",
+        "vae": "VAE",
+        "positive": "CONDITIONING",
+        "negative": "CONDITIONING",
+        "latent_image": "LATENT",
+        "samples": "LATENT",
+        "image": "IMAGE",
+        "images": "IMAGE",
+    }
+    return mapping.get(input_name, input_name.upper())
+
+
+def _format_mermaid(analysis: WorkflowAnalysis) -> str:
+    """Format an analysis dict as a Mermaid flowchart."""
+    lines: list[str] = ["flowchart LR"]
+
+    styles: dict[str, str] = {}
+    for node in analysis["flow"]:
+        node_id = node["node_id"]
+        graph_id = f"n{node_id}"
+        title = _escape_mermaid_text(node["display_name"])
+        subtitle = _format_node_subtitle(node)
+        label = f"{title}<br/>{subtitle}" if subtitle else title
+        lines.append(f'    {graph_id}["{label}"]')
+        styles[graph_id] = _classify_node_style(node["class_type"])
+
+    node_ids = {n["node_id"] for n in analysis["flow"]}
+    for node in analysis["flow"]:
+        child_graph_id = f"n{node['node_id']}"
+        for input_name, value in node["inputs"].items():
+            if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
+                parent_id = value[0]
+                if parent_id in node_ids:
+                    parent_graph_id = f"n{parent_id}"
+                    label = _edge_label_for_input(input_name)
+                    lines.append(f"    {parent_graph_id} -->|{label}| {child_graph_id}")
+
+    lines.extend(
+        [
+            "    classDef loader fill:#d9ebff,stroke:#1d4e89,color:#0b2239;",
+            "    classDef sampler fill:#d8f3dc,stroke:#2d6a4f,color:#0b2818;",
+            "    classDef encoder fill:#fde2c5,stroke:#b96a00,color:#3d2400;",
+            "    classDef output fill:#ffd8d8,stroke:#a4161a,color:#3b090a;",
+            "    classDef default fill:#eef1f4,stroke:#6b7280,color:#111827;",
+        ]
+    )
+    for graph_id, style in styles.items():
+        lines.append(f"    class {graph_id} {style};")
 
     return "\n".join(lines)
 
@@ -295,7 +393,7 @@ def register_generation_tools(
     tool_fns["generate_image"] = generate_image
 
     @mcp.tool()
-    async def summarize_workflow(workflow: str) -> str:
+    async def summarize_workflow(workflow: str, format: str = "text") -> str:  # noqa: A002
         """Summarize a ComfyUI workflow's structure, data flow, and key parameters.
 
         Parses the workflow graph, extracts models, parameters, and execution flow.
@@ -304,9 +402,15 @@ def register_generation_tools(
         Args:
             workflow: JSON string of a ComfyUI workflow (API format).
                       Each key is a node ID, each value has 'class_type' and 'inputs'.
+            format: Output format. "text" for human-readable summary (default),
+                    "mermaid" for Mermaid flowchart markup.
         """
         summary_limiter = read_limiter if read_limiter is not None else limiter
         summary_limiter.check("summarize_workflow")
+
+        output_format = format.lower().strip()
+        if output_format not in {"text", "mermaid"}:
+            raise ValueError('format must be either "text" or "mermaid"')
 
         try:
             wf = json.loads(workflow)
@@ -328,8 +432,11 @@ def register_generation_tools(
             extra={
                 "node_count": analysis["node_count"],
                 "pipeline": analysis["pipeline"],
+                "format": output_format,
             },
         )
+        if output_format == "mermaid":
+            return _format_mermaid(analysis)
         return _format_summary(analysis)
 
     tool_fns["summarize_workflow"] = summarize_workflow
