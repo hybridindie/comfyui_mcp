@@ -11,9 +11,35 @@ from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.security.inspector import WorkflowInspector
 from comfyui_mcp.security.rate_limit import RateLimiter
+from comfyui_mcp.security.sanitizer import PathSanitizer, PathValidationError
 from comfyui_mcp.workflow.operations import apply_operations
 from comfyui_mcp.workflow.templates import create_from_template
 from comfyui_mcp.workflow.validation import validate_workflow as _validate_workflow
+
+_PATH_LIKE_TEMPLATE_PARAMS = {
+    "model",
+    "model_name",
+    "motion_module",
+    "controlnet_model",
+    "ipadapter_model",
+    "clip_vision_model",
+    "lora_name",
+    "face_restore_model",
+    "image",
+    "mask",
+}
+
+
+def _sanitize_template_params(
+    param_dict: dict[str, Any], sanitizer: PathSanitizer
+) -> dict[str, Any]:
+    """Sanitize filename-like template params to block traversal/null-byte inputs."""
+    sanitized = dict(param_dict)
+    for key in _PATH_LIKE_TEMPLATE_PARAMS:
+        value = sanitized.get(key)
+        if isinstance(value, str):
+            sanitized[key] = sanitizer.validate_path_segment(value, label=key)
+    return sanitized
 
 
 def register_workflow_tools(
@@ -22,6 +48,7 @@ def register_workflow_tools(
     audit: AuditLogger,
     limiter: RateLimiter,
     inspector: WorkflowInspector,
+    sanitizer: PathSanitizer,
 ) -> dict[str, Any]:
     """Register workflow composition tools."""
     tool_fns: dict[str, Any] = {}
@@ -30,13 +57,16 @@ def register_workflow_tools(
     async def create_workflow(template: str, params: str = "{}") -> str:
         """Create a ComfyUI workflow from a template with optional parameter overrides.
 
-        Available templates: txt2img, img2img, upscale, inpaint, txt2vid_animatediff, txt2vid_wan.
+        Available templates: txt2img, img2img, upscale, inpaint, txt2vid_animatediff,
+        txt2vid_wan, controlnet_canny, controlnet_depth, controlnet_openpose,
+        ip_adapter, lora_stack, face_restore, flux_txt2img, sdxl_txt2img.
 
         Args:
             template: Template name (e.g. 'txt2img', 'img2img')
             params: Optional JSON string of parameter overrides.
                     Common params: prompt, negative_prompt, width, height,
-                    steps, cfg, model, denoise.
+                    steps, cfg, model, denoise, controlnet_model,
+                    control_strength, lora_name, lora_strength.
         """
         limiter.check("create_workflow")
         try:
@@ -47,7 +77,12 @@ def register_workflow_tools(
         if not isinstance(param_dict, dict):
             raise ValueError('params must be a JSON object (e.g. {"key": "value"})')
 
-        wf = create_from_template(template, param_dict)
+        try:
+            clean_params = _sanitize_template_params(param_dict, sanitizer)
+        except PathValidationError as e:
+            raise ValueError(str(e)) from e
+
+        wf = create_from_template(template, clean_params)
         audit.log(
             tool="create_workflow",
             action="created",
