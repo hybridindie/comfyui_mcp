@@ -23,8 +23,6 @@ _MODEL_FAMILY_ALIASES = {
     "stable-diffusion-xl": "sdxl",
     "stable diffusion xl": "sdxl",
     "stable_diffusion_xl": "sdxl",
-    "sdxl": "sdxl",
-    "flux": "flux",
     "flux.1": "flux",
     "sd3": "sd3",
     "sd3.5": "sd3",
@@ -367,6 +365,8 @@ def register_discovery_tools(
             family = _normalize_model_family(model_family)
         elif model_name:
             family = _infer_model_family(model_name)
+            if family is None:
+                raise ValueError(f"Could not infer model family from: {model_name}")
         else:
             raise ValueError("Provide either model_name or model_family")
 

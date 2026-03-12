@@ -353,3 +353,11 @@ class TestModelPresetsAndGuides:
 
         with pytest.raises(ValueError, match="Unknown model family"):
             await tools["get_prompting_guide"]("unknown")
+
+    async def test_get_model_presets_rejects_unrecognized_model_name(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+
+        with pytest.raises(ValueError, match="Could not infer model family from"):
+            await tools["get_model_presets"](model_name="mystery_model_v1.safetensors")
