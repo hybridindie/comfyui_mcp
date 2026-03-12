@@ -22,13 +22,15 @@ class TestImageGenerationFlow:
             return_value=httpx.Response(200, json=["sd_v15.safetensors"])
         )
         respx.post("http://mock-comfyui:8188/prompt").mock(
-            return_value=httpx.Response(200, json={"prompt_id": "test-001"})
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
         )
-        respx.get("http://mock-comfyui:8188/history/test-001").mock(
+        respx.get("http://mock-comfyui:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "test-001": {
+                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {
                         "outputs": {
                             "9": {
                                 "images": [
@@ -57,18 +59,20 @@ class TestImageGenerationFlow:
         # Step 2: Generate an image
         generate_fn = tools["generate_image"].fn
         result = await generate_fn(prompt="a sunset over mountains")
-        assert "test-001" in result
+        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
         # Step 3: Check the job
         get_job_fn = tools["get_job"].fn
-        job = await get_job_fn(prompt_id="test-001")
-        assert "test-001" in job
+        job = await get_job_fn(prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in job
 
     @respx.mock
     async def test_run_workflow_with_dangerous_node_in_audit_mode(self):
         """Audit mode logs dangerous nodes but still submits the workflow."""
         respx.post("http://mock-comfyui:8188/prompt").mock(
-            return_value=httpx.Response(200, json={"prompt_id": "danger-001"})
+            return_value=httpx.Response(
+                200, json={"prompt_id": "11111111-2222-3333-4444-555555555555"}
+            )
         )
 
         settings = Settings(comfyui=ComfyUISettings(url="http://mock-comfyui:8188"))
@@ -77,7 +81,7 @@ class TestImageGenerationFlow:
         run_workflow_fn = server._tool_manager._tools["run_workflow"].fn
         workflow = json.dumps({"1": {"class_type": "Terminal", "inputs": {}}})
         result = await run_workflow_fn(workflow=workflow)
-        assert "danger-001" in result
+        assert "11111111-2222-3333-4444-555555555555" in result
         assert "Terminal" in result
 
     async def test_run_workflow_blocked_in_enforce_mode(self):

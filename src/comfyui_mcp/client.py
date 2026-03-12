@@ -3,8 +3,29 @@
 from __future__ import annotations
 
 import asyncio
+import re
 
 import httpx
+
+_ALLOWED_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "DELETE", "PATCH"})
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+_SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+
+
+def _validate_prompt_id(prompt_id: str) -> str:
+    """Validate that a prompt_id is a well-formed UUID."""
+    if not _UUID_RE.match(prompt_id):
+        raise ValueError(f"Invalid prompt_id format: {prompt_id!r}")
+    return prompt_id
+
+
+def _validate_path_segment(value: str, *, label: str = "value") -> str:
+    """Validate that a value is safe for interpolation into a URL path segment."""
+    if not value:
+        raise ValueError(f"{label} must not be empty")
+    if not _SAFE_SEGMENT_RE.match(value):
+        raise ValueError(f"{label} contains invalid characters: {value!r}")
+    return value
 
 
 class ComfyUIClient:
@@ -38,11 +59,14 @@ class ComfyUIClient:
 
     async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
         """Make an HTTP request with retry logic for transient failures."""
+        normalized = method.upper()
+        if normalized not in _ALLOWED_HTTP_METHODS:
+            raise ValueError(f"HTTP method not allowed: {method!r}")
         last_exception: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 c = await self._get_client()
-                r = await getattr(c, method)(path, **kwargs)
+                r = await c.request(normalized, path, **kwargs)
                 r.raise_for_status()
                 return r
             except httpx.HTTPStatusError:
@@ -88,6 +112,8 @@ class ComfyUIClient:
         return r.json()
 
     async def get_object_info(self, node_class: str | None = None) -> dict:
+        if node_class is not None:
+            _validate_path_segment(node_class, label="node_class")
         path = f"/object_info/{node_class}" if node_class else "/object_info"
         r = await self._request("get", path)
         return r.json()
@@ -97,6 +123,7 @@ class ComfyUIClient:
         return r.json()
 
     async def get_history_item(self, prompt_id: str) -> dict:
+        _validate_prompt_id(prompt_id)
         r = await self._request("get", f"/history/{prompt_id}")
         return r.json()
 
@@ -104,6 +131,7 @@ class ComfyUIClient:
         await self._request("post", "/interrupt")
 
     async def delete_queue_item(self, prompt_id: str) -> None:
+        _validate_prompt_id(prompt_id)
         await self._request("post", "/queue", json={"delete": [prompt_id]})
 
     async def upload_image(self, data: bytes, filename: str, subfolder: str = "") -> dict:
@@ -228,6 +256,7 @@ class ComfyUIClient:
 
     async def delete_download_task(self, task_id: str) -> dict:
         """DELETE /model-manager/download/{task_id} — cancel and remove a download."""
+        _validate_path_segment(task_id, label="task_id")
         r = await self._request("delete", f"/model-manager/download/{task_id}")
         payload = self._unwrap_model_manager_response(r.json())
         if isinstance(payload, dict):
