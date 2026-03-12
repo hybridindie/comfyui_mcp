@@ -177,6 +177,8 @@ docker run --rm ghcr.io/hybridindie/comfyui-mcp:latest --help
 | `download_model` | Download a model via [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager). URL and extension validated. |
 | `get_download_tasks` | Check status of active model downloads (progress, speed, status). |
 | `cancel_download` | Cancel or clean up a model download task. |
+| `get_model_presets` | Return recommended sampler/scheduler/steps/CFG defaults for a model family. |
+| `get_prompting_guide` | Return model-family prompt engineering tips and negative prompt guidance. |
 
 > **Requires:** [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager) installed in your ComfyUI instance. Download tools are gated behind lazy detection — if Model Manager is not installed, these tools return a helpful error message. `search_models` works without it.
 

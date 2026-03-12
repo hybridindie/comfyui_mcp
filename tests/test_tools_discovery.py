@@ -304,3 +304,52 @@ class TestGetSystemInfo:
 
         with pytest.raises(RateLimitError):
             await tools["get_system_info"]()
+
+
+class TestModelPresetsAndGuides:
+    async def test_get_model_presets_by_family(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+
+        result = await tools["get_model_presets"](model_family="flux")
+
+        assert result["family"] == "flux"
+        assert result["recommended"]["sampler"] == "euler"
+        assert result["recommended"]["cfg"] == 1.0
+
+    async def test_get_model_presets_infers_family_from_model_name(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+
+        result = await tools["get_model_presets"](model_name="flux1-dev-fp8.safetensors")
+
+        assert result["family"] == "flux"
+
+    async def test_get_model_presets_rejects_missing_inputs(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+
+        with pytest.raises(ValueError, match="Provide either model_name or model_family"):
+            await tools["get_model_presets"]()
+
+    async def test_get_prompting_guide_returns_data(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+
+        result = await tools["get_prompting_guide"]("sdxl")
+
+        assert result["family"] == "sdxl"
+        assert "prompt_structure" in result["guide"]
+        assert "negative_prompt_tips" in result["guide"]
+
+    async def test_get_prompting_guide_rejects_unknown_family(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+
+        with pytest.raises(ValueError, match="Unknown model family"):
+            await tools["get_prompting_guide"]("unknown")
