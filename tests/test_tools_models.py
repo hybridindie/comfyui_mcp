@@ -156,6 +156,39 @@ class TestSearchModels:
         assert route.calls[0].request.headers.get("authorization") == "Bearer test_key"
 
 
+class TestSearchModelsInputValidation:
+    @respx.mock
+    async def test_query_too_long_rejected(self, registered_tools):
+        with pytest.raises(ValueError, match="query.*200"):
+            await registered_tools["search_models"](query="x" * 201, source="civitai")
+
+    @respx.mock
+    async def test_empty_query_rejected(self, registered_tools):
+        with pytest.raises(ValueError, match="query.*empty"):
+            await registered_tools["search_models"](query="", source="civitai")
+
+    @respx.mock
+    async def test_query_whitespace_only_rejected(self, registered_tools):
+        with pytest.raises(ValueError, match="query.*empty"):
+            await registered_tools["search_models"](query="   ", source="civitai")
+
+    @respx.mock
+    async def test_model_type_too_long_rejected(self, registered_tools):
+        with pytest.raises(ValueError, match="model_type.*100"):
+            await registered_tools["search_models"](
+                query="test", source="civitai", model_type="x" * 101
+            )
+
+    @respx.mock
+    async def test_limit_clamped_to_max(self, registered_tools):
+        """Limit above max should be clamped, not rejected."""
+        respx.get("https://civitai.com/api/v1/models").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        # Should not raise — limit is clamped to max_search_results
+        await registered_tools["search_models"](query="test", source="civitai", limit=999)
+
+
 class TestDownloadModel:
     @respx.mock
     async def test_download_valid_model(self, registered_tools):
