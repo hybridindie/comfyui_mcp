@@ -16,7 +16,7 @@ class TestAuditRecord:
         record = AuditRecord(
             tool="run_workflow",
             action="submitted",
-            prompt_id="abc-123",
+            prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
             nodes_used=["KSampler", "CLIPTextEncode"],
             warnings=["Dangerous node: EvalNode"],
         )

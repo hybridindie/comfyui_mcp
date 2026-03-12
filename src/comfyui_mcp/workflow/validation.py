@@ -182,13 +182,11 @@ async def validate_workflow(
         inputs = node_data.get("inputs")
         if inputs is None:
             errors.append(f"Node '{node_id}': missing 'inputs'")
-            node_data["inputs"] = {}
             continue
         if not isinstance(inputs, dict):
             errors.append(
                 f"Node '{node_id}': 'inputs' must be an object, got {type(inputs).__name__}"
             )
-            node_data["inputs"] = {}
             continue
         for input_name, value in inputs.items():
             if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):

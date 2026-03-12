@@ -31,10 +31,12 @@ class TestComfyUIClient:
     @respx.mock
     async def test_post_prompt(self, client):
         respx.post("http://test-comfyui:8188/prompt").mock(
-            return_value=httpx.Response(200, json={"prompt_id": "abc-123"})
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
         )
         result = await client.post_prompt({"1": {"class_type": "KSampler", "inputs": {}}})
-        assert result["prompt_id"] == "abc-123"
+        assert result["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
     @respx.mock
     async def test_get_models(self, client):
@@ -91,15 +93,17 @@ class TestComfyUIClient:
     @respx.mock
     async def test_delete_queue_item(self, client):
         respx.post("http://test-comfyui:8188/queue").mock(return_value=httpx.Response(200, json={}))
-        await client.delete_queue_item("abc-123")
+        await client.delete_queue_item("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
 
     @respx.mock
     async def test_get_history_item(self, client):
-        respx.get("http://test-comfyui:8188/history/abc-123").mock(
-            return_value=httpx.Response(200, json={"abc-123": {"outputs": {}}})
+        respx.get("http://test-comfyui:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
+            return_value=httpx.Response(
+                200, json={"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {"outputs": {}}}
+            )
         )
-        result = await client.get_history_item("abc-123")
-        assert "abc-123" in result
+        result = await client.get_history_item("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
     @respx.mock
     async def test_get_embeddings(self, client):
