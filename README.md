@@ -41,7 +41,7 @@ uv sync
 **Option B: Docker (no clone required)**
 
 ```bash
-docker pull ghcr.io/hybridindie/comfyui-mcp:latest
+docker pull ghcr.io/hybridindie/comfyui_mcp:main
 ```
 
 Or build locally from the repo:
@@ -82,14 +82,14 @@ See the [Setup](#setup) section below for configuration snippets for Claude Code
 uv run python -c "from comfyui_mcp.server import mcp; print(f'Server {mcp.name!r} ready')"
 
 # Docker
-docker run --rm ghcr.io/hybridindie/comfyui-mcp:latest --help
+docker run --rm ghcr.io/hybridindie/comfyui_mcp:main --help
 ```
 
 ## Setup
 
 Configuration snippets for connecting the MCP server to your AI assistant. Each environment supports `uvx` (recommended) and Docker variants.
 
-> **Docker note:** All Docker snippets use `-i` (required for stdio), `--rm` (auto-remove on exit), and `host.docker.internal` to reach the host machine from inside the container. On Linux, replace `-e COMFYUI_URL=http://host.docker.internal:8188` with `--network host -e COMFYUI_URL=http://localhost:8188`. The image `ghcr.io/hybridindie/comfyui_mcp` is published on every push to main. Pin to a semver tag for stability.
+> **Docker note:** All Docker snippets use `-i` (required for stdio), `--rm` (auto-remove on exit), and `host.docker.internal` to reach the host machine from inside the container. On Linux, replace `-e COMFYUI_URL=http://host.docker.internal:8188` with `--network host -e COMFYUI_URL=http://localhost:8188`. The image `ghcr.io/hybridindie/comfyui_mcp:main` is published on every push to main. Pin to a semver tag for stability.
 
 ### Claude Code
 
@@ -138,7 +138,7 @@ Config file: `~/Library/Application Support/Claude/claude_desktop_config.json` (
   "mcpServers": {
     "comfyui": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp"],
+      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp:main"],
       "env": {}
     }
   }
@@ -172,7 +172,7 @@ Config: `.vscode/mcp.json` (workspace) or `MCP: Open User Configuration` command
     "comfyui": {
       "type": "stdio",
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp"],
+      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp:main"],
       "env": {}
     }
   }
@@ -204,7 +204,7 @@ Config: `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global).
   "mcpServers": {
     "comfyui": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp"],
+      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp:main"],
       "env": {}
     }
   }
@@ -236,7 +236,7 @@ Config: `~/.codeium/windsurf/mcp_config.json`.
   "mcpServers": {
     "comfyui": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp"],
+      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp:main"],
       "env": {}
     }
   }
@@ -271,7 +271,7 @@ mcpServers:
       - "--rm"
       - "-e"
       - "COMFYUI_URL=http://host.docker.internal:8188"
-      - "ghcr.io/hybridindie/comfyui_mcp"
+      - "ghcr.io/hybridindie/comfyui_mcp:main"
 ```
 
 ### OpenCode
@@ -301,7 +301,7 @@ Config: `~/.config/opencode/opencode.json` (global) or `opencode.json` (project 
     "comfyui": {
       "type": "local",
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp"],
+      "args": ["run", "-i", "--rm", "-e", "COMFYUI_URL=http://host.docker.internal:8188", "ghcr.io/hybridindie/comfyui_mcp:main"],
       "env": {}
     }
   }
@@ -813,7 +813,7 @@ The download probe uses a tiny (~520 KB) safetensors file from `hf-internal-test
 A pre-built Docker image is published to the GitHub Container Registry. No need to clone the repo.
 
 ```bash
-docker pull ghcr.io/hybridindie/comfyui-mcp:latest
+docker pull ghcr.io/hybridindie/comfyui_mcp:main
 ```
 
 ### How it works
@@ -827,7 +827,7 @@ The container runs `uv run comfyui-mcp` as its entrypoint, communicating over st
 docker run --rm -i \
   -e COMFYUI_URL=http://host.docker.internal:8188 \
   -v ~/.comfyui-mcp:/root/.comfyui-mcp:ro \
-  ghcr.io/hybridindie/comfyui-mcp:latest
+  ghcr.io/hybridindie/comfyui_mcp:main
 
 # Or build and run locally
 docker build -t comfyui-mcp .
@@ -879,7 +879,7 @@ See the [Docker configuration](#add-to-claude-code--claude-desktop) in Quick Sta
 - Mount your config: `-v ~/.comfyui-mcp:/root/.comfyui-mcp:ro`
 - Set `COMFYUI_URL` to reach your ComfyUI instance from inside the container
 - Use `host.docker.internal` to reach ComfyUI running on your host machine
-- The GHCR image (`ghcr.io/hybridindie/comfyui-mcp:latest`) means no local build needed
+- The GHCR image (`ghcr.io/hybridindie/comfyui_mcp:main`) means no local build needed
 
 ## License
 
