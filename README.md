@@ -1,10 +1,10 @@
 # comfyui-mcp
 
-A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants like Claude to generate images, run workflows, and manage jobs through ComfyUI — with built-in security controls that existing ComfyUI MCP servers lack.
+A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants like Claude to generate images, run workflows, and manage jobs through ComfyUI — with built-in security controls.
 
 ## Why this exists
 
-Every existing ComfyUI MCP server is a thin passthrough to ComfyUI's API with no security guardrails. They allow arbitrary workflow execution (including malicious custom nodes that run `eval`/`exec`), have no input validation, no file path sanitization, no rate limiting, and no audit trail.
+ComfyUI's API is powerful but permissive — custom nodes can execute arbitrary code, file paths are accepted without validation, and there's no built-in rate limiting or audit trail. When exposing this API to an AI assistant via MCP, those gaps become security risks.
 
 This server adds five security layers between the AI assistant and ComfyUI:
 
@@ -22,68 +22,342 @@ When `wait=True` is passed to `generate_image` or `run_workflow`, the server con
 
 ## Quick start
 
-### Prerequisites
-
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/) package manager
-- A running ComfyUI instance (local or remote)
-
-### Install
-
-**Option A: From source (recommended for development)**
-
 ```bash
-git clone https://github.com/hybridindie/comfyui_mcp.git
-cd comfyui_mcp
-uv sync
+# Install
+pip install comfyui-mcp  # or: git clone + uv sync
+
+# Add to Claude Code (plugin with slash commands, skills, and security hook)
+claude plugin install github:hybridindie/comfyui_mcp
+
+# Or add to any MCP client via uvx
+# See "Setup" section below for Claude Desktop, VS Code, Cursor, and more
 ```
 
-**Option B: Docker (no clone required)**
+Prerequisites: Python 3.12+, a running ComfyUI instance.
+
+Set `COMFYUI_URL` if ComfyUI isn't at `http://localhost:8188`:
 
 ```bash
-docker pull ghcr.io/hybridindie/comfyui_mcp:main
+export COMFYUI_URL="http://your-gpu-server:8188"
 ```
 
-Or build locally from the repo:
+## Tools
+
+### Generation & Workflows
+
+| Tool | Description |
+|------|-------------|
+| `generate_image` | Text-to-image using a built-in workflow. Params: prompt, negative_prompt, width, height, steps, cfg, model. Set `wait=True` to block until complete and return outputs. |
+| `transform_image` | Image-to-image transformation. Params: image (filename), prompt, negative_prompt, strength (0.0-1.0), steps, cfg, model. Input must be uploaded via `upload_image` first. |
+| `inpaint_image` | Inpaint masked regions of an image. Params: image, mask (filenames), prompt, negative_prompt, strength, steps, cfg, model. Both files must be uploaded first. |
+| `upscale_image` | Upscale an image using a model-based upscaler. Params: image (filename), upscale_model (default: RealESRGAN_x4plus.pth). |
+| `run_workflow` | Submit arbitrary ComfyUI workflow JSON. Inspected for dangerous nodes before execution. Set `wait=True` to block until complete and return outputs. |
+| `summarize_workflow` | Summarize a workflow's structure, data flow, models, and parameters. Supports `format="text"` (default) or `format="mermaid"` for diagram markup. |
+| `create_workflow` | Create a workflow from templates including txt2img/img2img/upscale/inpaint, txt2vid_animatediff/txt2vid_wan, controlnet_canny/controlnet_depth/controlnet_openpose, ip_adapter, lora_stack, face_restore, flux_txt2img, and sdxl_txt2img. |
+| `modify_workflow` | Apply batch operations (add_node, remove_node, set_input, connect, disconnect) to a workflow. |
+| `validate_workflow` | Validate workflow structure, server compatibility, and security. |
+
+### Job Management
+
+| Tool | Description |
+|------|-------------|
+| `get_queue` | Get current execution queue state. |
+| `get_job` | Check status of a job by prompt_id. |
+| `cancel_job` | Cancel a running or queued job. |
+| `interrupt` | Interrupt the currently executing workflow. |
+| `get_queue_status` | Get detailed queue status including running and pending prompts. |
+| `clear_queue` | Clear pending and/or running items from the queue. |
+| `get_progress` | Get execution progress for a workflow by prompt_id. Returns status, queue position, and outputs. |
+
+### Discovery
+
+| Tool | Description |
+|------|-------------|
+| `list_models` | List available models by folder (checkpoints, loras, vae, etc.). |
+| `list_nodes` | List all available node types. |
+| `get_node_info` | Get detailed info about a specific node type. |
+| `list_workflows` | List saved workflow templates. |
+| `list_extensions` | List available ComfyUI extensions. |
+| `get_server_features` | Get ComfyUI server features and capabilities. |
+| `list_model_folders` | List available model folder types. |
+| `get_model_metadata` | Get metadata for a specific model file. |
+| `audit_dangerous_nodes` | Scan all installed nodes to identify potentially dangerous ones. |
+| `get_system_info` | Sanitized GPU VRAM, queue depth, and ComfyUI version (whitelist-filtered from `/system_stats`). |
+
+### History
+
+| Tool | Description |
+|------|-------------|
+| `get_history` | Browse execution history (read-only). |
+
+### Model Search & Download
+
+| Tool | Description |
+|------|-------------|
+| `search_models` | Search HuggingFace or CivitAI for models. Returns name, download URL, size, and stats. |
+| `download_model` | Download a model via [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager). URL and extension validated. |
+| `get_download_tasks` | Check status of active model downloads (progress, speed, status). |
+| `cancel_download` | Cancel or clean up a model download task. |
+| `get_model_presets` | Return recommended sampler/scheduler/steps/CFG defaults for a model family. |
+| `get_prompting_guide` | Return model-family prompt engineering tips and negative prompt guidance. |
+
+> **Requires:** [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager) installed in your ComfyUI instance. Download tools are gated behind lazy detection — if Model Manager is not installed, these tools return a helpful error message. `search_models` works without it.
+
+#### Model Manager download lifecycle
+
+Model Manager tracks downloads as tasks. After a download completes, the task remains in the list with `status: "pause"` and `progress: 100` — this is upstream Model Manager behavior. Call `cancel_download` to remove it:
+
+```
+download_model(url="...", folder="checkpoints", filename="model.safetensors")
+→ { "taskId": "abc123", ... }
+
+get_download_tasks()
+→ { "tasks": [{ "taskId": "abc123", "status": "pause", "progress": 100, ... }] }
+
+cancel_download(task_id="abc123")
+→ { "success": true, ... }
+```
+
+The `download_model` tool always sends a `previewFile` field (required by Model Manager even when empty). Omitting it causes the server to silently fail and delete the task.
+
+### Custom Node Management
+
+| Tool | Description |
+|------|-------------|
+| `search_custom_nodes` | Search the ComfyUI Manager registry for custom nodes by name, description, or author. Returns ID, name, description, author, and install status. |
+| `install_custom_node` | Install a custom node pack from the registry. Set `restart=True` to restart ComfyUI and run an automatic security audit on all installed nodes. |
+| `uninstall_custom_node` | Uninstall a custom node pack. Set `restart=True` to restart ComfyUI afterward. |
+| `update_custom_node` | Update a custom node pack to the latest version. Set `restart=True` to restart and audit. |
+| `get_custom_node_status` | Check the custom node operation queue status (total tasks, completed, in progress, processing state). |
+
+> **Requires:** [ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Manager) installed in your ComfyUI instance. Tools are gated behind lazy detection — if ComfyUI Manager is not installed, these tools return a helpful error message.
+
+### File Operations
+
+| Tool | Description |
+|------|-------------|
+| `upload_image` | Upload a base64-encoded image to ComfyUI's input directory. Path-sanitized. |
+| `get_image` | Download a generated image. Returns base64-encoded data URI. Path-sanitized. |
+| `list_outputs` | List generated output filenames from history. |
+| `upload_mask` | Upload a mask image to ComfyUI's input directory. Path-sanitized. |
+| `get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |
+
+### Deliberately not exposed
+
+These ComfyUI endpoints are **never** proxied due to security risks:
+
+- `/userdata` — arbitrary file read/write
+- `/free` — unload models (DoS vector)
+- `/users` — user management
+- `/history` POST — delete history
+
+`/system_stats` is called internally **only** by `get_system_info`, which applies a strict whitelist and never forwards the raw response.
+
+## Security
+
+### Threat model
+
+| Threat | Impact | Mitigation |
+|--------|--------|------------|
+| Arbitrary code execution via workflow nodes | Critical | Workflow inspector (audit/enforce mode) |
+| Path traversal via file operations | High | Path sanitizer blocks `..`, null bytes, encoded attacks, absolute paths |
+| Denial of service via request flooding | Medium | Token-bucket rate limiter per tool category |
+| Credential leakage in logs | Medium | Automatic redaction of `token`, `password`, `secret`, `api_key`, `authorization` |
+| Information disclosure via API | Low | Dangerous endpoints (`/userdata`, `/free`) never proxied; `/system_stats` whitelist-filtered by `get_system_info` |
+| MITM on ComfyUI connection | Medium | Configurable TLS verification |
+
+### Security controls by component
+
+**Workflow Inspector** (`security/inspector.py`)
+- Parses workflow JSON, extracts node types, checks against configurable blocklist
+- Recursive pattern matching for `__import__()`, `eval()`, `exec()`, `os.system()`, `subprocess` in all input values (including nested dicts/lists)
+- Audit mode: logs warnings, allows execution. Enforce mode: blocks unapproved nodes
+- Limitation: static blocklist can be bypassed with obfuscation or unknown custom nodes
+
+**Path Sanitizer** (`security/sanitizer.py`)
+- Validates filenames, subfolders, and URL path segments: blocks path traversal, null bytes, absolute paths, control characters
+- URL path segment validation on discovery tools (`list_models`, `get_model_metadata`) prevents folder/filename injection
+- Allowlist-based extension filtering (default: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.json`)
+- Handles percent-encoded inputs (URL decoding before validation)
+- Enforces max upload size (default 50MB), max filename length (255 chars)
+
+**Rate Limiter** (`security/rate_limit.py`)
+- Token-bucket per tool category: workflow (10/min), generation (10/min), file_ops (30/min), read_only (60/min)
+- In-memory only (resets on restart, no distributed support)
+
+**HTTP Client** (`client.py`)
+- Configurable TLS verification, connect/read timeouts
+- Retries on connection errors with backoff (3 retries default). HTTP 4xx/5xx errors raised immediately (no retry)
+
+**WebSocket Progress** (`progress.py`)
+- On-demand WebSocket connections for real-time execution tracking (step progress, current node, outputs)
+- Automatic HTTP polling fallback if WebSocket connection fails
+- TLS/SSL passthrough for secure ComfyUI connections
+- Per-prompt event filtering (ignores events from other concurrent jobs)
+
+### Security modes
+
+#### Audit mode (default)
+
+Every workflow is inspected and logged, but nothing is blocked. Use this during development to understand what nodes your workflows use.
+
+```yaml
+security:
+  mode: "audit"
+```
+
+Audit log entries look like:
+
+```json
+{
+  "timestamp": "2026-02-25T14:30:00+00:00",
+  "tool": "run_workflow",
+  "action": "inspected",
+  "nodes_used": ["KSampler", "CLIPTextEncode", "VAEDecode", "SaveImage"],
+  "warnings": []
+}
+```
+
+When a dangerous node is detected, warnings are included in the tool response:
+
+```
+Workflow submitted. prompt_id: abc123
+
+⚠️ Warnings detected:
+  - Dangerous node type: ExecutePython
+  - Suspicious input in node 5 (ExecutePython), field 'code'
+```
+
+The MCP instructions tell the LLM to inform users and ask for confirmation before proceeding when warnings are present.
+
+#### Building your dangerous node list
+
+Use the `audit_dangerous_nodes` tool to scan your ComfyUI installation for potentially dangerous nodes:
+
+```
+audit_dangerous_nodes() → {
+  "total_nodes": 456,
+  "dangerous": {
+    "count": 12,
+    "nodes": [
+      {"class": "ExecutePython", "reason": "Name matches pattern: \\bexec\\b"},
+      {"class": "RunPython", "reason": "Name matches pattern: \\brunpython\\b"},
+      {"class": "ShellCommand", "reason": "Name matches pattern: \\bshell\\b"}
+    ]
+  },
+  "suspicious": {...}
+}
+```
+
+Add these to your config:
+
+```yaml
+security:
+  mode: "audit"
+  dangerous_nodes:
+    - "ExecutePython"      # from audit_dangerous_nodes
+    - "RunPython"
+    - "ShellCommand"
+    # ... other nodes found by audit
+```
+
+#### Enforce mode
+
+Only explicitly approved nodes can run. Any workflow containing an unapproved node is rejected.
+
+```yaml
+security:
+  mode: "enforce"
+  allowed_nodes:
+    - "KSampler"
+    - "CheckpointLoaderSimple"
+    - "CLIPTextEncode"
+    - "VAEDecode"
+    - "EmptyLatentImage"
+    - "SaveImage"
+    - "LoadImage"
+    - "LoraLoader"
+```
+
+**Tip:** Use `audit_dangerous_nodes` to identify dangerous nodes, run workflows in audit mode to see which nodes you use, then switch to enforce mode with that allowlist.
+
+### Audit log
+
+All tool invocations are logged as JSON lines to `~/.comfyui-mcp/audit.log`:
 
 ```bash
-docker build -t comfyui-mcp .
+# Watch the audit log in real time
+tail -f ~/.comfyui-mcp/audit.log | python -m json.tool
+
+# Find all workflows that used dangerous nodes
+grep '"warnings":\[' ~/.comfyui-mcp/audit.log | grep -v '"warnings":\[\]'
 ```
 
-### Configure
+Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are automatically redacted from log entries.
 
-Create a minimal config for your ComfyUI instance:
+### Production deployment
 
-```bash
-mkdir -p ~/.comfyui-mcp
-cat > ~/.comfyui-mcp/config.yaml << 'EOF'
-comfyui:
-  url: "http://127.0.0.1:8188"
-EOF
+For production, run behind a reverse proxy (nginx, Traefik) to add TLS termination, authentication, and CSP headers. No PII is collected. No external telemetry.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Client["LLM Client"]
+        MC[Claude / AI Assistant]
+    end
+
+    subgraph MCP["ComfyUI MCP Server"]
+        CONFIG[Config<br/>YAML/env]
+        AL[Audit Logger<br/>JSON logs]
+
+        subgraph Security["Security Layers"]
+            WI[Workflow Inspector<br/>Dangerous nodes<br/>Suspicious input]
+            PS[Path Sanitizer<br/>Traversal block<br/>Extension filter]
+            RL[Rate Limiter<br/>Token-bucket]
+        end
+
+        subgraph Tools["Tool Groups"]
+            TG[generation.py<br/>jobs.py<br/>discovery.py<br/>history.py<br/>files.py]
+        end
+
+        API[ComfyUI Client<br/>httpx]
+        WS[WebSocket Progress<br/>websockets]
+    end
+
+    subgraph ComfyUI["ComfyUI Server"]
+        CS[REST API<br/>port 8188]
+        CWS[WebSocket<br/>/ws]
+    end
+
+    MC <--MCP--> MCP
+    CONFIG --> MCP
+    AL --> MCP
+
+    MCP --> Security
+    Security --> Tools
+    Tools --> API
+    Tools --> WS
+    API --httpx--> CS
+    WS --websockets--> CWS
 ```
 
-For a remote server:
+### Components
 
-```bash
-cat > ~/.comfyui-mcp/config.yaml << 'EOF'
-comfyui:
-  url: "https://your-gpu-server:8188"
-EOF
-```
-
-### Add to your AI assistant
-
-See the [Setup](#setup) section below for configuration snippets for Claude Code, Claude Desktop, VS Code, Cursor, Windsurf, Continue.dev, OpenCode, and Open WebUI.
-
-### Verify
-
-```bash
-# From source
-uv run python -c "from comfyui_mcp.server import mcp; print(f'Server {mcp.name!r} ready')"
-
-# Docker
-docker run --rm ghcr.io/hybridindie/comfyui_mcp:main --help
-```
+| Component | File | Responsibility |
+|-----------|------|----------------|
+| Server | `server.py` | Entry point, wires components, registers tools |
+| Config | `config.py` | Pydantic settings, YAML loading, env overrides |
+| Client | `client.py` | Async HTTP client for ComfyUI REST API |
+| Progress | `progress.py` | WebSocket progress tracking with HTTP polling fallback |
+| Audit | `audit.py` | Structured JSON logging with redaction |
+| Workflow Inspector | `security/inspector.py` | Node type detection, dangerous pattern matching |
+| Node Auditor | `security/node_auditor.py` | Scans installed nodes for dangerous patterns |
+| Path Sanitizer | `security/sanitizer.py` | Path traversal, extension filtering |
+| Rate Limiter | `security/rate_limit.py` | Token-bucket per tool category |
+| Download Validator | `security/download_validator.py` | URL domain/path and extension validation for downloads |
+| Model Checker | `security/model_checker.py` | Proactive missing model detection in workflows |
+| Model Manager | `model_manager.py` | Lazy detection of ComfyUI-Model-Manager availability |
 
 ## Setup
 
@@ -332,118 +606,6 @@ transport:
 
 Open WebUI may accept this at `http://<host>:8080/sse`, but SSE and Streamable HTTP are different transports. Test before relying on this path.
 
-## Tools
-
-### Generation & Workflows
-
-| Tool | Description |
-|------|-------------|
-| `generate_image` | Text-to-image using a built-in workflow. Params: prompt, negative_prompt, width, height, steps, cfg, model. Set `wait=True` to block until complete and return outputs. |
-| `transform_image` | Image-to-image transformation. Params: image (filename), prompt, negative_prompt, strength (0.0-1.0), steps, cfg, model. Input must be uploaded via `upload_image` first. |
-| `inpaint_image` | Inpaint masked regions of an image. Params: image, mask (filenames), prompt, negative_prompt, strength, steps, cfg, model. Both files must be uploaded first. |
-| `upscale_image` | Upscale an image using a model-based upscaler. Params: image (filename), upscale_model (default: RealESRGAN_x4plus.pth). |
-| `run_workflow` | Submit arbitrary ComfyUI workflow JSON. Inspected for dangerous nodes before execution. Set `wait=True` to block until complete and return outputs. |
-| `summarize_workflow` | Summarize a workflow's structure, data flow, models, and parameters. Supports `format="text"` (default) or `format="mermaid"` for diagram markup. |
-| `create_workflow` | Create a workflow from templates including txt2img/img2img/upscale/inpaint, txt2vid_animatediff/txt2vid_wan, controlnet_canny/controlnet_depth/controlnet_openpose, ip_adapter, lora_stack, face_restore, flux_txt2img, and sdxl_txt2img. |
-| `modify_workflow` | Apply batch operations (add_node, remove_node, set_input, connect, disconnect) to a workflow. |
-| `validate_workflow` | Validate workflow structure, server compatibility, and security. |
-
-### Job Management
-
-| Tool | Description |
-|------|-------------|
-| `get_queue` | Get current execution queue state. |
-| `get_job` | Check status of a job by prompt_id. |
-| `cancel_job` | Cancel a running or queued job. |
-| `interrupt` | Interrupt the currently executing workflow. |
-| `get_queue_status` | Get detailed queue status including running and pending prompts. |
-| `clear_queue` | Clear pending and/or running items from the queue. |
-| `get_progress` | Get execution progress for a workflow by prompt_id. Returns status, queue position, and outputs. |
-
-### Discovery
-
-| Tool | Description |
-|------|-------------|
-| `list_models` | List available models by folder (checkpoints, loras, vae, etc.). |
-| `list_nodes` | List all available node types. |
-| `get_node_info` | Get detailed info about a specific node type. |
-| `list_workflows` | List saved workflow templates. |
-| `list_extensions` | List available ComfyUI extensions. |
-| `get_server_features` | Get ComfyUI server features and capabilities. |
-| `list_model_folders` | List available model folder types. |
-| `get_model_metadata` | Get metadata for a specific model file. |
-| `audit_dangerous_nodes` | Scan all installed nodes to identify potentially dangerous ones. |
-| `get_system_info` | Sanitized GPU VRAM, queue depth, and ComfyUI version (whitelist-filtered from `/system_stats`). |
-
-### History
-
-| Tool | Description |
-|------|-------------|
-| `get_history` | Browse execution history (read-only). |
-
-### Model Search & Download
-
-| Tool | Description |
-|------|-------------|
-| `search_models` | Search HuggingFace or CivitAI for models. Returns name, download URL, size, and stats. |
-| `download_model` | Download a model via [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager). URL and extension validated. |
-| `get_download_tasks` | Check status of active model downloads (progress, speed, status). |
-| `cancel_download` | Cancel or clean up a model download task. |
-| `get_model_presets` | Return recommended sampler/scheduler/steps/CFG defaults for a model family. |
-| `get_prompting_guide` | Return model-family prompt engineering tips and negative prompt guidance. |
-
-> **Requires:** [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager) installed in your ComfyUI instance. Download tools are gated behind lazy detection — if Model Manager is not installed, these tools return a helpful error message. `search_models` works without it.
-
-#### Model Manager download lifecycle
-
-Model Manager tracks downloads as tasks. After a download completes, the task remains in the list with `status: "pause"` and `progress: 100` — this is upstream Model Manager behavior. Call `cancel_download` to remove it:
-
-```
-download_model(url="...", folder="checkpoints", filename="model.safetensors")
-→ { "taskId": "abc123", ... }
-
-get_download_tasks()
-→ { "tasks": [{ "taskId": "abc123", "status": "pause", "progress": 100, ... }] }
-
-cancel_download(task_id="abc123")
-→ { "success": true, ... }
-```
-
-The `download_model` tool always sends a `previewFile` field (required by Model Manager even when empty). Omitting it causes the server to silently fail and delete the task.
-
-### Custom Node Management
-
-| Tool | Description |
-|------|-------------|
-| `search_custom_nodes` | Search the ComfyUI Manager registry for custom nodes by name, description, or author. Returns ID, name, description, author, and install status. |
-| `install_custom_node` | Install a custom node pack from the registry. Set `restart=True` to restart ComfyUI and run an automatic security audit on all installed nodes. |
-| `uninstall_custom_node` | Uninstall a custom node pack. Set `restart=True` to restart ComfyUI afterward. |
-| `update_custom_node` | Update a custom node pack to the latest version. Set `restart=True` to restart and audit. |
-| `get_custom_node_status` | Check the custom node operation queue status (total tasks, completed, in progress, processing state). |
-
-> **Requires:** [ComfyUI Manager](https://github.com/Comfy-Org/ComfyUI-Manager) installed in your ComfyUI instance. Tools are gated behind lazy detection — if ComfyUI Manager is not installed, these tools return a helpful error message.
-
-### File Operations
-
-| Tool | Description |
-|------|-------------|
-| `upload_image` | Upload a base64-encoded image to ComfyUI's input directory. Path-sanitized. |
-| `get_image` | Download a generated image. Returns base64-encoded data URI. Path-sanitized. |
-| `list_outputs` | List generated output filenames from history. |
-| `upload_mask` | Upload a mask image to ComfyUI's input directory. Path-sanitized. |
-| `get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |
-
-### Deliberately not exposed
-
-These ComfyUI endpoints are **never** proxied due to security risks:
-
-- `/userdata` — arbitrary file read/write
-- `/free` — unload models (DoS vector)
-- `/users` — user management
-- `/history` POST — delete history
-
-`/system_stats` is called internally **only** by `get_system_info`, which applies a strict whitelist and never forwards the raw response.
-
 ## Configuration
 
 Config file: `~/.comfyui-mcp/config.yaml`
@@ -536,278 +698,6 @@ Security notes:
 - Prefer environment variables in production so secrets do not live in files committed to git.
 - Audit logs redact sensitive fields (`token`, `api_key`, etc.), but avoid printing secrets in shell history when possible.
 
-## Security modes
-
-### Audit mode (default)
-
-Every workflow is inspected and logged, but nothing is blocked. Use this during development to understand what nodes your workflows use.
-
-```yaml
-security:
-  mode: "audit"
-```
-
-Audit log entries look like:
-
-```json
-{
-  "timestamp": "2026-02-25T14:30:00+00:00",
-  "tool": "run_workflow",
-  "action": "inspected",
-  "nodes_used": ["KSampler", "CLIPTextEncode", "VAEDecode", "SaveImage"],
-  "warnings": []
-}
-```
-
-When a dangerous node is detected, warnings are included in the tool response:
-
-```
-Workflow submitted. prompt_id: abc123
-
-⚠️ Warnings detected:
-  - Dangerous node type: ExecutePython
-  - Suspicious input in node 5 (ExecutePython), field 'code'
-```
-
-The MCP instructions tell the LLM to inform users and ask for confirmation before proceeding when warnings are present.
-
-### Building your dangerous node list
-
-Use the `audit_dangerous_nodes` tool to scan your ComfyUI installation for potentially dangerous nodes:
-
-| Tool | Description |
-|------|-------------|
-| `audit_dangerous_nodes` | Scans all installed nodes and returns dangerous/suspicious ones with reasons |
-
-Run this once to see what dangerous nodes are installed:
-
-```
-audit_dangerous_nodes() → {
-  "total_nodes": 456,
-  "dangerous": {
-    "count": 12,
-    "nodes": [
-      {"class": "ExecutePython", "reason": "Name matches pattern: \\bexec\\b"},
-      {"class": "RunPython", "reason": "Name matches pattern: \\brunpython\\b"},
-      {"class": "ShellCommand", "reason": "Name matches pattern: \\bshell\\b"}
-    ]
-  },
-  "suspicious": {...}
-}
-```
-
-Add these to your config:
-
-```yaml
-security:
-  mode: "audit"
-  dangerous_nodes:
-    - "ExecutePython"      # from audit_dangerous_nodes
-    - "RunPython"
-    - "ShellCommand"
-    # ... other nodes found by audit
-```
-
-### Enforce mode
-
-Only explicitly approved nodes can run. Any workflow containing an unapproved node is rejected.
-
-```yaml
-security:
-  mode: "enforce"
-  allowed_nodes:
-    - "KSampler"
-    - "CheckpointLoaderSimple"
-    - "CLIPTextEncode"
-    - "VAEDecode"
-    - "EmptyLatentImage"
-    - "SaveImage"
-    - "LoadImage"
-    - "LoraLoader"
-```
-
-**Tip:** Use `audit_dangerous_nodes` to identify dangerous nodes, run workflows in audit mode to see which nodes you use, then switch to enforce mode with that allowlist.
-
-## Audit log
-
-All tool invocations are logged as JSON lines to `~/.comfyui-mcp/audit.log`:
-
-```bash
-# Watch the audit log in real time
-tail -f ~/.comfyui-mcp/audit.log | python -m json.tool
-
-# Find all workflows that used dangerous nodes
-grep '"warnings":\[' ~/.comfyui-mcp/audit.log | grep -v '"warnings":\[\]'
-```
-
-Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are automatically redacted from log entries.
-
-## Security
-
-### Threat model
-
-| Threat | Impact | Mitigation |
-|--------|--------|------------|
-| Arbitrary code execution via workflow nodes | Critical | Workflow inspector (audit/enforce mode) |
-| Path traversal via file operations | High | Path sanitizer blocks `..`, null bytes, encoded attacks, absolute paths |
-| Denial of service via request flooding | Medium | Token-bucket rate limiter per tool category |
-| Credential leakage in logs | Medium | Automatic redaction of `token`, `password`, `secret`, `api_key`, `authorization` |
-| Information disclosure via API | Low | Dangerous endpoints (`/userdata`, `/free`) never proxied; `/system_stats` whitelist-filtered by `get_system_info` |
-| MITM on ComfyUI connection | Medium | Configurable TLS verification |
-
-### Security controls by component
-
-**Workflow Inspector** (`security/inspector.py`)
-- Parses workflow JSON, extracts node types, checks against configurable blocklist
-- Recursive pattern matching for `__import__()`, `eval()`, `exec()`, `os.system()`, `subprocess` in all input values (including nested dicts/lists)
-- Audit mode: logs warnings, allows execution. Enforce mode: blocks unapproved nodes
-- Limitation: static blocklist can be bypassed with obfuscation or unknown custom nodes
-
-**Path Sanitizer** (`security/sanitizer.py`)
-- Validates filenames, subfolders, and URL path segments: blocks path traversal, null bytes, absolute paths, control characters
-- URL path segment validation on discovery tools (`list_models`, `get_model_metadata`) prevents folder/filename injection
-- Allowlist-based extension filtering (default: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.json`)
-- Handles percent-encoded inputs (URL decoding before validation)
-- Enforces max upload size (default 50MB), max filename length (255 chars)
-
-**Rate Limiter** (`security/rate_limit.py`)
-- Token-bucket per tool category: workflow (10/min), generation (10/min), file_ops (30/min), read_only (60/min)
-- In-memory only (resets on restart, no distributed support)
-
-**HTTP Client** (`client.py`)
-- Configurable TLS verification, connect/read timeouts
-- Retries on connection errors with backoff (3 retries default). HTTP 4xx/5xx errors raised immediately (no retry)
-
-**WebSocket Progress** (`progress.py`)
-- On-demand WebSocket connections for real-time execution tracking (step progress, current node, outputs)
-- Automatic HTTP polling fallback if WebSocket connection fails
-- TLS/SSL passthrough for secure ComfyUI connections
-- Per-prompt event filtering (ignores events from other concurrent jobs)
-
-**Configuration** (`config.py`)
-- `yaml.safe_load` only, env var overrides limited to specific keys, Pydantic type validation
-
-### Production deployment
-
-For production, run behind a reverse proxy (nginx, Traefik) to add TLS termination, authentication, and CSP headers. No PII is collected. No external telemetry.
-
-## Architecture
-
-```mermaid
-flowchart TB
-    subgraph Client["LLM Client"]
-        MC[Claude / AI Assistant]
-    end
-
-    subgraph MCP["ComfyUI MCP Server"]
-        CONFIG[Config<br/>YAML/env]
-        AL[Audit Logger<br/>JSON logs]
-
-        subgraph Security["Security Layers"]
-            WI[Workflow Inspector<br/>Dangerous nodes<br/>Suspicious input]
-            PS[Path Sanitizer<br/>Traversal block<br/>Extension filter]
-            RL[Rate Limiter<br/>Token-bucket]
-        end
-
-        subgraph Tools["Tool Groups"]
-            TG[generation.py<br/>jobs.py<br/>discovery.py<br/>history.py<br/>files.py]
-        end
-
-        API[ComfyUI Client<br/>httpx]
-        WS[WebSocket Progress<br/>websockets]
-    end
-
-    subgraph ComfyUI["ComfyUI Server"]
-        CS[REST API<br/>port 8188]
-        CWS[WebSocket<br/>/ws]
-    end
-
-    MC <--MCP--> MCP
-    CONFIG --> MCP
-    AL --> MCP
-
-    MCP --> Security
-    Security --> Tools
-    Tools --> API
-    Tools --> WS
-    API --httpx--> CS
-    WS --websockets--> CWS
-```
-
-### Components
-
-| Component | File | Responsibility |
-|-----------|------|----------------|
-| Server | `server.py` | Entry point, wires components, registers tools |
-| Config | `config.py` | Pydantic settings, YAML loading, env overrides |
-| Client | `client.py` | Async HTTP client for ComfyUI REST API |
-| Progress | `progress.py` | WebSocket progress tracking with HTTP polling fallback |
-| Audit | `audit.py` | Structured JSON logging with redaction |
-| Workflow Inspector | `security/inspector.py` | Node type detection, dangerous pattern matching |
-| Node Auditor | `security/node_auditor.py` | Scans installed nodes for dangerous patterns |
-| Path Sanitizer | `security/sanitizer.py` | Path traversal, extension filtering |
-| Rate Limiter | `security/rate_limit.py` | Token-bucket per tool category |
-| Download Validator | `security/download_validator.py` | URL domain/path and extension validation for downloads |
-| Model Checker | `security/model_checker.py` | Proactive missing model detection in workflows |
-| Model Manager | `model_manager.py` | Lazy detection of ComfyUI-Model-Manager availability |
-
-## Development
-
-### Project structure
-
-```text
-src/comfyui_mcp/
-├── server.py              # MCP server entry point, wires all components
-├── config.py              # Pydantic settings, YAML loading, env overrides
-├── client.py              # Async HTTP client for ComfyUI API
-├── progress.py            # WebSocket progress tracking with HTTP polling fallback
-├── audit.py               # Structured JSON audit logger
-├── model_manager.py       # Lazy Model Manager detection and validation
-├── security/
-│   ├── inspector.py       # Workflow node inspection (audit/enforce)
-│   ├── node_auditor.py    # Scans installed nodes for dangerous patterns
-│   ├── sanitizer.py       # File path validation
-│   ├── rate_limit.py      # Token-bucket rate limiter
-│   ├── download_validator.py  # URL/extension validation for model downloads
-│   └── model_checker.py   # Proactive model availability checking
-├── workflow/
-│   ├── templates.py       # Built-in workflow templates (txt2img, img2img, upscale, etc.)
-│   ├── operations.py      # Workflow graph operations (add/remove nodes, connect, etc.)
-│   └── validation.py      # Workflow analysis and validation
-└── tools/
-    ├── generation.py      # generate_image, run_workflow, summarize_workflow
-    ├── workflow.py         # create_workflow, modify_workflow, validate_workflow
-    ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
-    ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
-    ├── history.py         # get_history
-    ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
-    └── models.py          # search_models, download_model, get_download_tasks, cancel_download
-```
-
-### Run tests
-
-```bash
-uv sync
-uv run pytest -v
-```
-
-### Smoke test against a live instance
-
-Verify connectivity, Model Manager availability, and download lifecycle against a running ComfyUI server:
-
-```bash
-# Full test (connectivity + folder listing + download task lifecycle)
-uv run python scripts/smoke_test.py
-
-# Quick connectivity + folder check only
-uv run python scripts/smoke_test.py --no-download
-
-# Target a different server
-uv run python scripts/smoke_test.py --url http://localhost:8188
-```
-
-The download probe uses a tiny (~520 KB) safetensors file from `hf-internal-testing/tiny-random-bert`. The file is created with a timestamped name and cleaned up automatically on every run.
-
 ## Docker
 
 A pre-built Docker image is published to the GitHub Container Registry. No need to clone the repo.
@@ -871,15 +761,62 @@ volumes:
   comfyui-mcp-data:
 ```
 
-### Connecting to Claude Code / Claude Desktop via Docker
+## Development
 
-See the [Docker configuration](#add-to-claude-code--claude-desktop) in Quick Start above. The key points:
+### Project structure
 
-- Use `docker run --rm -i` (interactive, no detach) so stdio works
-- Mount your config: `-v ~/.comfyui-mcp:/root/.comfyui-mcp:ro`
-- Set `COMFYUI_URL` to reach your ComfyUI instance from inside the container
-- Use `host.docker.internal` to reach ComfyUI running on your host machine
-- The GHCR image (`ghcr.io/hybridindie/comfyui_mcp:main`) means no local build needed
+```text
+src/comfyui_mcp/
+├── server.py              # MCP server entry point, wires all components
+├── config.py              # Pydantic settings, YAML loading, env overrides
+├── client.py              # Async HTTP client for ComfyUI API
+├── progress.py            # WebSocket progress tracking with HTTP polling fallback
+├── audit.py               # Structured JSON audit logger
+├── model_manager.py       # Lazy Model Manager detection and validation
+├── security/
+│   ├── inspector.py       # Workflow node inspection (audit/enforce)
+│   ├── node_auditor.py    # Scans installed nodes for dangerous patterns
+│   ├── sanitizer.py       # File path validation
+│   ├── rate_limit.py      # Token-bucket rate limiter
+│   ├── download_validator.py  # URL/extension validation for model downloads
+│   └── model_checker.py   # Proactive model availability checking
+├── workflow/
+│   ├── templates.py       # Built-in workflow templates (txt2img, img2img, upscale, etc.)
+│   ├── operations.py      # Workflow graph operations (add/remove nodes, connect, etc.)
+│   └── validation.py      # Workflow analysis and validation
+└── tools/
+    ├── generation.py      # generate_image, run_workflow, summarize_workflow
+    ├── workflow.py         # create_workflow, modify_workflow, validate_workflow
+    ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
+    ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
+    ├── history.py         # get_history
+    ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
+    └── models.py          # search_models, download_model, get_download_tasks, cancel_download
+```
+
+### Run tests
+
+```bash
+uv sync
+uv run pytest -v
+```
+
+### Smoke test against a live instance
+
+Verify connectivity, Model Manager availability, and download lifecycle against a running ComfyUI server:
+
+```bash
+# Full test (connectivity + folder listing + download task lifecycle)
+uv run python scripts/smoke_test.py
+
+# Quick connectivity + folder check only
+uv run python scripts/smoke_test.py --no-download
+
+# Target a different server
+uv run python scripts/smoke_test.py --url http://localhost:8188
+```
+
+The download probe uses a tiny (~520 KB) safetensors file from `hf-internal-testing/tiny-random-bert`. The file is created with a timestamped name and cleaned up automatically on every run.
 
 ## License
 
