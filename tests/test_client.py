@@ -281,3 +281,61 @@ class TestModelManagerClient:
         )
         result = await client.delete_download_task("task-1")
         assert result == {"taskId": "task-1", "removed": True}
+
+
+class TestPathInjectionValidation:
+    """Verify that prompt_id and path segment validators block injection attempts."""
+
+    async def test_get_history_item_rejects_path_traversal(self, client):
+        with pytest.raises(ValueError, match="Invalid prompt_id"):
+            await client.get_history_item("../../../free")
+
+    async def test_get_history_item_rejects_empty(self, client):
+        with pytest.raises(ValueError, match="Invalid prompt_id"):
+            await client.get_history_item("")
+
+    async def test_get_history_item_rejects_non_uuid(self, client):
+        with pytest.raises(ValueError, match="Invalid prompt_id"):
+            await client.get_history_item("not-a-valid-uuid-format")
+
+    async def test_delete_queue_item_rejects_path_traversal(self, client):
+        with pytest.raises(ValueError, match="Invalid prompt_id"):
+            await client.delete_queue_item("../../userdata")
+
+    async def test_get_object_info_rejects_path_traversal(self, client):
+        with pytest.raises(ValueError, match="invalid characters"):
+            await client.get_object_info("../../userdata")
+
+    async def test_get_object_info_rejects_slash(self, client):
+        with pytest.raises(ValueError, match="invalid characters"):
+            await client.get_object_info("node/traversal")
+
+    async def test_get_object_info_rejects_empty(self, client):
+        with pytest.raises(ValueError, match="must not be empty"):
+            await client.get_object_info("")
+
+    async def test_delete_download_task_rejects_path_traversal(self, client):
+        with pytest.raises(ValueError, match="invalid characters"):
+            await client.delete_download_task("../../free")
+
+    async def test_delete_download_task_rejects_empty(self, client):
+        with pytest.raises(ValueError, match="must not be empty"):
+            await client.delete_download_task("")
+
+    @respx.mock
+    async def test_valid_uuid_passes_through(self, client):
+        """Sanity check: valid UUID is accepted."""
+        respx.get("http://test-comfyui:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        result = await client.get_history_item("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        assert isinstance(result, dict)
+
+    @respx.mock
+    async def test_valid_node_class_passes_through(self, client):
+        """Sanity check: valid node class name is accepted."""
+        respx.get("http://test-comfyui:8188/object_info/KSampler").mock(
+            return_value=httpx.Response(200, json={"KSampler": {}})
+        )
+        result = await client.get_object_info("KSampler")
+        assert "KSampler" in result
