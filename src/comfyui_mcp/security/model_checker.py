@@ -1,36 +1,11 @@
 """Proactive model availability checker for workflow submission."""
 
-from __future__ import annotations
-
 from typing import Any
 
 import httpx
 
 from comfyui_mcp.client import ComfyUIClient
-
-# Maps node class_type -> list of (input field name, model folder) pairs.
-# Most loaders have one model field, but some (DualCLIPLoader, TripleCLIPLoader)
-# load multiple models from the same folder.
-_MODEL_LOADER_FIELDS: dict[str, list[tuple[str, str]]] = {
-    "CheckpointLoaderSimple": [("ckpt_name", "checkpoints")],
-    "CheckpointLoader": [("ckpt_name", "checkpoints")],
-    "unCLIPCheckpointLoader": [("ckpt_name", "checkpoints")],
-    "LoraLoader": [("lora_name", "loras")],
-    "LoraLoaderModelOnly": [("lora_name", "loras")],
-    "VAELoader": [("vae_name", "vae")],
-    "ControlNetLoader": [("control_net_name", "controlnet")],
-    "UpscaleModelLoader": [("model_name", "upscale_models")],
-    "CLIPLoader": [("clip_name", "clip")],
-    "CLIPVisionLoader": [("clip_name", "clip_vision")],
-    "StyleModelLoader": [("style_model_name", "style_models")],
-    "GLIGENLoader": [("gligen_name", "gligen")],
-    "DiffusersLoader": [("model_path", "diffusers")],
-    "UNETLoader": [("unet_name", "diffusion_models")],
-    "DualCLIPLoader": [("clip_name1", "clip"), ("clip_name2", "clip")],
-    "TripleCLIPLoader": [("clip_name1", "clip"), ("clip_name2", "clip"), ("clip_name3", "clip")],
-    "PhotoMakerLoader": [("photomaker_model_name", "photomaker")],
-    "IPAdapterModelLoader": [("ipadapter_file", "ipadapter")],
-}
+from comfyui_mcp.model_registry import MODEL_LOADER_FIELDS as _MODEL_LOADER_FIELDS
 
 
 class ModelChecker:
