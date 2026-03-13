@@ -162,3 +162,67 @@ class TestSecurityValidation:
         result = await validate_workflow(wf, client, enforce_inspector)
         assert result["valid"] is False
         assert any("blocked" in e.lower() for e in result["errors"])
+
+
+class TestParallelModelChecks:
+    @respx.mock
+    async def test_multiple_model_loaders_checked(self, client, inspector):
+        """Workflow with 2 loaders in different folders should check both."""
+        object_info = {
+            "CheckpointLoaderSimple": {"display_name": "Load Checkpoint"},
+            "LoraLoader": {"display_name": "Load LoRA"},
+        }
+        respx.get("http://test:8188/object_info").mock(
+            return_value=httpx.Response(200, json=object_info)
+        )
+        respx.get("http://test:8188/models/checkpoints").mock(
+            return_value=httpx.Response(200, json=["model.safetensors"])
+        )
+        respx.get("http://test:8188/models/loras").mock(
+            return_value=httpx.Response(200, json=["style.safetensors"])
+        )
+        wf = {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": "model.safetensors"},
+            },
+            "2": {
+                "class_type": "LoraLoader",
+                "inputs": {
+                    "lora_name": "missing.safetensors",
+                    "strength_model": 1.0,
+                    "strength_clip": 1.0,
+                    "model": ["1", 0],
+                    "clip": ["1", 1],
+                },
+            },
+        }
+        result = await validate_workflow(wf, client, inspector)
+        assert any("missing.safetensors" in w for w in result["warnings"])
+        assert not any("model.safetensors" in w for w in result["warnings"])
+
+    @respx.mock
+    async def test_duplicate_folders_fetched_once(self, client, inspector):
+        """Two checkpoint loaders should only trigger one /models/checkpoints call."""
+        object_info = {
+            "CheckpointLoaderSimple": {"display_name": "Load Checkpoint"},
+        }
+        respx.get("http://test:8188/object_info").mock(
+            return_value=httpx.Response(200, json=object_info)
+        )
+        route = respx.get("http://test:8188/models/checkpoints").mock(
+            return_value=httpx.Response(200, json=["a.safetensors", "b.safetensors"])
+        )
+        wf = {
+            "1": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": "a.safetensors"},
+            },
+            "2": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {"ckpt_name": "b.safetensors"},
+            },
+        }
+        result = await validate_workflow(wf, client, inspector)
+        assert result["valid"] is True
+        assert route.call_count == 1
