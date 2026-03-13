@@ -1,5 +1,6 @@
 """Tests for structured audit logging."""
 
+import asyncio
 import json
 
 from comfyui_mcp.audit import AuditLogger, AuditRecord
@@ -81,3 +82,79 @@ class TestAuditLogger:
         content = log_file.read_text()
         assert "secret-value" not in content
         assert "a cat" in content
+
+
+class TestAuditLoggerSymlinkProtection:
+    def test_rejects_symlink_audit_file(self, tmp_path):
+        """Audit logger should refuse to write to a symlink target."""
+        real_file = tmp_path / "real.log"
+        real_file.touch()
+        symlink = tmp_path / "audit.log"
+        symlink.symlink_to(real_file)
+
+        logger = AuditLogger(audit_file=symlink)
+        record = logger.log(tool="test", action="called")
+        assert record.tool == "test"
+        # Symlink target should NOT have audit content
+        assert real_file.read_text() == ""
+
+    def test_rejects_dangling_symlink(self, tmp_path):
+        """Audit logger should refuse a symlink even if target doesn't exist."""
+        symlink = tmp_path / "audit.log"
+        symlink.symlink_to(tmp_path / "nonexistent.log")
+
+        logger = AuditLogger(audit_file=symlink)
+        record = logger.log(tool="test", action="called")
+        assert record.tool == "test"
+        assert not (tmp_path / "nonexistent.log").exists()
+
+    def test_rejects_symlink_in_parent_directory(self, tmp_path):
+        """Audit logger should refuse if parent path contains a symlink."""
+        real_dir = tmp_path / "real_dir"
+        real_dir.mkdir()
+        symlink_dir = tmp_path / "link_dir"
+        symlink_dir.symlink_to(real_dir)
+        audit_file = symlink_dir / "audit.log"
+
+        logger = AuditLogger(audit_file=audit_file)
+        record = logger.log(tool="test", action="called")
+        assert record.tool == "test"
+        assert not audit_file.exists()
+
+    def test_detects_symlink_swap_after_initial_write(self, tmp_path):
+        """Symlink replacing the audit file after first write should be caught."""
+        log_file = tmp_path / "audit.log"
+        logger = AuditLogger(audit_file=log_file)
+
+        # First write succeeds to a normal file
+        logger.log(tool="first", action="called")
+        assert "first" in log_file.read_text()
+
+        # Attacker swaps the file for a symlink
+        evil_target = tmp_path / "evil.log"
+        evil_target.touch()
+        log_file.unlink()
+        log_file.symlink_to(evil_target)
+
+        # Second write should be refused
+        logger.log(tool="second", action="called")
+        assert "second" not in evil_target.read_text()
+
+
+class TestAuditLoggerAsync:
+    async def test_async_log_writes_record(self, tmp_path):
+        log_file = tmp_path / "audit.log"
+        logger = AuditLogger(audit_file=log_file)
+        record = await logger.async_log(tool="test_tool", action="called")
+        assert record.tool == "test_tool"
+        content = log_file.read_text()
+        assert "test_tool" in content
+
+    async def test_async_log_concurrent_writes(self, tmp_path):
+        """Multiple concurrent async_log calls should not corrupt the file."""
+        log_file = tmp_path / "audit.log"
+        logger = AuditLogger(audit_file=log_file)
+        tasks = [logger.async_log(tool=f"tool_{i}", action="called") for i in range(10)]
+        await asyncio.gather(*tasks)
+        lines = log_file.read_text().strip().split("\n")
+        assert len(lines) == 10

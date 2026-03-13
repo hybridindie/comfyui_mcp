@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import graphlib
 from typing import Any, TypedDict
@@ -240,7 +241,17 @@ async def validate_workflow(
             if ct and ct not in object_info:
                 errors.append(f"Node '{node_id}': class_type '{ct}' not installed on server")
 
-        # Check models exist
+        # Check models exist — batch by folder, fetch in parallel
+        _folder_map = {
+            "checkpoint": "checkpoints",
+            "lora": "loras",
+            "vae": "vae",
+            "upscale": "upscale_models",
+            "controlnet": "controlnet",
+            "clip": "clip",
+            "unet": "unet",
+        }
+        folder_models: dict[str, list[tuple[str, str, str]]] = {}
         for node_id, node_data in workflow.items():
             if not isinstance(node_data, dict):
                 continue
@@ -250,24 +261,25 @@ async def validate_workflow(
                 inputs = node_data.get("inputs")
                 model_name = inputs.get(input_key, "") if isinstance(inputs, dict) else ""
                 if model_name:
-                    folder_map = {
-                        "checkpoint": "checkpoints",
-                        "lora": "loras",
-                        "vae": "vae",
-                        "upscale": "upscale_models",
-                        "controlnet": "controlnet",
-                        "clip": "clip",
-                        "unet": "unet",
-                    }
-                    folder = folder_map.get(model_type, model_type)
-                    available: list[str] = []
-                    with contextlib.suppress(httpx.HTTPError, OSError):
-                        available = await client.get_models(folder)
-                    if available and model_name not in available:
-                        warnings.append(
-                            f"Node '{node_id}': {model_type} model"
-                            f" '{model_name}' not found in '{folder}'"
-                        )
+                    folder = _folder_map.get(model_type, model_type)
+                    folder_models.setdefault(folder, []).append((node_id, model_type, model_name))
+
+        async def _fetch_folder(folder: str) -> tuple[str, list[str]]:
+            try:
+                return folder, await client.get_models(folder)
+            except (httpx.HTTPError, OSError):
+                return folder, []
+
+        folder_results = dict(await asyncio.gather(*[_fetch_folder(f) for f in folder_models]))
+
+        for folder, checks in folder_models.items():
+            available = folder_results.get(folder, [])
+            for node_id, model_type, model_name in checks:
+                if available and model_name not in available:
+                    warnings.append(
+                        f"Node '{node_id}': {model_type} model"
+                        f" '{model_name}' not found in '{folder}'"
+                    )
 
     # --- Security inspection ---
     try:
