@@ -233,7 +233,7 @@ async def validate_workflow(
                 errors.append(f"Node '{node_id}': class_type '{ct}' not installed on server")
 
         # Check models exist — batch by folder, fetch in parallel
-        folder_models: dict[str, list[tuple[str, str, str]]] = {}
+        folder_models: dict[str, list[tuple[str, str]]] = {}
         for node_id, node_data in workflow.items():
             if not isinstance(node_data, dict):
                 continue
@@ -245,7 +245,7 @@ async def validate_workflow(
                 for input_key, folder in MODEL_LOADER_FIELDS[ct]:
                     model_name = inputs.get(input_key, "")
                     if model_name:
-                        folder_models.setdefault(folder, []).append((node_id, folder, model_name))
+                        folder_models.setdefault(folder, []).append((node_id, model_name))
 
         async def _fetch_folder(folder: str) -> tuple[str, list[str]]:
             try:
@@ -257,10 +257,10 @@ async def validate_workflow(
 
         for folder, checks in folder_models.items():
             available = folder_results.get(folder, [])
-            for node_id, _folder, model_name in checks:
+            for node_id, model_name in checks:
                 if available and model_name not in available:
                     warnings.append(
-                        f"Node '{node_id}': {folder} model '{model_name}' not found in '{folder}'"
+                        f"Node '{node_id}': model '{model_name}' not found in '{folder}'"
                     )
 
     # --- Security inspection ---
