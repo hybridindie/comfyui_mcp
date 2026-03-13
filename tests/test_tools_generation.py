@@ -10,11 +10,11 @@ from mcp.server.fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
-from comfyui_mcp.progress import WebSocketProgress
+from comfyui_mcp.progress import ProgressState, WebSocketProgress
 from comfyui_mcp.security.inspector import WorkflowBlockedError, WorkflowInspector
 from comfyui_mcp.security.model_checker import ModelChecker
 from comfyui_mcp.security.rate_limit import RateLimiter
-from comfyui_mcp.security.sanitizer import PathValidationError
+from comfyui_mcp.security.sanitizer import PathSanitizer, PathValidationError
 from comfyui_mcp.tools.generation import (
     _format_summary,
     register_generation_tools,
@@ -1143,9 +1143,6 @@ class TestConvenienceTools:
 
     @respx.mock
     async def test_upscale_image_wait_returns_structured_result(self, tmp_path):
-        from comfyui_mcp.progress import ProgressState
-        from comfyui_mcp.security.sanitizer import PathSanitizer
-
         client = ComfyUIClient(base_url="http://test:8188")
         audit = AuditLogger(audit_file=tmp_path / "audit.log")
         limiter = RateLimiter(max_per_minute=60)
@@ -1165,8 +1162,6 @@ class TestConvenienceTools:
                 outputs=[{"node_id": "4", "filename": "upscaled.png", "subfolder": "output"}],
             )
 
-        import unittest.mock
-
         mcp = FastMCP("test")
         tools = register_generation_tools(
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer, progress=progress
@@ -1177,6 +1172,78 @@ class TestConvenienceTools:
         data = json.loads(result)
         assert data["prompt_id"] == "up-wait-1"
         assert data["status"] == "completed"
+        assert len(data["outputs"]) == 1
+
+    @respx.mock
+    async def test_transform_image_wait_returns_structured_result(self, tmp_path):
+        client = ComfyUIClient(base_url="http://test:8188")
+        audit = AuditLogger(audit_file=tmp_path / "audit.log")
+        limiter = RateLimiter(max_per_minute=60)
+        inspector = WorkflowInspector(mode="audit", dangerous_nodes=[], allowed_nodes=[])
+        sanitizer = PathSanitizer(allowed_extensions=[".png", ".jpg", ".webp"])
+        progress = WebSocketProgress(client, timeout=10.0)
+
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(200, json={"prompt_id": "tf-wait-1"})
+        )
+
+        async def fake_wait(prompt_id):
+            return ProgressState(
+                prompt_id=prompt_id,
+                status="completed",
+                elapsed_seconds=8.5,
+                outputs=[{"node_id": "9", "filename": "transformed.png", "subfolder": "output"}],
+            )
+
+        mcp = FastMCP("test")
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer, progress=progress
+        )
+        with unittest.mock.patch.object(progress, "wait_for_completion", side_effect=fake_wait):
+            result = await tools["transform_image"](
+                image="input.png", prompt="a watercolor painting", wait=True
+            )
+
+        data = json.loads(result)
+        assert data["prompt_id"] == "tf-wait-1"
+        assert data["status"] == "completed"
+        assert data["elapsed_seconds"] == 8.5
+        assert len(data["outputs"]) == 1
+
+    @respx.mock
+    async def test_inpaint_image_wait_returns_structured_result(self, tmp_path):
+        client = ComfyUIClient(base_url="http://test:8188")
+        audit = AuditLogger(audit_file=tmp_path / "audit.log")
+        limiter = RateLimiter(max_per_minute=60)
+        inspector = WorkflowInspector(mode="audit", dangerous_nodes=[], allowed_nodes=[])
+        sanitizer = PathSanitizer(allowed_extensions=[".png", ".jpg", ".webp"])
+        progress = WebSocketProgress(client, timeout=10.0)
+
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(200, json={"prompt_id": "inp-wait-1"})
+        )
+
+        async def fake_wait(prompt_id):
+            return ProgressState(
+                prompt_id=prompt_id,
+                status="completed",
+                elapsed_seconds=15.0,
+                outputs=[{"node_id": "9", "filename": "inpainted.png", "subfolder": "output"}],
+            )
+
+        mcp = FastMCP("test")
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer, progress=progress
+        )
+        with unittest.mock.patch.object(progress, "wait_for_completion", side_effect=fake_wait):
+            result = await tools["inpaint_image"](
+                image="scene.png", mask="mask.png", prompt="a blue sky", wait=True
+            )
+
+        data = json.loads(result)
+        assert data["prompt_id"] == "inp-wait-1"
+        assert data["status"] == "completed"
+        assert data["elapsed_seconds"] == 15.0
         assert len(data["outputs"]) == 1
 
     # --- _validate_image_filename (no sanitizer fallback) ---
