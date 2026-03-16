@@ -15,4 +15,4 @@ USER app
 
 ENV PYTHONPATH=/app
 
-ENTRYPOINT ["uv", "run", "comfyui-mcp"]
+ENTRYPOINT ["uv", "run", "comfyui-mcp-secure"]

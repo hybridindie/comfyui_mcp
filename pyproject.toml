@@ -1,9 +1,21 @@
 [project]
-name = "comfyui-mcp"
+name = "comfyui-mcp-secure"
 version = "0.1.0"
 description = "Secure MCP server for ComfyUI with workflow inspection and audit logging"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.12"
+keywords = ["comfyui", "mcp", "model-context-protocol", "image-generation", "ai"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "mcp[cli]>=1.12.0",
     "httpx>=0.28.0",
@@ -12,8 +24,14 @@ dependencies = [
     "websockets>=15.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/hybridindie/comfyui_mcp"
+Repository = "https://github.com/hybridindie/comfyui_mcp"
+Issues = "https://github.com/hybridindie/comfyui_mcp/issues"
+Documentation = "https://github.com/hybridindie/comfyui_mcp#readme"
+
 [project.scripts]
-comfyui-mcp = "comfyui_mcp.server:main"
+comfyui-mcp-secure = "comfyui_mcp.server:main"
 
 [build-system]
 requires = ["hatchling"]

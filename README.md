@@ -1,4 +1,4 @@
-# comfyui-mcp
+# comfyui-mcp-secure
 
 A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants like Claude to generate images, run workflows, and manage jobs through ComfyUI — with built-in security controls that existing ComfyUI MCP servers lack.
 
@@ -30,7 +30,26 @@ When `wait=True` is passed to `generate_image` or `run_workflow`, the server con
 
 ### Install
 
-**Option A: From source (recommended for development)**
+#### Option A: From PyPI
+
+```bash
+pip install comfyui-mcp-secure
+```
+
+For an isolated CLI install, use one of:
+
+```bash
+uv tool install comfyui-mcp-secure
+pipx install comfyui-mcp-secure
+```
+
+For a one-shot run without installing first:
+
+```bash
+uvx comfyui-mcp-secure --help
+```
+
+#### Option B: From source (recommended for development)
 
 ```bash
 git clone https://github.com/hybridindie/comfyui_mcp.git
@@ -38,7 +57,7 @@ cd comfyui_mcp
 uv sync
 ```
 
-**Option B: Docker (no clone required)**
+#### Option C: Docker (no clone required)
 
 ```bash
 docker pull ghcr.io/hybridindie/comfyui-mcp:latest
@@ -82,7 +101,32 @@ The MCP server communicates over stdio. Add one of the following configurations 
   "mcpServers": {
     "comfyui": {
       "command": "uv",
-      "args": ["--directory", "/path/to/comfyui_mcp", "run", "comfyui-mcp"]
+      "args": ["--directory", "/path/to/comfyui_mcp", "run", "comfyui-mcp-secure"]
+    }
+  }
+}
+```
+
+**From PyPI / pipx / uv tool install:**
+
+```json
+{
+  "mcpServers": {
+    "comfyui": {
+      "command": "comfyui-mcp-secure"
+    }
+  }
+}
+```
+
+**From PyPI without a persistent install (`uvx`):**
+
+```json
+{
+  "mcpServers": {
+    "comfyui": {
+      "command": "uvx",
+      "args": ["comfyui-mcp-secure"]
     }
   }
 }
@@ -565,6 +609,24 @@ uv sync
 uv run pytest -v
 ```
 
+### Build and publish
+
+Build the distributable artifacts locally:
+
+```bash
+uv build
+uvx twine check dist/*
+```
+
+Publish a release to PyPI:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The GitHub Actions workflow in `.github/workflows/pypi.yml` builds the sdist and wheel, verifies the metadata, and publishes to PyPI using GitHub Trusted Publishing. Before the first release, create the `comfyui-mcp-secure` project on PyPI, configure a trusted publisher for this repository in the PyPI project settings, and use the `pypi` GitHub environment.
+
 ### Smoke test against a live instance
 
 Verify connectivity, Model Manager availability, and download lifecycle against a running ComfyUI server:
@@ -592,7 +654,7 @@ docker pull ghcr.io/hybridindie/comfyui-mcp:latest
 
 ### How it works
 
-The container runs `uv run comfyui-mcp` as its entrypoint, communicating over stdin/stdout (stdio). This makes it compatible with Claude Code, Claude Desktop, and any MCP client. Config is read from `/root/.comfyui-mcp/config.yaml` inside the container — mount your local config directory to provide it, or use environment variables.
+The container runs `uv run comfyui-mcp-secure` as its entrypoint, communicating over stdin/stdout (stdio). This makes it compatible with Claude Code, Claude Desktop, and any MCP client. Config is read from `/root/.comfyui-mcp/config.yaml` inside the container — mount your local config directory to provide it, or use environment variables.
 
 ### Running standalone
 
