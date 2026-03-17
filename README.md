@@ -621,8 +621,8 @@ uvx twine check dist/*
 Publish a release to PyPI:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 The GitHub Actions workflow in `.github/workflows/pypi.yml` builds the sdist and wheel, verifies the metadata, and publishes to PyPI using GitHub Trusted Publishing. Before the first release, create the `comfyui-mcp-secure` project on PyPI, configure a trusted publisher for this repository in the PyPI project settings, and use the `pypi` GitHub environment.
