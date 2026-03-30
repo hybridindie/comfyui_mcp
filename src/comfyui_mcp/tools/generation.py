@@ -66,6 +66,7 @@ async def _submit_workflow(
     audit: AuditLogger,
     inspector: WorkflowInspector,
     progress: WebSocketProgress | None,
+    stream_events: bool = False,
     model_checker: ModelChecker | None = None,
     inspect_extra: dict[str, Any] | None = None,
 ) -> str:
@@ -96,13 +97,33 @@ async def _submit_workflow(
 
     warning_msg = _format_warnings(inspection.warnings)
 
-    ws_client_id = progress.client_id if wait and progress is not None else None
+    should_use_ws = wait or stream_events
+    ws_client_id = progress.new_client_id() if should_use_ws and progress is not None else None
     response = await client.post_prompt(wf, client_id=ws_client_id)
     prompt_id = response.get("prompt_id", "unknown")
     await audit.async_log(tool=tool_name, action="submitted", prompt_id=prompt_id)
 
+    if stream_events:
+        if progress is None:
+            raise RuntimeError("Progress tracking is not configured")
+        state, events = await progress.wait_for_completion_with_events(
+            prompt_id,
+            client_id=ws_client_id,
+        )
+        await audit.async_log(
+            tool=tool_name,
+            action="stream_completed",
+            prompt_id=prompt_id,
+            extra={"status": state.status, "elapsed": state.elapsed_seconds, "events": len(events)},
+        )
+        result_dict = state.to_dict()
+        result_dict["events"] = events
+        if inspection.warnings:
+            result_dict["warnings"] = inspection.warnings
+        return json.dumps(result_dict)
+
     if wait and progress is not None:
-        state = await progress.wait_for_completion(prompt_id)
+        state = await progress.wait_for_completion(prompt_id, client_id=ws_client_id)
         await audit.async_log(
             tool=tool_name,
             action="completed",
@@ -376,10 +397,44 @@ def register_generation_tools(
             audit=audit,
             inspector=inspector,
             progress=progress,
+            stream_events=False,
             model_checker=model_checker,
         )
 
     tool_fns["run_workflow"] = run_workflow
+
+    @mcp.tool()
+    async def run_workflow_stream(workflow: str) -> str:
+        """Submit a ComfyUI workflow and return websocket stream events plus final status.
+
+        Uses ComfyUI's websocket stream endpoint internally to capture per-event
+        execution updates (for example, `progress`, `executing`, `executed`).
+        Events are filtered by `prompt_id` when that field is present in the
+        websocket payload.
+
+        Args:
+            workflow: JSON string of a ComfyUI workflow (API format).
+        """
+        limiter.check("run_workflow_stream")
+        try:
+            wf = json.loads(workflow)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON workflow: {e}") from e
+
+        return await _submit_workflow(
+            wf=wf,
+            tool_name="run_workflow_stream",
+            success_message="Workflow stream started.",
+            wait=False,
+            client=client,
+            audit=audit,
+            inspector=inspector,
+            progress=progress,
+            stream_events=True,
+            model_checker=model_checker,
+        )
+
+    tool_fns["run_workflow_stream"] = run_workflow_stream
 
     @mcp.tool()
     async def generate_image(
@@ -426,6 +481,7 @@ def register_generation_tools(
             audit=audit,
             inspector=inspector,
             progress=progress,
+            stream_events=False,
             model_checker=model_checker,
             inspect_extra={"prompt": prompt, "width": width, "height": height},
         )
@@ -538,6 +594,7 @@ def register_generation_tools(
             audit=audit,
             inspector=inspector,
             progress=progress,
+            stream_events=False,
             inspect_extra={"image": clean_image, "prompt": prompt, "strength": strength},
         )
 
@@ -605,6 +662,7 @@ def register_generation_tools(
             audit=audit,
             inspector=inspector,
             progress=progress,
+            stream_events=False,
             inspect_extra={"image": clean_image, "mask": clean_mask, "prompt": prompt},
         )
 
@@ -641,6 +699,7 @@ def register_generation_tools(
             audit=audit,
             inspector=inspector,
             progress=progress,
+            stream_events=False,
             inspect_extra={"image": clean_image, "upscale_model": upscale_model},
         )
 

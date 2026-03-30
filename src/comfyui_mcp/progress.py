@@ -60,32 +60,92 @@ class WebSocketProgress:
         self._tls_verify = tls_verify
         self._client_id = uuid.uuid4().hex
 
+    def new_client_id(self) -> str:
+        """Create a fresh websocket client_id for per-prompt event isolation."""
+        return uuid.uuid4().hex
+
     @property
     def client_id(self) -> str:
         """Return the client_id used for WebSocket connections."""
         return self._client_id
 
-    def _ws_url(self) -> str:
+    def _ws_url(self, client_id: str) -> str:
         """Derive WebSocket URL from client's HTTP base URL."""
         parsed = urlparse(self._client.base_url)
         ws_scheme = "wss" if parsed.scheme == "https" else "ws"
-        return f"{ws_scheme}://{parsed.netloc}/ws?clientId={self._client_id}"
+        return f"{ws_scheme}://{parsed.netloc}/ws?clientId={client_id}"
 
-    async def wait_for_completion(self, prompt_id: str) -> ProgressState:
-        """Connect via WebSocket and block until the prompt completes, errors, or times out."""
+    def _update_state_from_event(
+        self,
+        state: ProgressState,
+        msg_type: str,
+        data: dict[str, Any],
+    ) -> bool:
+        """Apply a ComfyUI websocket event to state and return True when terminal."""
+        if msg_type == "progress":
+            state.step = data.get("value")
+            state.total_steps = data.get("max")
+            return False
+
+        if msg_type == "executing":
+            node = data.get("node")
+            if node is None:
+                # null node means execution finished
+                state.status = "completed"
+                return True
+            state.current_node = node
+            return False
+
+        if msg_type == "executed":
+            output = data.get("output", {})
+            for key in ("images", "gifs"):
+                for item in output.get(key, []):
+                    state.outputs.append(
+                        {
+                            "node_id": data.get("node", ""),
+                            "filename": item.get("filename", ""),
+                            "subfolder": item.get("subfolder", ""),
+                        }
+                    )
+            return False
+
+        if msg_type == "execution_success":
+            state.status = "completed"
+            return True
+
+        if msg_type == "execution_interrupted":
+            state.status = "interrupted"
+            return True
+
+        if msg_type == "execution_error":
+            state.status = "error"
+            return True
+
+        return False
+
+    async def _wait_internal(
+        self,
+        prompt_id: str,
+        *,
+        client_id: str,
+        collect_events: bool,
+    ) -> tuple[ProgressState, list[dict[str, Any]]]:
+        """Connect via WebSocket and wait until completion with optional event capture."""
         state = ProgressState(prompt_id=prompt_id, status="running")
+        events: list[dict[str, Any]] = []
         start_time = time.monotonic()
 
         try:
             ws_kwargs: dict[str, Any] = {}
-            if self._ws_url().startswith("wss://") and not self._tls_verify:
+            ws_url = self._ws_url(client_id)
+            if ws_url.startswith("wss://") and not self._tls_verify:
                 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
                 ws_kwargs["ssl"] = ctx
 
             async with asyncio.timeout(self._timeout):
-                async with websockets.connect(self._ws_url(), **ws_kwargs) as ws:
+                async with websockets.connect(ws_url, **ws_kwargs) as ws:
                     async for raw_msg in ws:
                         if isinstance(raw_msg, bytes):
                             continue
@@ -99,42 +159,51 @@ class WebSocketProgress:
                         if event_prompt_id is not None and event_prompt_id != prompt_id:
                             continue
 
-                        if msg_type == "progress":
-                            state.step = data.get("value")
-                            state.total_steps = data.get("max")
+                        if collect_events:
+                            events.append({"type": msg_type, "data": data})
 
-                        elif msg_type == "executing":
-                            node = data.get("node")
-                            if node is None:
-                                # null node means execution finished
-                                state.status = "completed"
-                                break
-                            state.current_node = node
-
-                        elif msg_type == "executed":
-                            output = data.get("output", {})
-                            for key in ("images", "gifs"):
-                                for item in output.get(key, []):
-                                    state.outputs.append(
-                                        {
-                                            "node_id": data.get("node", ""),
-                                            "filename": item.get("filename", ""),
-                                            "subfolder": item.get("subfolder", ""),
-                                        }
-                                    )
-
-                        elif msg_type == "execution_error":
-                            state.status = "error"
+                        if self._update_state_from_event(state, msg_type, data):
                             break
 
         except TimeoutError:
             state.status = "timeout"
         except (OSError, websockets.exceptions.WebSocketException):
             # WebSocket failed — fall back to HTTP polling per spec
-            return await self._poll_until_complete(prompt_id, start_time)
+            state = await self._poll_until_complete(prompt_id, start_time)
+            if collect_events:
+                events.append({"type": "fallback_polling", "data": {"prompt_id": prompt_id}})
 
         state.elapsed_seconds = round(time.monotonic() - start_time, 2)
+        return state, events
+
+    async def wait_for_completion(
+        self,
+        prompt_id: str,
+        *,
+        client_id: str | None = None,
+    ) -> ProgressState:
+        """Connect via WebSocket and block until the prompt completes, errors, or times out."""
+        ws_client_id = client_id or self._client_id
+        state, _events = await self._wait_internal(
+            prompt_id,
+            client_id=ws_client_id,
+            collect_events=False,
+        )
         return state
+
+    async def wait_for_completion_with_events(
+        self,
+        prompt_id: str,
+        *,
+        client_id: str | None = None,
+    ) -> tuple[ProgressState, list[dict[str, Any]]]:
+        """Connect via WebSocket and return completion state plus captured stream events."""
+        ws_client_id = client_id or self._client_id
+        return await self._wait_internal(
+            prompt_id,
+            client_id=ws_client_id,
+            collect_events=True,
+        )
 
     async def _poll_until_complete(self, prompt_id: str, start_time: float) -> ProgressState:
         """Poll HTTP endpoints until completion or timeout."""
