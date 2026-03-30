@@ -71,9 +71,63 @@ class WebSocketProgress:
         ws_scheme = "wss" if parsed.scheme == "https" else "ws"
         return f"{ws_scheme}://{parsed.netloc}/ws?clientId={self._client_id}"
 
-    async def wait_for_completion(self, prompt_id: str) -> ProgressState:
-        """Connect via WebSocket and block until the prompt completes, errors, or times out."""
+    def _update_state_from_event(
+        self,
+        state: ProgressState,
+        msg_type: str,
+        data: dict[str, Any],
+    ) -> bool:
+        """Apply a ComfyUI websocket event to state and return True when terminal."""
+        if msg_type == "progress":
+            state.step = data.get("value")
+            state.total_steps = data.get("max")
+            return False
+
+        if msg_type == "executing":
+            node = data.get("node")
+            if node is None:
+                # null node means execution finished
+                state.status = "completed"
+                return True
+            state.current_node = node
+            return False
+
+        if msg_type == "executed":
+            output = data.get("output", {})
+            for key in ("images", "gifs"):
+                for item in output.get(key, []):
+                    state.outputs.append(
+                        {
+                            "node_id": data.get("node", ""),
+                            "filename": item.get("filename", ""),
+                            "subfolder": item.get("subfolder", ""),
+                        }
+                    )
+            return False
+
+        if msg_type == "execution_success":
+            state.status = "completed"
+            return True
+
+        if msg_type == "execution_interrupted":
+            state.status = "interrupted"
+            return True
+
+        if msg_type == "execution_error":
+            state.status = "error"
+            return True
+
+        return False
+
+    async def _wait_internal(
+        self,
+        prompt_id: str,
+        *,
+        collect_events: bool,
+    ) -> tuple[ProgressState, list[dict[str, Any]]]:
+        """Connect via WebSocket and wait until completion with optional event capture."""
         state = ProgressState(prompt_id=prompt_id, status="running")
+        events: list[dict[str, Any]] = []
         start_time = time.monotonic()
 
         try:
@@ -99,42 +153,33 @@ class WebSocketProgress:
                         if event_prompt_id is not None and event_prompt_id != prompt_id:
                             continue
 
-                        if msg_type == "progress":
-                            state.step = data.get("value")
-                            state.total_steps = data.get("max")
+                        if collect_events:
+                            events.append({"type": msg_type, "data": data})
 
-                        elif msg_type == "executing":
-                            node = data.get("node")
-                            if node is None:
-                                # null node means execution finished
-                                state.status = "completed"
-                                break
-                            state.current_node = node
-
-                        elif msg_type == "executed":
-                            output = data.get("output", {})
-                            for key in ("images", "gifs"):
-                                for item in output.get(key, []):
-                                    state.outputs.append(
-                                        {
-                                            "node_id": data.get("node", ""),
-                                            "filename": item.get("filename", ""),
-                                            "subfolder": item.get("subfolder", ""),
-                                        }
-                                    )
-
-                        elif msg_type == "execution_error":
-                            state.status = "error"
+                        if self._update_state_from_event(state, msg_type, data):
                             break
 
         except TimeoutError:
             state.status = "timeout"
         except (OSError, websockets.exceptions.WebSocketException):
             # WebSocket failed — fall back to HTTP polling per spec
-            return await self._poll_until_complete(prompt_id, start_time)
+            state = await self._poll_until_complete(prompt_id, start_time)
+            if collect_events:
+                events.append({"type": "fallback_polling", "data": {"prompt_id": prompt_id}})
 
         state.elapsed_seconds = round(time.monotonic() - start_time, 2)
+        return state, events
+
+    async def wait_for_completion(self, prompt_id: str) -> ProgressState:
+        """Connect via WebSocket and block until the prompt completes, errors, or times out."""
+        state, _events = await self._wait_internal(prompt_id, collect_events=False)
         return state
+
+    async def wait_for_completion_with_events(
+        self, prompt_id: str
+    ) -> tuple[ProgressState, list[dict[str, Any]]]:
+        """Connect via WebSocket and return completion state plus captured stream events."""
+        return await self._wait_internal(prompt_id, collect_events=True)
 
     async def _poll_until_complete(self, prompt_id: str, start_time: float) -> ProgressState:
         """Poll HTTP endpoints until completion or timeout."""
