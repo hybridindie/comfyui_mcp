@@ -108,6 +108,50 @@ class TestRunWorkflow:
         with pytest.raises(WorkflowBlockedError):
             await tools["run_workflow"](workflow=json.dumps(workflow))
 
+    @respx.mock
+    async def test_run_workflow_stream_returns_events(self, progress_components):
+        client, audit, limiter, inspector, progress, monkeypatch = progress_components
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
+        )
+
+        async def fake_wait_with_events(prompt_id: str):
+            state = ProgressState(
+                prompt_id=prompt_id,
+                status="completed",
+                step=20,
+                total_steps=20,
+                outputs=[{"node_id": "9", "filename": "out.png", "subfolder": "output"}],
+                elapsed_seconds=1.23,
+            )
+            events = [
+                {"type": "progress", "data": {"value": 20, "max": 20}},
+                {"type": "execution_success", "data": {"prompt_id": prompt_id}},
+            ]
+            return state, events
+
+        monkeypatch.setattr(progress, "wait_for_completion_with_events", fake_wait_with_events)
+
+        mcp = FastMCP("test")
+        tools = register_generation_tools(
+            mcp,
+            client,
+            audit,
+            limiter,
+            inspector,
+            progress=progress,
+        )
+
+        workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
+        result = await tools["run_workflow_stream"](workflow=json.dumps(workflow))
+        parsed = json.loads(result)
+        assert parsed["status"] == "completed"
+        assert parsed["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        assert parsed["events"][0]["type"] == "progress"
+        assert parsed["outputs"][0]["filename"] == "out.png"
+
 
 class TestGenerateImage:
     @respx.mock

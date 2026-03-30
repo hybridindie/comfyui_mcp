@@ -153,6 +153,70 @@ class TestWebSocketProgress:
         state = await progress.wait_for_completion("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert state.status == "error"
 
+    async def test_wait_for_completion_interrupted(self, monkeypatch):
+        client = ComfyUIClient(base_url="http://test:8188")
+        progress = WebSocketProgress(client, timeout=30.0)
+
+        messages = [
+            _make_ws_message("executing", {"node": "4"}),
+            _make_ws_message(
+                "execution_interrupted",
+                {
+                    "prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                    "node_id": "4",
+                },
+            ),
+        ]
+        fake_ws = FakeWebSocket(messages)
+
+        def fake_connect(url, **kwargs):
+            return fake_ws
+
+        monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fake_connect)
+
+        state = await progress.wait_for_completion("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        assert state.status == "interrupted"
+
+    async def test_wait_for_completion_with_events_captures_stream(self, monkeypatch):
+        client = ComfyUIClient(base_url="http://test:8188")
+        progress = WebSocketProgress(client, timeout=30.0)
+
+        messages = [
+            _make_ws_message("progress", {"value": 2, "max": 10}),
+            _make_ws_message("executing", {"node": "3"}),
+            _make_ws_message(
+                "executed",
+                {
+                    "node": "9",
+                    "output": {"images": [{"filename": "out.png", "subfolder": "output"}]},
+                },
+            ),
+            _make_ws_message(
+                "execution_success",
+                {"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"},
+            ),
+        ]
+        fake_ws = FakeWebSocket(messages)
+
+        def fake_connect(url, **kwargs):
+            return fake_ws
+
+        monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fake_connect)
+
+        state, events = await progress.wait_for_completion_with_events(
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        )
+        assert state.status == "completed"
+        assert state.step == 2
+        assert state.total_steps == 10
+        assert state.outputs[0]["filename"] == "out.png"
+        assert [event["type"] for event in events] == [
+            "progress",
+            "executing",
+            "executed",
+            "execution_success",
+        ]
+
     async def test_wait_for_completion_timeout(self, monkeypatch):
         client = ComfyUIClient(base_url="http://test:8188")
         progress = WebSocketProgress(client, timeout=0.1)
