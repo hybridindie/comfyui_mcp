@@ -97,7 +97,8 @@ async def _submit_workflow(
 
     warning_msg = _format_warnings(inspection.warnings)
 
-    ws_client_id = progress.client_id if wait and progress is not None else None
+    should_use_ws = wait or stream_events
+    ws_client_id = progress.new_client_id() if should_use_ws and progress is not None else None
     response = await client.post_prompt(wf, client_id=ws_client_id)
     prompt_id = response.get("prompt_id", "unknown")
     await audit.async_log(tool=tool_name, action="submitted", prompt_id=prompt_id)
@@ -105,7 +106,10 @@ async def _submit_workflow(
     if stream_events:
         if progress is None:
             raise RuntimeError("Progress tracking is not configured")
-        state, events = await progress.wait_for_completion_with_events(prompt_id)
+        state, events = await progress.wait_for_completion_with_events(
+            prompt_id,
+            client_id=ws_client_id,
+        )
         await audit.async_log(
             tool=tool_name,
             action="stream_completed",
@@ -119,7 +123,7 @@ async def _submit_workflow(
         return json.dumps(result_dict)
 
     if wait and progress is not None:
-        state = await progress.wait_for_completion(prompt_id)
+        state = await progress.wait_for_completion(prompt_id, client_id=ws_client_id)
         await audit.async_log(
             tool=tool_name,
             action="completed",
@@ -404,8 +408,9 @@ def register_generation_tools(
         """Submit a ComfyUI workflow and return websocket stream events plus final status.
 
         Uses ComfyUI's websocket stream endpoint internally to capture per-event
-        execution updates (`progress`, `executing`, `executed`, etc.) filtered to
-        the submitted prompt_id.
+        execution updates (for example, `progress`, `executing`, `executed`).
+        Events are filtered by `prompt_id` when that field is present in the
+        websocket payload.
 
         Args:
             workflow: JSON string of a ComfyUI workflow (API format).

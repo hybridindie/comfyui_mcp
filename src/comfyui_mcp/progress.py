@@ -60,16 +60,20 @@ class WebSocketProgress:
         self._tls_verify = tls_verify
         self._client_id = uuid.uuid4().hex
 
+    def new_client_id(self) -> str:
+        """Create a fresh websocket client_id for per-prompt event isolation."""
+        return uuid.uuid4().hex
+
     @property
     def client_id(self) -> str:
         """Return the client_id used for WebSocket connections."""
         return self._client_id
 
-    def _ws_url(self) -> str:
+    def _ws_url(self, client_id: str) -> str:
         """Derive WebSocket URL from client's HTTP base URL."""
         parsed = urlparse(self._client.base_url)
         ws_scheme = "wss" if parsed.scheme == "https" else "ws"
-        return f"{ws_scheme}://{parsed.netloc}/ws?clientId={self._client_id}"
+        return f"{ws_scheme}://{parsed.netloc}/ws?clientId={client_id}"
 
     def _update_state_from_event(
         self,
@@ -123,6 +127,7 @@ class WebSocketProgress:
         self,
         prompt_id: str,
         *,
+        client_id: str,
         collect_events: bool,
     ) -> tuple[ProgressState, list[dict[str, Any]]]:
         """Connect via WebSocket and wait until completion with optional event capture."""
@@ -132,14 +137,15 @@ class WebSocketProgress:
 
         try:
             ws_kwargs: dict[str, Any] = {}
-            if self._ws_url().startswith("wss://") and not self._tls_verify:
+            ws_url = self._ws_url(client_id)
+            if ws_url.startswith("wss://") and not self._tls_verify:
                 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
                 ws_kwargs["ssl"] = ctx
 
             async with asyncio.timeout(self._timeout):
-                async with websockets.connect(self._ws_url(), **ws_kwargs) as ws:
+                async with websockets.connect(ws_url, **ws_kwargs) as ws:
                     async for raw_msg in ws:
                         if isinstance(raw_msg, bytes):
                             continue
@@ -170,16 +176,34 @@ class WebSocketProgress:
         state.elapsed_seconds = round(time.monotonic() - start_time, 2)
         return state, events
 
-    async def wait_for_completion(self, prompt_id: str) -> ProgressState:
+    async def wait_for_completion(
+        self,
+        prompt_id: str,
+        *,
+        client_id: str | None = None,
+    ) -> ProgressState:
         """Connect via WebSocket and block until the prompt completes, errors, or times out."""
-        state, _events = await self._wait_internal(prompt_id, collect_events=False)
+        ws_client_id = client_id or self._client_id
+        state, _events = await self._wait_internal(
+            prompt_id,
+            client_id=ws_client_id,
+            collect_events=False,
+        )
         return state
 
     async def wait_for_completion_with_events(
-        self, prompt_id: str
+        self,
+        prompt_id: str,
+        *,
+        client_id: str | None = None,
     ) -> tuple[ProgressState, list[dict[str, Any]]]:
         """Connect via WebSocket and return completion state plus captured stream events."""
-        return await self._wait_internal(prompt_id, collect_events=True)
+        ws_client_id = client_id or self._client_id
+        return await self._wait_internal(
+            prompt_id,
+            client_id=ws_client_id,
+            collect_events=True,
+        )
 
     async def _poll_until_complete(self, prompt_id: str, start_time: float) -> ProgressState:
         """Poll HTTP endpoints until completion or timeout."""

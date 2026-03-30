@@ -111,13 +111,16 @@ class TestRunWorkflow:
     @respx.mock
     async def test_run_workflow_stream_returns_events(self, progress_components):
         client, audit, limiter, inspector, progress, monkeypatch = progress_components
-        respx.post("http://test:8188/prompt").mock(
+        route = respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(
                 200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
             )
         )
+        expected_client_id = "stream-client-1"
+        monkeypatch.setattr(progress, "new_client_id", lambda: expected_client_id)
 
-        async def fake_wait_with_events(prompt_id: str):
+        async def fake_wait_with_events(prompt_id: str, *, client_id: str | None = None):
+            assert client_id == expected_client_id
             state = ProgressState(
                 prompt_id=prompt_id,
                 status="completed",
@@ -151,6 +154,8 @@ class TestRunWorkflow:
         assert parsed["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         assert parsed["events"][0]["type"] == "progress"
         assert parsed["outputs"][0]["filename"] == "out.png"
+        req = json.loads(route.calls[0].request.content)
+        assert req["client_id"] == expected_client_id
 
 
 class TestGenerateImage:
@@ -746,7 +751,7 @@ class TestGenerateImageWait:
 
         from comfyui_mcp.progress import ProgressState
 
-        async def fake_wait(prompt_id):
+        async def fake_wait(prompt_id: str, *, client_id: str | None = None):
             return ProgressState(
                 prompt_id=prompt_id,
                 status="completed",
@@ -801,7 +806,7 @@ class TestRunWorkflowWait:
 
         from comfyui_mcp.progress import ProgressState
 
-        async def fake_wait(prompt_id):
+        async def fake_wait(prompt_id: str, *, client_id: str | None = None):
             return ProgressState(
                 prompt_id=prompt_id,
                 status="completed",
@@ -1198,7 +1203,7 @@ class TestConvenienceTools:
             return_value=httpx.Response(200, json={"prompt_id": "up-wait-1"})
         )
 
-        async def fake_wait(prompt_id):
+        async def fake_wait(prompt_id: str, *, client_id: str | None = None):
             return ProgressState(
                 prompt_id=prompt_id,
                 status="completed",
@@ -1231,7 +1236,7 @@ class TestConvenienceTools:
             return_value=httpx.Response(200, json={"prompt_id": "tf-wait-1"})
         )
 
-        async def fake_wait(prompt_id):
+        async def fake_wait(prompt_id: str, *, client_id: str | None = None):
             return ProgressState(
                 prompt_id=prompt_id,
                 status="completed",
@@ -1267,7 +1272,7 @@ class TestConvenienceTools:
             return_value=httpx.Response(200, json={"prompt_id": "inp-wait-1"})
         )
 
-        async def fake_wait(prompt_id):
+        async def fake_wait(prompt_id: str, *, client_id: str | None = None):
             return ProgressState(
                 prompt_id=prompt_id,
                 status="completed",

@@ -87,14 +87,16 @@ class TestWebSocketProgress:
     def test_ws_url_from_http(self):
         client = ComfyUIClient(base_url="http://localhost:8188")
         progress = WebSocketProgress(client, timeout=10.0)
-        url = progress._ws_url()
+        url = progress._ws_url("client-1")
         assert url.startswith("ws://localhost:8188/ws?clientId=")
+        assert "client-1" in url
 
     def test_ws_url_from_https(self):
         client = ComfyUIClient(base_url="https://gpu.example.com:8188")
         progress = WebSocketProgress(client, timeout=10.0)
-        url = progress._ws_url()
+        url = progress._ws_url("client-2")
         assert url.startswith("wss://gpu.example.com:8188/ws?clientId=")
+        assert "client-2" in url
 
     async def test_wait_for_completion_success(self, monkeypatch):
         client = ComfyUIClient(base_url="http://test:8188")
