@@ -372,3 +372,42 @@ class TestWebSocketProgress:
 
         state = await progress.get_state("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert state.status == "running"
+
+    @respx.mock
+    async def test_preflight_history_check_avoids_hanging_on_fast_jobs(self, monkeypatch):
+        """Jobs that complete before the WS connects must be caught by the pre-flight
+        history check so _wait_internal returns immediately instead of hanging until
+        the 300 s timeout (the race condition observed on the k3s cluster)."""
+        client = ComfyUIClient(base_url="http://test:8188")
+        progress = WebSocketProgress(client, timeout=30.0)
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+        # WS connects fine but sends no messages (job already done)
+        fake_ws = FakeWebSocket([])
+
+        def fake_connect(url, **kwargs):
+            return fake_ws
+
+        monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fake_connect)
+
+        # History endpoint immediately returns a completed entry
+        respx.get(f"http://test:8188/history/{prompt_id}").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    prompt_id: {
+                        "outputs": {
+                            "9": {"images": [{"filename": "fast.png", "subfolder": "output"}]}
+                        },
+                        "status": {"completed": True},
+                    }
+                },
+            )
+        )
+
+        state, events = await progress.wait_for_completion_with_events(prompt_id)
+
+        assert state.status == "completed"
+        assert state.outputs[0]["filename"] == "fast.png"
+        # Pre-flight path emits a marker event so callers know how it resolved
+        assert any(e["type"] == "preflight_history" for e in events)

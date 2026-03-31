@@ -4,7 +4,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.9 /uv /uvx /bin/
 
 WORKDIR /app
 
-RUN groupadd --system app && useradd --system --gid app app
+RUN groupadd --system app && useradd --system --gid app --create-home app
 
 COPY --chown=app:app pyproject.toml uv.lock README.md LICENSE ./
 RUN uv sync --frozen --no-dev

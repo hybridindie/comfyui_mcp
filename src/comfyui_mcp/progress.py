@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import ssl
 import time
 import uuid
@@ -16,6 +17,8 @@ import httpx
 import websockets
 
 from comfyui_mcp.client import ComfyUIClient
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -123,6 +126,22 @@ class WebSocketProgress:
 
         return False
 
+    def _state_from_history(self, entry: dict[str, Any], prompt_id: str) -> ProgressState:
+        """Build a completed ProgressState from a /history/{prompt_id} entry."""
+        state = ProgressState(prompt_id=prompt_id, status="completed")
+        outputs = entry.get("outputs", {})
+        for node_id, node_output in outputs.items():
+            for key in ("images", "gifs"):
+                for item in node_output.get(key, []):
+                    state.outputs.append(
+                        {
+                            "node_id": node_id,
+                            "filename": item.get("filename", ""),
+                            "subfolder": item.get("subfolder", ""),
+                        }
+                    )
+        return state
+
     async def _wait_internal(
         self,
         prompt_id: str,
@@ -146,6 +165,20 @@ class WebSocketProgress:
 
             async with asyncio.timeout(self._timeout):
                 async with websockets.connect(ws_url, **ws_kwargs) as ws:
+                    # Pre-flight: if the job finished before this WS connection was
+                    # established, ComfyUI will not replay terminal events. Check
+                    # history immediately to avoid hanging until timeout.
+                    with contextlib.suppress(httpx.HTTPError, OSError):
+                        history = await self._client.get_history_item(prompt_id)
+                        if prompt_id in history:
+                            state = self._state_from_history(history[prompt_id], prompt_id)
+                            if collect_events:
+                                events.append(
+                                    {"type": "preflight_history", "data": {"prompt_id": prompt_id}}
+                                )
+                            state.elapsed_seconds = round(time.monotonic() - start_time, 2)
+                            return state, events
+
                     async for raw_msg in ws:
                         if isinstance(raw_msg, bytes):
                             continue
@@ -167,8 +200,9 @@ class WebSocketProgress:
 
         except TimeoutError:
             state.status = "timeout"
-        except (OSError, websockets.exceptions.WebSocketException):
+        except (OSError, websockets.exceptions.WebSocketException) as exc:
             # WebSocket failed — fall back to HTTP polling per spec
+            _logger.warning("WebSocket connection failed, falling back to HTTP polling: %s", exc)
             state = await self._poll_until_complete(prompt_id, start_time)
             if collect_events:
                 events.append({"type": "fallback_polling", "data": {"prompt_id": prompt_id}})
