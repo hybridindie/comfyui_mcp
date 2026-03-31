@@ -17,4 +17,4 @@ security:
   mode: "audit"
 
 logging:
-  level: "INFO"
+  audit_file: "~/.comfyui-mcp/audit.log"

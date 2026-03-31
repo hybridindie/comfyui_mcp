@@ -1,4 +1,4 @@
-# Contributing to comfyui-mcp
+# Contributing to comfyui_mcp
 
 Thanks for your interest in contributing!
 
@@ -6,8 +6,8 @@ Thanks for your interest in contributing!
 
 ```bash
 # Clone and setup
-git clone https://github.com/hybridindie/comfyui-mcp.git
-cd comfyui-mcp
+git clone https://github.com/hybridindie/comfyui_mcp.git
+cd comfyui_mcp
 uv sync
 
 # Install git hooks (required — do this once after cloning)
@@ -26,7 +26,7 @@ export COMFYUI_URL="http://127.0.0.1:8188"
 export COMFYUI_HUGGINGFACE_TOKEN="hf_xxx"
 export COMFYUI_CIVITAI_API_KEY="xxx"
 
-uv run comfyui-mcp
+uv run comfyui-mcp-secure
 ```
 
 ## Pre-commit Hooks

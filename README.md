@@ -157,6 +157,38 @@ The MCP server communicates over stdio. Add one of the following configurations 
 
 > **Note:** `host.docker.internal` routes to your host machine from inside Docker. If ComfyUI runs on a remote server, replace with that server's URL. On Linux, you may need to add `--add-host=host.docker.internal:host-gateway`.
 
+### Install as a Claude plugin (from this repo)
+
+This repository includes a Claude plugin manifest at `.claude-plugin/plugin.json`.
+
+```bash
+claude plugin install .
+```
+
+Plugin-related files currently included in this repo:
+
+- `.claude-plugin/plugin.json` (plugin manifest)
+- `.mcp.json` (MCP server bootstrap config)
+- `hooks/` (security warning hook)
+- `skills/` (slash-command skills)
+
+If you use the included `.mcp.json`, set both internal and optional external ComfyUI URLs as needed:
+
+```json
+{
+  "mcpServers": {
+    "comfyui": {
+      "command": "uvx",
+      "args": ["comfyui-mcp-secure"],
+      "env": {
+        "COMFYUI_URL": "http://comfyui:8188",
+        "COMFYUI_EXTERNAL_URL": "https://comfyui.example.com"
+      }
+    }
+  }
+}
+```
+
 ### Verify
 
 ```bash
@@ -211,6 +243,18 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | `audit_dangerous_nodes` | Scan all installed nodes to identify potentially dangerous ones. |
 | `get_system_info` | Sanitized GPU VRAM, queue depth, and ComfyUI version (whitelist-filtered from `/system_stats`). |
 
+### Custom Node Management
+
+| Tool | Description |
+|------|-------------|
+| `search_custom_nodes` | Search ComfyUI Manager registry custom node packs by name/description/author. |
+| `install_custom_node` | Queue install for a custom node pack by `id`; optional restart and post-install security audit. |
+| `uninstall_custom_node` | Queue uninstall for a custom node pack by `id`; optional restart. |
+| `update_custom_node` | Queue update for a custom node pack by `id`; optional restart and post-update security audit. |
+| `get_custom_node_status` | Get custom node queue status (pending/running/completed). |
+
+> **Requires:** ComfyUI-Manager available on the target ComfyUI server. If unavailable, node-management tools return a helpful error.
+
 ### History
 
 | Tool | Description |
@@ -252,7 +296,7 @@ The `download_model` tool always sends a `previewFile` field (required by Model 
 | Tool | Description |
 |------|-------------|
 | `upload_image` | Upload a base64-encoded image to ComfyUI's input directory. Path-sanitized. |
-| `get_image` | Download a generated image. Returns a base64 data URI by default, or a direct `/view` URL when requested. Path-sanitized. |
+| `get_image` | Download a generated image. `response_format="data_uri"` (default) returns inline base64; `response_format="url"` returns a direct `/view` URL. Optional `base_url_override` can override URL host per call. Path-sanitized. |
 | `list_outputs` | List generated output filenames from history. |
 | `upload_mask` | Upload a mask image to ComfyUI's input directory. Path-sanitized. |
 | `get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |
@@ -276,6 +320,7 @@ Config file: `~/.comfyui-mcp/config.yaml`
 comfyui:
   url: "http://127.0.0.1:8188"   # ComfyUI server URL
   external_url: null               # Optional public URL for get_image URL responses
+                                   # If unset, URL responses use comfyui.url
   tls_verify: true                 # TLS certificate verification
   timeout_connect: 30              # Connection timeout (seconds)
   timeout_read: 300                # Read timeout (seconds)
@@ -632,8 +677,8 @@ uvx twine check dist/*
 Publish a release to PyPI:
 
 ```bash
-git tag v0.1.5
-git push origin v0.1.5
+git tag v0.1.6
+git push origin v0.1.6
 ```
 
 The GitHub Actions workflow in `.github/workflows/pypi.yml` builds the sdist and wheel, verifies the metadata, and publishes to PyPI using GitHub Trusted Publishing. Before the first release, create the `comfyui-mcp-secure` project on PyPI, configure a trusted publisher for this repository in the PyPI project settings, and use the `pypi` GitHub environment.
