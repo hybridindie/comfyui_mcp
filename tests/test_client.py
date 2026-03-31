@@ -81,7 +81,7 @@ class TestComfyUIClient:
 
     @respx.mock
     async def test_get_image(self, client):
-        respx.get("http://test-comfyui:8188/view").mock(
+        route = respx.get("http://test-comfyui:8188/view").mock(
             return_value=httpx.Response(
                 200, content=b"fake-image-bytes", headers={"content-type": "image/png"}
             )
@@ -89,6 +89,9 @@ class TestComfyUIClient:
         data, content_type = await client.get_image("output.png", "output")
         assert data == b"fake-image-bytes"
         assert content_type == "image/png"
+        assert route.calls
+        request = route.calls[0].request
+        assert request.url.params["type"] == "output"
 
     @respx.mock
     async def test_delete_queue_item(self, client):

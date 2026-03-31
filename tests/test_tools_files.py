@@ -144,7 +144,7 @@ class TestGetImage:
         )
 
         assert result == (
-            "https://images.example.com/comfyui/view?filename=output.png&subfolder=output"
+            "https://images.example.com/comfyui/view?filename=output.png&subfolder=output&type=output"
         )
 
     async def test_get_image_returns_url_with_per_call_override(self, components):
@@ -166,7 +166,7 @@ class TestGetImage:
         )
 
         assert result == (
-            "https://public.example.com/comfyui/view?filename=output.png&subfolder=output"
+            "https://public.example.com/comfyui/view?filename=output.png&subfolder=output&type=output"
         )
 
     async def test_get_image_traversal_blocked(self, components):

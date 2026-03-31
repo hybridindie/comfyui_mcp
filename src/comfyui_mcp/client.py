@@ -143,7 +143,9 @@ class ComfyUIClient:
 
     async def get_image(self, filename: str, subfolder: str = "output") -> tuple[bytes, str]:
         r = await self._request(
-            "get", "/view", params={"filename": filename, "subfolder": subfolder}
+            "get",
+            "/view",
+            params={"filename": filename, "subfolder": subfolder, "type": "output"},
         )
         content_type = r.headers.get("content-type", "image/png")
         return r.content, content_type
@@ -160,7 +162,7 @@ class ComfyUIClient:
         parsed = httpx.URL(target_base_url)
         if parsed.scheme not in ("http", "https") or not parsed.host:
             raise ValueError("base_url must use http or https and include a host")
-        query = urlencode({"filename": filename, "subfolder": subfolder})
+        query = urlencode({"filename": filename, "subfolder": subfolder, "type": "output"})
         return f"{target_base_url}/view?{query}"
 
     async def get_embeddings(self) -> list:
