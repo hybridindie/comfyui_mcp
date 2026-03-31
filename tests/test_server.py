@@ -31,10 +31,14 @@ class TestImageViewBaseUrlSelection:
             (
                 "https://comfy.example.com",
                 "http://comfyui.default.svc.cluster.local:8188",
-                "https://comfy.example.com",
+                "http://comfyui.default.svc.cluster.local:8188",
             ),
         ],
     )
     def test_select_image_view_base_url(self, comfyui_url, external_url, expected):
         settings = Settings(comfyui=ComfyUISettings(url=comfyui_url, external_url=external_url))
         assert _select_image_view_base_url(settings) == expected
+
+    def test_select_image_view_base_url_falls_back_to_localhost_when_urls_empty(self):
+        settings = Settings(comfyui=ComfyUISettings.model_construct(url="", external_url=None))
+        assert _select_image_view_base_url(settings) == "http://127.0.0.1:8188"

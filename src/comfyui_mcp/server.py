@@ -5,7 +5,6 @@ from __future__ import annotations
 import atexit
 import contextlib
 from pathlib import Path
-from urllib.parse import urlparse
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -32,33 +31,17 @@ from comfyui_mcp.tools.nodes import register_node_tools
 from comfyui_mcp.tools.workflow import register_workflow_tools
 
 
-def _is_internal_hostname(hostname: str | None) -> bool:
-    """Heuristically detect loopback/cluster-internal hostnames."""
-    if not hostname:
-        return True
-    host = hostname.lower()
-    if host in {"localhost", "127.0.0.1", "::1"}:
-        return True
-    return host.endswith(".svc") or host.endswith(".svc.cluster.local")
-
-
 def _select_image_view_base_url(settings: Settings) -> str:
-    """Choose the safest public-facing base URL for image view links."""
+    """Choose image view link base URL with explicit fallback precedence."""
     external_url = settings.comfyui.external_url
+    if external_url:
+        return external_url
+
     comfyui_url = settings.comfyui.url
-
-    if not external_url:
+    if comfyui_url:
         return comfyui_url
 
-    external_host = urlparse(external_url).hostname
-    comfyui_host = urlparse(comfyui_url).hostname
-
-    # If external_url is accidentally set to an internal service URL, prefer
-    # the configured ComfyUI URL when it is public.
-    if _is_internal_hostname(external_host) and not _is_internal_hostname(comfyui_host):
-        return comfyui_url
-
-    return external_url
+    return "http://127.0.0.1:8188"
 
 
 def _create_client(settings: Settings) -> ComfyUIClient:
