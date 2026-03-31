@@ -6,7 +6,7 @@ import base64
 import json
 import struct
 import zlib
-from typing import Any
+from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 
@@ -85,6 +85,7 @@ def register_file_tools(
     audit: AuditLogger,
     limiter: RateLimiter,
     sanitizer: PathSanitizer,
+    image_view_base_url: str | None = None,
 ) -> dict[str, Any]:
     """Register file operation tools."""
     tool_fns: dict[str, Any] = {}
@@ -115,22 +116,43 @@ def register_file_tools(
     tool_fns["upload_image"] = upload_image
 
     @mcp.tool()
-    async def get_image(filename: str, subfolder: str = "output") -> str:
-        """Download a generated image from ComfyUI.
+    async def get_image(
+        filename: str,
+        subfolder: str = "output",
+        response_format: Literal["data_uri", "url"] = "data_uri",
+        base_url_override: str | None = None,
+    ) -> str:
+        """Download a generated image from ComfyUI or return a direct view URL.
 
         Args:
             filename: Name of the image file to retrieve
             subfolder: Directory to look in (default: 'output')
+            response_format: 'data_uri' to inline the image, or 'url' to return a /view URL
+            base_url_override: Optional override for URL responses; falls back to config,
+                then to the ComfyUI internal base URL
 
         Returns:
-            Base64-encoded image data with content type prefix
+            Base64-encoded image data with content type prefix, or a direct image URL
         """
         limiter.check("get_image")
         clean_name = sanitizer.validate_filename(filename)
         clean_subfolder = sanitizer.validate_subfolder(subfolder)
         await audit.async_log(
-            tool="get_image", action="downloading", extra={"filename": clean_name}
+            tool="get_image",
+            action="downloading",
+            extra={"filename": clean_name, "response_format": response_format},
         )
+
+        if response_format == "url":
+            return client.build_image_url(
+                clean_name,
+                clean_subfolder,
+                base_url=base_url_override or image_view_base_url,
+            )
+
+        if response_format != "data_uri":
+            raise ValueError("response_format must be 'data_uri' or 'url'")
+
         data, content_type = await client.get_image(clean_name, clean_subfolder)
         b64 = base64.b64encode(data).decode()
         return f"data:{content_type};base64,{b64}"

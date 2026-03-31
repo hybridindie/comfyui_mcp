@@ -17,6 +17,10 @@ class TestSettingsDefaults:
         s = Settings()
         assert s.comfyui.url == "http://127.0.0.1:8188"
 
+    def test_default_comfyui_external_url(self):
+        s = Settings()
+        assert s.comfyui.external_url is None
+
     def test_default_security_mode(self):
         s = Settings()
         assert s.security.mode == "audit"
@@ -44,6 +48,7 @@ class TestSettingsFromYAML:
         config = {
             "comfyui": {
                 "url": "https://gpu-server:8188",
+                "external_url": "https://comfy.example.com/comfyui",
             },
             "security": {"mode": "enforce"},
         }
@@ -52,6 +57,7 @@ class TestSettingsFromYAML:
 
         settings = load_settings(config_path=config_file)
         assert settings.comfyui.url == "https://gpu-server:8188"
+        assert settings.comfyui.external_url == "https://comfy.example.com/comfyui"
         assert settings.security.mode == "enforce"
 
     def test_missing_yaml_uses_defaults(self, tmp_path):
@@ -64,6 +70,11 @@ class TestSettingsEnvOverrides:
         monkeypatch.setenv("COMFYUI_URL", "https://env-server:8188")
         settings = load_settings()
         assert settings.comfyui.url == "https://env-server:8188"
+
+    def test_env_overrides_external_url(self, monkeypatch):
+        monkeypatch.setenv("COMFYUI_EXTERNAL_URL", "https://comfy.example.com")
+        settings = load_settings()
+        assert settings.comfyui.external_url == "https://comfy.example.com"
 
     def test_env_overrides_security_mode(self, monkeypatch):
         monkeypatch.setenv("COMFYUI_SECURITY_MODE", "enforce")

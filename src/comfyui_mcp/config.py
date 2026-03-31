@@ -49,6 +49,7 @@ _DEFAULT_ALLOWED_MODEL_EXTENSIONS = [".safetensors", ".ckpt", ".pt", ".pth", ".b
 
 class ComfyUISettings(BaseModel):
     url: str = "http://127.0.0.1:8188"
+    external_url: str | None = None
     tls_verify: bool = True
     timeout_connect: int = 30
     timeout_read: int = 300
@@ -62,6 +63,13 @@ class ComfyUISettings(BaseModel):
         if not parsed.netloc:
             raise ValueError("URL must have a valid host")
         return v
+
+    @field_validator("external_url")
+    @classmethod
+    def validate_external_url(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        return cls.validate_url(v)
 
 
 class SecuritySettings(BaseModel):
@@ -136,6 +144,7 @@ def _apply_env_overrides(data: dict) -> dict:
     """Apply environment variable overrides."""
     env_map = {
         "COMFYUI_URL": ("comfyui", "url"),
+        "COMFYUI_EXTERNAL_URL": ("comfyui", "external_url"),
         "COMFYUI_TLS_VERIFY": ("comfyui", "tls_verify"),
         "COMFYUI_TIMEOUT_CONNECT": ("comfyui", "timeout_connect"),
         "COMFYUI_TIMEOUT_READ": ("comfyui", "timeout_read"),
@@ -169,7 +178,7 @@ def load_settings(config_path: Path | None = None) -> Settings:
     data: dict = {}
 
     if path.exists():
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             loaded = yaml.safe_load(f)
             if isinstance(loaded, dict):
                 data = loaded

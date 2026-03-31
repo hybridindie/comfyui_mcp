@@ -79,6 +79,7 @@ def _register_all_tools(
     client: ComfyUIClient,
     audit: AuditLogger,
     rate_limiters: dict[str, RateLimiter],
+    image_view_base_url: str | None,
     inspector: WorkflowInspector,
     sanitizer: PathSanitizer,
     node_auditor: NodeAuditor,
@@ -102,7 +103,14 @@ def _register_all_tools(
         read_limiter=rate_limiters["read"],
         progress=progress,
     )
-    register_file_tools(server, client, audit, rate_limiters["file"], sanitizer)
+    register_file_tools(
+        server,
+        client,
+        audit,
+        rate_limiters["file"],
+        sanitizer,
+        image_view_base_url=image_view_base_url,
+    )
     register_generation_tools(
         server,
         client,
@@ -193,6 +201,7 @@ def _build_server(
         client,
         audit,
         rate_limiters,
+        settings.comfyui.external_url,
         inspector,
         sanitizer,
         node_auditor,

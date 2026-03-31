@@ -1,5 +1,8 @@
 comfyui:
   url: "http://comfyui:8188"
+  # Optional: public URL to use when get_image is asked for a direct URL.
+  # Useful when ComfyUI is only reachable internally, such as behind k3s ingress.
+  external_url: ""
 
 model_search:
   # Optional: needed for gated/private HuggingFace models and higher API limits.

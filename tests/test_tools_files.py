@@ -126,6 +126,49 @@ class TestGetImage:
         result = await tools["get_image"](filename="output.png")
         assert "base64" in result or "image" in result.lower()
 
+    async def test_get_image_returns_url_with_config_override(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_file_tools(
+            mcp,
+            client,
+            audit,
+            limiter,
+            sanitizer,
+            image_view_base_url="https://images.example.com/comfyui",
+        )
+
+        result = await tools["get_image"](
+            filename="output.png",
+            response_format="url",
+        )
+
+        assert result == (
+            "https://images.example.com/comfyui/view?filename=output.png&subfolder=output"
+        )
+
+    async def test_get_image_returns_url_with_per_call_override(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_file_tools(
+            mcp,
+            client,
+            audit,
+            limiter,
+            sanitizer,
+            image_view_base_url="https://internal.example.com",
+        )
+
+        result = await tools["get_image"](
+            filename="output.png",
+            response_format="url",
+            base_url_override="https://public.example.com/comfyui",
+        )
+
+        assert result == (
+            "https://public.example.com/comfyui/view?filename=output.png&subfolder=output"
+        )
+
     async def test_get_image_traversal_blocked(self, components):
         client, audit, limiter, sanitizer = components
         mcp = FastMCP("test")

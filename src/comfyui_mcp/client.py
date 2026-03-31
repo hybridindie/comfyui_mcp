@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from urllib.parse import urlencode
 
 import httpx
 
@@ -69,8 +70,6 @@ class ComfyUIClient:
                 r = await c.request(normalized, path, **kwargs)
                 r.raise_for_status()
                 return r
-            except httpx.HTTPStatusError:
-                raise
             except httpx.RequestError as e:
                 last_exception = e
                 if attempt < self._max_retries - 1:
@@ -148,6 +147,21 @@ class ComfyUIClient:
         )
         content_type = r.headers.get("content-type", "image/png")
         return r.content, content_type
+
+    def build_image_url(
+        self,
+        filename: str,
+        subfolder: str = "output",
+        *,
+        base_url: str | None = None,
+    ) -> str:
+        """Build a direct ComfyUI /view URL for an image."""
+        target_base_url = (base_url or self._base_url).rstrip("/")
+        parsed = httpx.URL(target_base_url)
+        if parsed.scheme not in ("http", "https") or not parsed.host:
+            raise ValueError("base_url must use http or https and include a host")
+        query = urlencode({"filename": filename, "subfolder": subfolder})
+        return f"{target_base_url}/view?{query}"
 
     async def get_embeddings(self) -> list:
         r = await self._request("get", "/embeddings")

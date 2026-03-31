@@ -252,7 +252,7 @@ The `download_model` tool always sends a `previewFile` field (required by Model 
 | Tool | Description |
 |------|-------------|
 | `upload_image` | Upload a base64-encoded image to ComfyUI's input directory. Path-sanitized. |
-| `get_image` | Download a generated image. Returns base64-encoded data URI. Path-sanitized. |
+| `get_image` | Download a generated image. Returns a base64 data URI by default, or a direct `/view` URL when requested. Path-sanitized. |
 | `list_outputs` | List generated output filenames from history. |
 | `upload_mask` | Upload a mask image to ComfyUI's input directory. Path-sanitized. |
 | `get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |
@@ -275,6 +275,7 @@ Config file: `~/.comfyui-mcp/config.yaml`
 ```yaml
 comfyui:
   url: "http://127.0.0.1:8188"   # ComfyUI server URL
+  external_url: null               # Optional public URL for get_image URL responses
   tls_verify: true                 # TLS certificate verification
   timeout_connect: 30              # Connection timeout (seconds)
   timeout_read: 300                # Read timeout (seconds)
@@ -330,6 +331,7 @@ Environment variables override config file values:
 | Variable | Overrides |
 |----------|-----------|
 | `COMFYUI_URL` | `comfyui.url` |
+| `COMFYUI_EXTERNAL_URL` | `comfyui.external_url` |
 | `COMFYUI_TLS_VERIFY` | `comfyui.tls_verify` |
 | `COMFYUI_TIMEOUT_CONNECT` | `comfyui.timeout_connect` |
 | `COMFYUI_TIMEOUT_READ` | `comfyui.timeout_read` |
@@ -630,8 +632,8 @@ uvx twine check dist/*
 Publish a release to PyPI:
 
 ```bash
-git tag v0.1.4
-git push origin v0.1.4
+git tag v0.1.5
+git push origin v0.1.5
 ```
 
 The GitHub Actions workflow in `.github/workflows/pypi.yml` builds the sdist and wheel, verifies the metadata, and publishes to PyPI using GitHub Trusted Publishing. Before the first release, create the `comfyui-mcp-secure` project on PyPI, configure a trusted publisher for this repository in the PyPI project settings, and use the `pypi` GitHub environment.
