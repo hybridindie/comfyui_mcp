@@ -181,10 +181,6 @@ def _build_server(
         ),
     }
 
-    if settings.transport.sse.enabled:
-        server_kwargs["host"] = settings.transport.sse.host
-        server_kwargs["port"] = settings.transport.sse.port
-
     server = FastMCP(**server_kwargs)
 
     progress = WebSocketProgress(
@@ -235,11 +231,13 @@ atexit.register(_cleanup)
 def main() -> None:
     """Run the MCP server."""
     if _settings.transport.sse.enabled:
-        mcp.run(  # type: ignore[call-arg]
-            transport="sse",
-            host=_settings.transport.sse.host,
-            port=_settings.transport.sse.port,
-        )
+        run_kwargs: dict[str, object] = {
+            "transport": "sse",
+            "host": _settings.transport.sse.host,
+            "port": _settings.transport.sse.port,
+        }
+        # pylint: disable-next=unexpected-keyword-arg
+        mcp.run(**run_kwargs)  # type: ignore[call-arg,arg-type]  # pyright: ignore[reportCallIssue]
     else:
         mcp.run()
 
