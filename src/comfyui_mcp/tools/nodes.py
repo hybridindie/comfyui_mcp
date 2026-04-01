@@ -193,15 +193,20 @@ def register_node_tools(
             extra={"query": query},
         )
 
-        data = await client.get_custom_node_list(mode="remote")
-        node_packs = data.get("node_packs", {})
+        if node_manager.is_v4:
+            # V4 Manager: search installed packs via /v2/customnode/installed
+            node_packs = await client.get_installed_custom_nodes()
+        else:
+            # Legacy Manager: search remote registry via /customnode/getlist
+            data = await client.get_custom_node_list(mode="remote")
+            node_packs = data.get("node_packs", {})
 
         query_lower = query.lower()
         scored: list[tuple[float, dict[str, str]]] = []
         for pack_id, pack_info in node_packs.items():
             if not isinstance(pack_info, dict):
                 continue
-            name = pack_info.get("name", "")
+            name = pack_info.get("name", pack_id)
             description = pack_info.get("description", "")
             author = pack_info.get("author", "")
             name_lower = name.lower()
@@ -210,21 +215,27 @@ def register_node_tools(
                 score = 3.0
             elif query_lower in name_lower:
                 score = 2.0
+            elif query_lower in pack_id.lower():
+                score = 1.5
             elif query_lower in description.lower():
                 score = 1.0
             elif query_lower in author.lower():
                 score = 0.5
             else:
                 continue
+            installed = pack_info.get("installed", "")
+            if isinstance(installed, bool):
+                installed = str(installed).lower()
             scored.append(
                 (
                     score,
                     {
-                        "id": pack_id,
+                        "id": pack_info.get("cnr_id", pack_id),
                         "name": name,
                         "description": description,
                         "author": author,
-                        "installed": pack_info.get("installed", "false"),
+                        "installed": installed or "true" if node_manager.is_v4 else installed,
+                        "version": pack_info.get("ver", ""),
                     },
                 )
             )
@@ -397,7 +408,10 @@ def register_node_tools(
 
         await audit.async_log(tool="get_custom_node_status", action="checking")
 
-        status = await client.get_custom_node_queue_status()
+        if node_manager.is_v4:
+            status = await client.get_custom_node_queue_status_v4()
+        else:
+            status = await client.get_custom_node_queue_status()
 
         await audit.async_log(
             tool="get_custom_node_status",

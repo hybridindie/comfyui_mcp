@@ -319,6 +319,27 @@ class ComfyUIClient:
         """
         await self._request("get", "/manager/reboot")
 
+    # --- ComfyUI Manager V4 endpoints (/v2/ prefix) ---
+
+    async def get_manager_version_v4(self) -> str:
+        """GET /v2/manager/version — check ComfyUI Manager V4+ availability."""
+        r = await self._request("get", "/v2/manager/version")
+        return r.text
+
+    async def get_installed_custom_nodes(self) -> dict:
+        """GET /v2/customnode/installed — list installed custom node packs (V4+)."""
+        r = await self._request("get", "/v2/customnode/installed")
+        return r.json()
+
+    async def start_custom_node_queue_v4(self) -> None:
+        """GET /v2/manager/queue/start — start processing queued tasks (V4+)."""
+        await self._request("get", "/v2/manager/queue/start")
+
+    async def get_custom_node_queue_status_v4(self) -> dict:
+        """GET /v2/manager/queue/status — poll queue progress (V4+)."""
+        r = await self._request("get", "/v2/manager/queue/status")
+        return r.json()
+
     # --- Model Manager endpoints ---
 
     async def get_model_manager_folders(self) -> list[str]:

@@ -33,8 +33,11 @@ class TestComfyUIManagerDetector:
 
     @respx.mock
     async def test_probe_failure_not_installed(self, client):
-        """Detector reports unavailable when /manager/version returns 404."""
+        """Detector reports unavailable when both legacy and V4 paths fail."""
         respx.get("http://test-comfyui:8188/manager/version").mock(return_value=httpx.Response(404))
+        respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(404)
+        )
         detector = ComfyUIManagerDetector(client)
         result = await detector.is_available()
         assert result is False
@@ -69,6 +72,9 @@ class TestComfyUIManagerDetector:
     async def test_require_available_raises_when_not_installed(self, client):
         """require_available raises ComfyUIManagerUnavailableError when Manager is absent."""
         respx.get("http://test-comfyui:8188/manager/version").mock(return_value=httpx.Response(404))
+        respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(404)
+        )
         detector = ComfyUIManagerDetector(client)
         with pytest.raises(ComfyUIManagerUnavailableError):
             await detector.require_available()
@@ -77,9 +83,23 @@ class TestComfyUIManagerDetector:
     async def test_error_message_includes_install_url(self, client):
         """The error message includes the GitHub install URL."""
         respx.get("http://test-comfyui:8188/manager/version").mock(return_value=httpx.Response(404))
+        respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(404)
+        )
         detector = ComfyUIManagerDetector(client)
         with pytest.raises(
             ComfyUIManagerUnavailableError,
             match=r"https://github\.com/Comfy-Org/ComfyUI-Manager",
         ):
             await detector.require_available()
+
+    @respx.mock
+    async def test_v4_detection(self, client):
+        """Detector falls back to V4 path when legacy path returns 404."""
+        respx.get("http://test-comfyui:8188/manager/version").mock(return_value=httpx.Response(404))
+        respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(200, text="V4.1")
+        )
+        detector = ComfyUIManagerDetector(client)
+        assert await detector.is_available() is True
+        assert detector.is_v4 is True
