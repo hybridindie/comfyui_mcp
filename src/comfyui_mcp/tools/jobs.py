@@ -28,7 +28,8 @@ def register_job_tools(
     @mcp.tool()
     async def get_queue() -> dict:
         """Get the current ComfyUI execution queue state."""
-        limiter.check("get_queue")
+        rl = read_limiter if read_limiter is not None else limiter
+        rl.check("get_queue")
         await audit.async_log(tool="get_queue", action="called")
         return await client.get_queue()
 
@@ -37,7 +38,8 @@ def register_job_tools(
     @mcp.tool()
     async def get_job(prompt_id: str) -> dict:
         """Check the status of a specific job by its prompt_id."""
-        limiter.check("get_job")
+        rl = read_limiter if read_limiter is not None else limiter
+        rl.check("get_job")
         await audit.async_log(tool="get_job", action="called", extra={"prompt_id": prompt_id})
         return await client.get_history_item(prompt_id)
 
@@ -66,7 +68,8 @@ def register_job_tools(
     @mcp.tool()
     async def get_queue_status() -> dict:
         """Get detailed queue status including currently running and pending prompts."""
-        limiter.check("get_queue_status")
+        rl = read_limiter if read_limiter is not None else limiter
+        rl.check("get_queue_status")
         await audit.async_log(tool="get_queue_status", action="called")
         return await client.get_prompt_status()
 
