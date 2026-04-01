@@ -3,7 +3,7 @@
 import asyncio
 import json
 
-from comfyui_mcp.audit import AuditLogger, AuditRecord
+from comfyui_mcp.audit import AuditLogger, AuditRecord, _is_sensitive_key
 
 
 class TestAuditRecord:
@@ -43,6 +43,53 @@ class TestAuditRecord:
         )
         serialized = record.model_dump_json()
         assert "secret" not in serialized
+
+    def test_record_redacts_nested_sensitive_keys(self):
+        record = AuditRecord(
+            tool="test",
+            action="called",
+            extra={"result": {"api_key": "secret123", "data": "ok"}},
+        )
+        data = json.loads(record.model_dump_json())
+        assert data["extra"]["result"] == {"data": "ok"}
+
+    def test_record_redacts_expanded_patterns(self):
+        record = AuditRecord(
+            tool="test",
+            action="called",
+            extra={
+                "access_token": "at",
+                "refresh_token": "rt",
+                "private_key": "pk",
+                "credential": "cr",
+                "bearer": "br",
+                "session_id": "sid",
+                "safe_field": "visible",
+            },
+        )
+        data = json.loads(record.model_dump_json())
+        assert data["extra"] == {"safe_field": "visible"}
+
+
+class TestSensitiveKeyDetection:
+    def test_exact_matches(self):
+        assert _is_sensitive_key("token")
+        assert _is_sensitive_key("password")
+        assert _is_sensitive_key("api_key")
+
+    def test_substring_matches(self):
+        assert _is_sensitive_key("my_auth_token")
+        assert _is_sensitive_key("user_password_hash")
+        assert _is_sensitive_key("x_access_token_header")
+
+    def test_case_insensitive(self):
+        assert _is_sensitive_key("API_KEY")
+        assert _is_sensitive_key("Access_Token")
+
+    def test_non_sensitive_keys(self):
+        assert not _is_sensitive_key("prompt")
+        assert not _is_sensitive_key("model_name")
+        assert not _is_sensitive_key("width")
 
 
 class TestAuditLogger:
