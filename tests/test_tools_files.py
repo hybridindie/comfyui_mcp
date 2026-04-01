@@ -201,7 +201,7 @@ class TestGetImage:
         )
 
         assert result == (
-            "https://images.example.com/comfyui/view?filename=output.png&subfolder=output&type=output"
+            "https://images.example.com/comfyui/view?filename=output.png&subfolder=&type=output"
         )
 
     async def test_get_image_returns_url_with_per_call_override(self, components):
@@ -223,7 +223,7 @@ class TestGetImage:
         )
 
         assert result == (
-            "https://public.example.com/comfyui/view?filename=output.png&subfolder=output&type=output"
+            "https://public.example.com/comfyui/view?filename=output.png&subfolder=&type=output"
         )
 
     async def test_get_image_traversal_blocked(self, components):
@@ -433,7 +433,11 @@ class TestListOutputs:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
         parsed = json.loads(result)
-        assert parsed == ["image_001.png", "image_002.png", "image_003.png"]
+        assert parsed == [
+            {"filename": "image_001.png", "subfolder": ""},
+            {"filename": "image_002.png", "subfolder": ""},
+            {"filename": "image_003.png", "subfolder": ""},
+        ]
 
     @respx.mock
     async def test_deduplicates_filenames(self, components):
@@ -451,7 +455,7 @@ class TestListOutputs:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
         parsed = json.loads(result)
-        assert parsed == ["dup.png"]
+        assert parsed == [{"filename": "dup.png", "subfolder": ""}]
 
     @respx.mock
     async def test_empty_history(self, components):
@@ -482,7 +486,7 @@ class TestListOutputs:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
         parsed = json.loads(result)
-        assert parsed == ["ok.png"]
+        assert parsed == [{"filename": "ok.png", "subfolder": ""}]
 
 
 class TestUploadMask:

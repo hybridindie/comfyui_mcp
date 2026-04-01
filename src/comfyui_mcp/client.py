@@ -182,8 +182,9 @@ class ComfyUIClient:
     async def get_image(
         self,
         filename: str,
-        subfolder: str = "output",
+        subfolder: str = "",
     ) -> tuple[bytes, str]:
+        """GET /view — download an output image by filename and subfolder."""
         r = await self._request(
             "get",
             "/view",
@@ -195,7 +196,7 @@ class ComfyUIClient:
     def build_image_url(
         self,
         filename: str,
-        subfolder: str = "output",
+        subfolder: str = "",
         *,
         base_url: str | None = None,
     ) -> str:
@@ -211,7 +212,8 @@ class ComfyUIClient:
         r = await self._request("get", "/embeddings")
         return r.json()
 
-    async def get_workflow_templates(self) -> list:
+    async def get_workflow_templates(self) -> dict:
+        """GET /workflow_templates — list installed workflow templates by package."""
         r = await self._request("get", "/workflow_templates")
         return r.json()
 
