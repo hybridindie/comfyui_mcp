@@ -1,5 +1,6 @@
 """Tests for ComfyUI HTTP client."""
 
+import asyncio
 import json
 
 import httpx
@@ -87,24 +88,6 @@ class TestComfyUIClient:
             )
         )
         data, content_type = await client.get_image("output.png", "output")
-        assert data == b"fake-image-bytes"
-        assert content_type == "image/png"
-        assert route.calls
-        request = route.calls[0].request
-        assert request.url.params["type"] == "output"
-
-    @respx.mock
-    async def test_get_image_with_base_url_override(self, client):
-        route = respx.get("https://images.example.com/comfyui/view").mock(
-            return_value=httpx.Response(
-                200, content=b"fake-image-bytes", headers={"content-type": "image/png"}
-            )
-        )
-        data, content_type = await client.get_image(
-            "output.png",
-            "output",
-            base_url="https://images.example.com/comfyui",
-        )
         assert data == b"fake-image-bytes"
         assert content_type == "image/png"
         assert route.calls
@@ -232,13 +215,69 @@ class TestComfyUIClient:
         assert route.call_count == 2
 
     @respx.mock
-    async def test_no_retry_on_http_error(self, client):
+    async def test_no_retry_on_4xx(self, client):
+        """4xx errors are not retried — they indicate client-side issues."""
         route = respx.get("http://test-comfyui:8188/queue").mock(
-            return_value=httpx.Response(500, json={"error": "Internal Server Error"})
+            return_value=httpx.Response(404, json={"error": "Not Found"})
         )
         with pytest.raises(httpx.HTTPStatusError):
             await client.get_queue()
         assert route.call_count == 1
+
+    @respx.mock
+    async def test_retry_on_502_then_succeed(self, client):
+        """502 is retried; second attempt succeeds."""
+        route = respx.get("http://test-comfyui:8188/queue")
+        route.side_effect = [
+            httpx.Response(502, json={"error": "Bad Gateway"}),
+            httpx.Response(200, json={"queue_running": [], "queue_pending": []}),
+        ]
+        result = await client.get_queue()
+        assert "queue_running" in result
+        assert route.call_count == 2
+
+    @respx.mock
+    async def test_concurrent_get_client_returns_same_instance(self, client):
+        """Concurrent _get_client() calls should return the same AsyncClient instance."""
+        results = await asyncio.gather(
+            client._get_client(),
+            client._get_client(),
+            client._get_client(),
+        )
+        assert results[0] is results[1]
+        assert results[1] is results[2]
+
+    async def test_get_models_validates_path_segment(self, client):
+        with pytest.raises(ValueError, match="invalid characters"):
+            await client.get_models("../etc")
+
+    async def test_get_view_metadata_validates_path_segment(self, client):
+        with pytest.raises(ValueError, match="invalid characters"):
+            await client.get_view_metadata("../etc", "file.safetensors")
+
+    @respx.mock
+    async def test_get_history_with_max_items(self, client):
+        route = respx.get("http://test-comfyui:8188/history").mock(
+            return_value=httpx.Response(200, json={"abc": {"outputs": {}}})
+        )
+        result = await client.get_history(max_items=50)
+        assert "abc" in result
+        request = route.calls[0].request
+        assert request.url.params["max_items"] == "50"
+
+    @respx.mock
+    async def test_get_object_info_cache_returns_cached(self, client):
+        route = respx.get("http://test-comfyui:8188/object_info").mock(
+            return_value=httpx.Response(200, json={"KSampler": {"input": {}}})
+        )
+        result1 = await client.get_object_info()
+        result2 = await client.get_object_info()
+        assert result1 == result2
+        assert route.call_count == 1
+
+    def test_build_image_url_rejects_javascript_scheme(self, client):
+        with pytest.raises(ValueError, match="http or https"):
+            client.build_image_url("test.png", base_url="javascript:alert(1)")
 
 
 class TestModelManagerClient:

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from urllib.parse import urlencode
 
 import httpx
 
 _ALLOWED_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "DELETE", "PATCH"})
+_RETRYABLE_STATUS_CODES = frozenset({502, 503, 504})
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 _SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
 
@@ -30,6 +32,8 @@ def _validate_path_segment(value: str, *, label: str = "value") -> str:
 
 
 class ComfyUIClient:
+    _OBJECT_INFO_TTL = 300.0
+
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:8188",
@@ -43,6 +47,9 @@ class ComfyUIClient:
         self._tls_verify = tls_verify
         self._client: httpx.AsyncClient | None = None
         self._max_retries = max_retries
+        self._init_lock = asyncio.Lock()
+        self._object_info_cache: dict | None = None
+        self._object_info_ts: float = 0.0
 
     @property
     def base_url(self) -> str:
@@ -50,12 +57,15 @@ class ComfyUIClient:
         return self._base_url
 
     async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
-                base_url=self._base_url,
-                timeout=self._timeout,
-                verify=self._tls_verify,
-            )
+        if self._client is not None:
+            return self._client
+        async with self._init_lock:
+            if self._client is None:
+                self._client = httpx.AsyncClient(
+                    base_url=self._base_url,
+                    timeout=self._timeout,
+                    verify=self._tls_verify,
+                )
         return self._client
 
     async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
@@ -68,6 +78,14 @@ class ComfyUIClient:
             try:
                 c = await self._get_client()
                 r = await c.request(normalized, path, **kwargs)
+                if r.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries - 1:
+                    last_exception = httpx.HTTPStatusError(
+                        f"Server returned {r.status_code}",
+                        request=r.request,
+                        response=r,
+                    )
+                    await asyncio.sleep(0.5 * (attempt + 1))
+                    continue
                 r.raise_for_status()
                 return r
             except httpx.RequestError as e:
@@ -107,18 +125,30 @@ class ComfyUIClient:
         return r.json()
 
     async def get_models(self, folder: str) -> list:
+        _validate_path_segment(folder, label="folder")
         r = await self._request("get", f"/models/{folder}")
         return r.json()
 
     async def get_object_info(self, node_class: str | None = None) -> dict:
         if node_class is not None:
             _validate_path_segment(node_class, label="node_class")
-        path = f"/object_info/{node_class}" if node_class else "/object_info"
-        r = await self._request("get", path)
-        return r.json()
+            r = await self._request("get", f"/object_info/{node_class}")
+            return r.json()
+        now = time.monotonic()
+        cache_age = now - self._object_info_ts
+        if self._object_info_cache is not None and cache_age < self._OBJECT_INFO_TTL:
+            return self._object_info_cache
+        r = await self._request("get", "/object_info")
+        data: dict = r.json()
+        self._object_info_cache = data
+        self._object_info_ts = now
+        return data
 
-    async def get_history(self) -> dict:
-        r = await self._request("get", "/history")
+    async def get_history(self, max_items: int | None = None) -> dict:
+        params: dict[str, int] = {}
+        if max_items is not None:
+            params["max_items"] = max_items
+        r = await self._request("get", "/history", params=params or None)
         return r.json()
 
     async def get_history_item(self, prompt_id: str) -> dict:
@@ -145,20 +175,12 @@ class ComfyUIClient:
         self,
         filename: str,
         subfolder: str = "output",
-        *,
-        base_url: str | None = None,
     ) -> tuple[bytes, str]:
-        if base_url is None:
-            r = await self._request(
-                "get",
-                "/view",
-                params={"filename": filename, "subfolder": subfolder, "type": "output"},
-            )
-        else:
-            view_url = self.build_image_url(filename, subfolder, base_url=base_url)
-            c = await self._get_client()
-            r = await c.get(view_url)
-            r.raise_for_status()
+        r = await self._request(
+            "get",
+            "/view",
+            params={"filename": filename, "subfolder": subfolder, "type": "output"},
+        )
         content_type = r.headers.get("content-type", "image/png")
         return r.content, content_type
 
@@ -198,6 +220,8 @@ class ComfyUIClient:
         return r.json()
 
     async def get_view_metadata(self, folder: str, filename: str) -> dict:
+        _validate_path_segment(folder, label="folder")
+        _validate_path_segment(filename, label="filename")
         r = await self._request("get", f"/view_metadata/{folder}", params={"filename": filename})
         return r.json()
 
