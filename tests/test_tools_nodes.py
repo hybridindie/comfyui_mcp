@@ -78,25 +78,23 @@ def unavailable_tools(components):
 
 
 def _mock_node_list(query_match: str = "test"):
-    """Mock GET /customnode/getlist with some node packs."""
-    respx.get(f"{BASE}/customnode/getlist").mock(
+    """Mock GET /v2/customnode/installed with some node packs."""
+    respx.get(f"{BASE}/v2/customnode/installed").mock(
         return_value=httpx.Response(
             200,
             json={
-                "node_packs": {
-                    "comfy-pack-one": {
-                        "name": "Test Node Pack",
-                        "description": "A test pack for unit tests",
-                        "author": "tester",
-                        "installed": "false",
-                    },
-                    "comfy-pack-two": {
-                        "name": "Another Pack",
-                        "description": "Unrelated pack",
-                        "author": "someone",
-                        "installed": "true",
-                    },
-                }
+                "comfy-pack-one": {
+                    "name": "Test Node Pack",
+                    "description": "A test pack for unit tests",
+                    "author": "tester",
+                    "installed": "false",
+                },
+                "comfy-pack-two": {
+                    "name": "Another Pack",
+                    "description": "Unrelated pack",
+                    "author": "someone",
+                    "installed": "true",
+                },
             },
         )
     )
@@ -104,9 +102,9 @@ def _mock_node_list(query_match: str = "test"):
 
 def _mock_operation_success():
     """Mock the queue -> start -> poll flow for install/uninstall/update."""
-    # POST to queue endpoint (install/uninstall/update) is mocked by caller
-    respx.get(f"{BASE}/manager/queue/start").mock(return_value=httpx.Response(200))
-    respx.get(f"{BASE}/manager/queue/status").mock(
+    # POST to queue task endpoint is mocked by caller
+    respx.get(f"{BASE}/v2/manager/queue/start").mock(return_value=httpx.Response(200))
+    respx.get(f"{BASE}/v2/manager/queue/status").mock(
         return_value=httpx.Response(200, json={"is_processing": False, "total": 1, "completed": 1})
     )
 
@@ -116,7 +114,7 @@ def _mock_restart_success(with_audit: bool = True):
     respx.get(f"{BASE}/queue").mock(
         return_value=httpx.Response(200, json={"queue_running": [], "queue_pending": []})
     )
-    respx.get(f"{BASE}/manager/reboot").mock(return_value=httpx.Response(200))
+    respx.get(f"{BASE}/v2/manager/reboot").mock(return_value=httpx.Response(200))
     if with_audit:
         respx.get(f"{BASE}/object_info").mock(
             return_value=httpx.Response(
@@ -198,7 +196,7 @@ class TestInstallCustomNode:
     @respx.mock
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
     async def test_install_no_restart(self, mock_sleep, registered_tools):
-        respx.post(f"{BASE}/manager/queue/install").mock(return_value=httpx.Response(200))
+        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         result = await registered_tools["install_custom_node"](id="comfy-pack-one", restart=False)
         assert "completed" in result.lower() or "operation completed" in result.lower()
@@ -207,7 +205,7 @@ class TestInstallCustomNode:
     @respx.mock
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
     async def test_install_restart_empty_queue(self, mock_sleep, registered_tools):
-        respx.post(f"{BASE}/manager/queue/install").mock(return_value=httpx.Response(200))
+        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         _mock_restart_success(with_audit=True)
         result = await registered_tools["install_custom_node"](id="comfy-pack-one", restart=True)
@@ -217,7 +215,7 @@ class TestInstallCustomNode:
     @respx.mock
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
     async def test_install_restart_busy_queue_defers(self, mock_sleep, registered_tools):
-        respx.post(f"{BASE}/manager/queue/install").mock(return_value=httpx.Response(200))
+        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         _mock_restart_busy_queue()
         result = await registered_tools["install_custom_node"](id="comfy-pack-one", restart=True)
@@ -239,7 +237,7 @@ class TestInstallCustomNode:
     @respx.mock
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
     async def test_rate_limiter_called(self, mock_sleep, components, registered_tools):
-        respx.post(f"{BASE}/manager/queue/install").mock(return_value=httpx.Response(200))
+        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         # First call succeeds
         await registered_tools["install_custom_node"](id="comfy-pack-one", restart=False)
@@ -260,7 +258,7 @@ class TestUninstallCustomNode:
     @respx.mock
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
     async def test_uninstall_no_restart(self, mock_sleep, registered_tools):
-        respx.post(f"{BASE}/manager/queue/uninstall").mock(return_value=httpx.Response(200))
+        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         result = await registered_tools["uninstall_custom_node"](id="comfy-pack-one", restart=False)
         assert "operation completed" in result.lower()
@@ -270,7 +268,7 @@ class TestUninstallCustomNode:
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
     async def test_uninstall_restart_no_post_audit(self, mock_sleep, registered_tools):
         """Uninstall with restart should NOT run post-restart security audit."""
-        respx.post(f"{BASE}/manager/queue/uninstall").mock(return_value=httpx.Response(200))
+        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         # No audit: restart without object_info mock
         _mock_restart_success(with_audit=False)
@@ -284,7 +282,7 @@ class TestUpdateCustomNode:
     @respx.mock
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
     async def test_update_no_restart(self, mock_sleep, registered_tools):
-        respx.post(f"{BASE}/manager/queue/update").mock(return_value=httpx.Response(200))
+        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         result = await registered_tools["update_custom_node"](id="comfy-pack-one", restart=False)
         assert "operation completed" in result.lower()
@@ -294,7 +292,7 @@ class TestUpdateCustomNode:
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
     async def test_update_restart_with_audit(self, mock_sleep, registered_tools):
         """Update with restart should run post-restart security audit."""
-        respx.post(f"{BASE}/manager/queue/update").mock(return_value=httpx.Response(200))
+        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         _mock_restart_success(with_audit=True)
         result = await registered_tools["update_custom_node"](id="comfy-pack-one", restart=True)
@@ -305,7 +303,7 @@ class TestUpdateCustomNode:
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
     async def test_update_restart_audit_logged(self, mock_sleep, components, registered_tools):
         """Update with restart should write audit entries including post_restart_audit."""
-        respx.post(f"{BASE}/manager/queue/update").mock(return_value=httpx.Response(200))
+        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         _mock_restart_success(with_audit=True)
         await registered_tools["update_custom_node"](id="comfy-pack-one", restart=True)
@@ -321,7 +319,7 @@ class TestUpdateCustomNode:
 class TestGetCustomNodeStatus:
     @respx.mock
     async def test_returns_queue_status(self, registered_tools):
-        respx.get(f"{BASE}/manager/queue/status").mock(
+        respx.get(f"{BASE}/v2/manager/queue/status").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -339,7 +337,7 @@ class TestGetCustomNodeStatus:
 
     @respx.mock
     async def test_rate_limiter_called(self, components, registered_tools):
-        respx.get(f"{BASE}/manager/queue/status").mock(
+        respx.get(f"{BASE}/v2/manager/queue/status").mock(
             return_value=httpx.Response(
                 200, json={"is_processing": False, "total": 0, "completed": 0}
             )

@@ -131,9 +131,9 @@ async def _handle_restart(
 async def _execute_node_operation(
     *,
     client: ComfyUIClient,
-    action_fn: Any,
+    kind: str,
+    params: dict[str, Any],
     node_id: str,
-    version: str,
     restart: bool,
     node_auditor: NodeAuditor,
     audit: AuditLogger,
@@ -141,7 +141,7 @@ async def _execute_node_operation(
     run_post_audit: bool,
 ) -> str:
     """Shared queue→start→poll→restart+audit flow for install/uninstall/update."""
-    await action_fn(node_id, version)
+    await client.queue_manager_task(kind=kind, params=params)
     await client.start_custom_node_queue()
 
     timeout_msg = await _poll_queue_completion(client)
@@ -193,13 +193,7 @@ def register_node_tools(
             extra={"query": query},
         )
 
-        if node_manager.is_v4:
-            # V4 Manager: search installed packs via /v2/customnode/installed
-            node_packs = await client.get_installed_custom_nodes()
-        else:
-            # Legacy Manager: search remote registry via /customnode/getlist
-            data = await client.get_custom_node_list(mode="remote")
-            node_packs = data.get("node_packs", {})
+        node_packs = await client.get_installed_custom_nodes()
 
         query_lower = query.lower()
         scored: list[tuple[float, dict[str, str]]] = []
@@ -234,7 +228,7 @@ def register_node_tools(
                         "name": name,
                         "description": description,
                         "author": author,
-                        "installed": installed or "true" if node_manager.is_v4 else installed,
+                        "installed": installed or "true",
                         "version": pack_info.get("ver", ""),
                     },
                 )
@@ -282,9 +276,15 @@ def register_node_tools(
 
         result = await _execute_node_operation(
             client=client,
-            action_fn=client.queue_custom_node_install,
+            kind="install",
+            params={
+                "id": id,
+                "version": version or "latest",
+                "selected_version": version or "latest",
+                "mode": "remote",
+                "channel": "default",
+            },
             node_id=id,
-            version=version,
             restart=restart,
             node_auditor=node_auditor,
             audit=audit,
@@ -328,9 +328,9 @@ def register_node_tools(
 
         result = await _execute_node_operation(
             client=client,
-            action_fn=client.queue_custom_node_uninstall,
+            kind="uninstall",
+            params={"node_name": id, "is_unknown": False},
             node_id=id,
-            version="",
             restart=restart,
             node_auditor=node_auditor,
             audit=audit,
@@ -375,9 +375,9 @@ def register_node_tools(
 
         result = await _execute_node_operation(
             client=client,
-            action_fn=client.queue_custom_node_update,
+            kind="update",
+            params={"node_name": id, "node_ver": None},
             node_id=id,
-            version="",
             restart=restart,
             node_auditor=node_auditor,
             audit=audit,
@@ -408,10 +408,7 @@ def register_node_tools(
 
         await audit.async_log(tool="get_custom_node_status", action="checking")
 
-        if node_manager.is_v4:
-            status = await client.get_custom_node_queue_status_v4()
-        else:
-            status = await client.get_custom_node_queue_status()
+        status = await client.get_custom_node_queue_status()
 
         await audit.async_log(
             tool="get_custom_node_status",

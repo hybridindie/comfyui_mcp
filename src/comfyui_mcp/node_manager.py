@@ -14,11 +14,10 @@ class ComfyUIManagerUnavailableError(Exception):
 
 
 class ComfyUIManagerDetector:
-    """Lazy-init detector that probes ComfyUI Manager on first use and caches the result.
+    """Lazy-init detector that probes ComfyUI Manager V4 on first use and caches the result.
 
     Uses asyncio.Lock to prevent concurrent probes from racing.
-    Probes both the legacy path (/manager/version) and the V4 path
-    (/v2/manager/version) to support all Manager versions.
+    Calls GET /v2/manager/version once to confirm availability.
     """
 
     _INSTALL_URL = "https://github.com/Comfy-Org/ComfyUI-Manager"
@@ -28,7 +27,6 @@ class ComfyUIManagerDetector:
         self._version: str | None = None
         self._checked = False
         self._available = False
-        self._v4: bool = False
         self._lock = asyncio.Lock()
 
     async def _probe(self) -> None:
@@ -37,25 +35,11 @@ class ComfyUIManagerDetector:
             if self._checked:
                 return
             self._checked = True
-            # Try legacy path first (/manager/version)
             try:
                 self._version = await self._client.get_manager_version()
                 self._available = True
-                return
-            except (httpx.HTTPStatusError, httpx.RequestError):
-                pass
-            # Try V4 path (/v2/manager/version)
-            try:
-                self._version = await self._client.get_manager_version_v4()
-                self._available = True
-                self._v4 = True
             except (httpx.HTTPStatusError, httpx.RequestError):
                 self._available = False
-
-    @property
-    def is_v4(self) -> bool:
-        """Return True if the detected Manager is V4+."""
-        return self._v4
 
     async def is_available(self) -> bool:
         """Check if ComfyUI Manager is installed. Caches the result."""

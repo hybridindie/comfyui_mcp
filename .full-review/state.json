@@ -1,0 +1,16 @@
+{
+  "target": "src/comfyui_mcp/ - FastMCP Python server",
+  "status": "complete",
+  "flags": {
+    "security_focus": false,
+    "performance_critical": false,
+    "strict_mode": false,
+    "framework": "FastMCP"
+  },
+  "current_step": 5,
+  "current_phase": 5,
+  "completed_steps": ["0", "1A", "1B", "2A", "2B", "3A", "3B", "4A", "4B", "5"],
+  "files_created": ["00-scope.md", "01-quality-architecture.md", "02-security-performance.md", "03-testing-documentation.md", "04-best-practices.md", "05-final-report.md"],
+  "started_at": "2026-04-01T00:00:00Z",
+  "last_updated": "2026-04-01T00:30:00Z"
+}
