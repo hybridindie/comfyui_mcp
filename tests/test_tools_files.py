@@ -126,6 +126,63 @@ class TestGetImage:
         result = await tools["get_image"](filename="output.png")
         assert "base64" in result or "image" in result.lower()
 
+    @respx.mock
+    async def test_get_image_data_uri_uses_internal_client_url(self, components):
+        client, audit, limiter, sanitizer = components
+        route = respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200, content=b"image-bytes", headers={"content-type": "image/png"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(
+            mcp,
+            client,
+            audit,
+            limiter,
+            sanitizer,
+            image_view_base_url="https://images.example.com/comfyui",
+        )
+
+        result = await tools["get_image"](
+            filename="output.png",
+            response_format="data_uri",
+        )
+
+        assert result.startswith("data:image/png;base64,")
+        assert route.calls
+        request = route.calls[0].request
+        assert request.url.params["type"] == "output"
+
+    @respx.mock
+    async def test_get_image_data_uri_ignores_overrides(self, components):
+        client, audit, limiter, sanitizer = components
+        route = respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200, content=b"image-bytes", headers={"content-type": "image/png"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(
+            mcp,
+            client,
+            audit,
+            limiter,
+            sanitizer,
+            image_view_base_url="https://internal.example.com",
+        )
+
+        result = await tools["get_image"](
+            filename="output.png",
+            response_format="data_uri",
+            base_url_override="https://public.example.com/comfyui",
+        )
+
+        assert result.startswith("data:image/png;base64,")
+        assert route.calls
+        request = route.calls[0].request
+        assert request.url.params["type"] == "output"
+
     async def test_get_image_returns_url_with_config_override(self, components):
         client, audit, limiter, sanitizer = components
         mcp = FastMCP("test")

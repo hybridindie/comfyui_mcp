@@ -128,8 +128,8 @@ def register_file_tools(
             filename: Name of the image file to retrieve
             subfolder: Directory to look in (default: 'output')
             response_format: 'data_uri' to inline the image, or 'url' to return a /view URL
-            base_url_override: Optional override for URL responses; falls back to config,
-                then to the ComfyUI internal base URL
+            base_url_override: Optional override for URL responses only;
+                falls back to configured image view base URL, then internal base URL
 
         Returns:
             Base64-encoded image data with content type prefix, or a direct image URL
@@ -143,17 +143,22 @@ def register_file_tools(
             extra={"filename": clean_name, "response_format": response_format},
         )
 
+        resolved_base_url = base_url_override or image_view_base_url
+
         if response_format == "url":
             return client.build_image_url(
                 clean_name,
                 clean_subfolder,
-                base_url=base_url_override or image_view_base_url,
+                base_url=resolved_base_url,
             )
 
         if response_format != "data_uri":
             raise ValueError("response_format must be 'data_uri' or 'url'")
 
-        data, content_type = await client.get_image(clean_name, clean_subfolder)
+        data, content_type = await client.get_image(
+            clean_name,
+            clean_subfolder,
+        )
         b64 = base64.b64encode(data).decode()
         return f"data:{content_type};base64,{b64}"
 

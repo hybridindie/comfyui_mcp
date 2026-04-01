@@ -94,6 +94,24 @@ class TestComfyUIClient:
         assert request.url.params["type"] == "output"
 
     @respx.mock
+    async def test_get_image_with_base_url_override(self, client):
+        route = respx.get("https://images.example.com/comfyui/view").mock(
+            return_value=httpx.Response(
+                200, content=b"fake-image-bytes", headers={"content-type": "image/png"}
+            )
+        )
+        data, content_type = await client.get_image(
+            "output.png",
+            "output",
+            base_url="https://images.example.com/comfyui",
+        )
+        assert data == b"fake-image-bytes"
+        assert content_type == "image/png"
+        assert route.calls
+        request = route.calls[0].request
+        assert request.url.params["type"] == "output"
+
+    @respx.mock
     async def test_delete_queue_item(self, client):
         respx.post("http://test-comfyui:8188/queue").mock(return_value=httpx.Response(200, json={}))
         await client.delete_queue_item("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")

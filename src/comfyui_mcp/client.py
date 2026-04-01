@@ -141,12 +141,24 @@ class ComfyUIClient:
         r = await self._request("post", "/upload/image", files=files, data=form_data)
         return r.json()
 
-    async def get_image(self, filename: str, subfolder: str = "output") -> tuple[bytes, str]:
-        r = await self._request(
-            "get",
-            "/view",
-            params={"filename": filename, "subfolder": subfolder, "type": "output"},
-        )
+    async def get_image(
+        self,
+        filename: str,
+        subfolder: str = "output",
+        *,
+        base_url: str | None = None,
+    ) -> tuple[bytes, str]:
+        if base_url is None:
+            r = await self._request(
+                "get",
+                "/view",
+                params={"filename": filename, "subfolder": subfolder, "type": "output"},
+            )
+        else:
+            view_url = self.build_image_url(filename, subfolder, base_url=base_url)
+            c = await self._get_client()
+            r = await c.get(view_url)
+            r.raise_for_status()
         content_type = r.headers.get("content-type", "image/png")
         return r.content, content_type
 
