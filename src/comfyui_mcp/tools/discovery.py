@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -155,74 +157,74 @@ def register_discovery_tools(
     tool_fns: dict[str, Any] = {}
 
     @mcp.tool()
-    async def list_models(folder: str = "checkpoints") -> list[str]:
+    async def list_models(folder: str = "checkpoints") -> str:
         """List available models in a folder (checkpoints, loras, vae, etc.)."""
         limiter.check("list_models")
         sanitizer.validate_path_segment(folder, label="folder")
         await audit.async_log(tool="list_models", action="called", extra={"folder": folder})
-        return await client.get_models(folder)
+        return json.dumps(await client.get_models(folder))
 
     tool_fns["list_models"] = list_models
 
     @mcp.tool()
-    async def list_nodes() -> list[str]:
+    async def list_nodes() -> str:
         """List all available ComfyUI node types."""
         limiter.check("list_nodes")
         await audit.async_log(tool="list_nodes", action="called")
         info = await client.get_object_info()
-        return sorted(info.keys())
+        return json.dumps(sorted(info.keys()))
 
     tool_fns["list_nodes"] = list_nodes
 
     @mcp.tool()
-    async def get_node_info(node_class: str) -> dict:
+    async def get_node_info(node_class: str) -> str:
         """Get detailed information about a specific node type."""
         limiter.check("get_node_info")
         await audit.async_log(
             tool="get_node_info", action="called", extra={"node_class": node_class}
         )
-        return await client.get_object_info(node_class)
+        return json.dumps(await client.get_object_info(node_class))
 
     tool_fns["get_node_info"] = get_node_info
 
     @mcp.tool()
-    async def list_workflows() -> list:
+    async def list_workflows() -> str:
         """List available workflow templates."""
         limiter.check("list_workflows")
         await audit.async_log(tool="list_workflows", action="called")
-        return await client.get_workflow_templates()
+        return json.dumps(await client.get_workflow_templates())
 
     tool_fns["list_workflows"] = list_workflows
 
     @mcp.tool()
-    async def list_extensions() -> list:
+    async def list_extensions() -> str:
         """List available ComfyUI extensions."""
         limiter.check("list_extensions")
         await audit.async_log(tool="list_extensions", action="called")
-        return await client.get_extensions()
+        return json.dumps(await client.get_extensions())
 
     tool_fns["list_extensions"] = list_extensions
 
     @mcp.tool()
-    async def get_server_features() -> dict:
+    async def get_server_features() -> str:
         """Get ComfyUI server features and capabilities."""
         limiter.check("get_server_features")
         await audit.async_log(tool="get_server_features", action="called")
-        return await client.get_features()
+        return json.dumps(await client.get_features())
 
     tool_fns["get_server_features"] = get_server_features
 
     @mcp.tool()
-    async def list_model_folders() -> list[str]:
+    async def list_model_folders() -> str:
         """List available model folder types (checkpoints, loras, vae, etc.)."""
         limiter.check("list_model_folders")
         await audit.async_log(tool="list_model_folders", action="called")
-        return await client.get_model_types()
+        return json.dumps(await client.get_model_types())
 
     tool_fns["list_model_folders"] = list_model_folders
 
     @mcp.tool()
-    async def get_model_metadata(folder: str, filename: str) -> dict:
+    async def get_model_metadata(folder: str, filename: str) -> str:
         """Get metadata for a model file.
 
         Args:
@@ -237,12 +239,12 @@ def register_discovery_tools(
             action="called",
             extra={"folder": folder, "filename": filename},
         )
-        return await client.get_view_metadata(folder, filename)
+        return json.dumps(await client.get_view_metadata(folder, filename))
 
     tool_fns["get_model_metadata"] = get_model_metadata
 
     @mcp.tool()
-    async def audit_dangerous_nodes() -> dict:
+    async def audit_dangerous_nodes() -> str:
         """Audit all installed nodes to identify potentially dangerous ones.
 
         Scans for nodes that could execute arbitrary code, run shell commands,
@@ -284,12 +286,12 @@ def register_discovery_tools(
                 "suspicious": result.suspicious_count,
             },
         )
-        return output
+        return json.dumps(output)
 
     tool_fns["audit_dangerous_nodes"] = audit_dangerous_nodes
 
     @mcp.tool()
-    async def get_system_info() -> dict:
+    async def get_system_info() -> str:
         """Return sanitized ComfyUI system information.
 
         Returns a whitelist-filtered subset of system stats useful for making
@@ -304,8 +306,10 @@ def register_discovery_tools(
         limiter.check("get_system_info")
         await audit.async_log(tool="get_system_info", action="called")
 
-        raw = await client.get_system_stats()
-        queue_raw = await client.get_queue()
+        raw, queue_raw = await asyncio.gather(
+            client.get_system_stats(),
+            client.get_queue(),
+        )
 
         # Whitelist: only forward fields that are safe to expose
         devices: list[dict] = []
@@ -336,7 +340,7 @@ def register_discovery_tools(
             "devices": devices,
             "queue": {"running": running, "pending": pending},
         }
-        return result
+        return json.dumps(result)
 
     tool_fns["get_system_info"] = get_system_info
 
@@ -344,7 +348,7 @@ def register_discovery_tools(
     async def get_model_presets(
         model_name: str | None = None,
         model_family: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> str:
         """Return recommended generation presets for a model family.
 
         Args:
@@ -375,15 +379,17 @@ def register_discovery_tools(
             supported = ", ".join(sorted(_SUPPORTED_MODEL_FAMILIES))
             raise ValueError(f"Unknown model family: {family}. Supported families: {supported}")
 
-        return {
-            "family": family,
-            **_MODEL_PRESETS[family],
-        }
+        return json.dumps(
+            {
+                "family": family,
+                **_MODEL_PRESETS[family],
+            }
+        )
 
     tool_fns["get_model_presets"] = get_model_presets
 
     @mcp.tool()
-    async def get_prompting_guide(model_family: str) -> dict[str, Any]:
+    async def get_prompting_guide(model_family: str) -> str:
         """Return prompt-engineering guidance for a model family.
 
         Args:
@@ -401,10 +407,12 @@ def register_discovery_tools(
             supported = ", ".join(sorted(_SUPPORTED_MODEL_FAMILIES))
             raise ValueError(f"Unknown model family: {normalized}. Supported families: {supported}")
 
-        return {
-            "family": normalized,
-            "guide": _PROMPTING_GUIDES[normalized],
-        }
+        return json.dumps(
+            {
+                "family": normalized,
+                "guide": _PROMPTING_GUIDES[normalized],
+            }
+        )
 
     tool_fns["get_prompting_guide"] = get_prompting_guide
 

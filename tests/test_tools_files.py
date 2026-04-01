@@ -305,7 +305,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = await tools["get_workflow_from_image"](filename="test.png")
+        result = json.loads(await tools["get_workflow_from_image"](filename="test.png"))
         assert result["workflow"] == {"1": {"class_type": "KSampler", "inputs": {}}}
         assert result["prompt"] == {"1": {"class_type": "KSampler", "inputs": {}}}
         assert "workflow" in result["message"].lower()
@@ -323,7 +323,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = await tools["get_workflow_from_image"](filename="test.png")
+        result = json.loads(await tools["get_workflow_from_image"](filename="test.png"))
         assert result["workflow"] == {"1": {"class_type": "SaveImage", "inputs": {}}}
 
     @respx.mock
@@ -337,7 +337,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = await tools["get_workflow_from_image"](filename="test.png")
+        result = json.loads(await tools["get_workflow_from_image"](filename="test.png"))
         assert result["workflow"] is None
         assert result["prompt"] is None
         assert "no workflow metadata" in result["message"].lower()
@@ -392,7 +392,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = await tools["get_workflow_from_image"](filename="test.png")
+        result = json.loads(await tools["get_workflow_from_image"](filename="test.png"))
         assert result["workflow"] is None
         assert (
             "malformed" in result["message"].lower() or "no workflow" in result["message"].lower()
@@ -432,7 +432,8 @@ class TestListOutputs:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
-        assert result == ["image_001.png", "image_002.png", "image_003.png"]
+        parsed = json.loads(result)
+        assert parsed == ["image_001.png", "image_002.png", "image_003.png"]
 
     @respx.mock
     async def test_deduplicates_filenames(self, components):
@@ -449,7 +450,8 @@ class TestListOutputs:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
-        assert result == ["dup.png"]
+        parsed = json.loads(result)
+        assert parsed == ["dup.png"]
 
     @respx.mock
     async def test_empty_history(self, components):
@@ -458,7 +460,8 @@ class TestListOutputs:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
-        assert result == []
+        parsed = json.loads(result)
+        assert parsed == []
 
     @respx.mock
     async def test_handles_malformed_entries(self, components):
@@ -478,7 +481,8 @@ class TestListOutputs:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
-        assert result == ["ok.png"]
+        parsed = json.loads(result)
+        assert parsed == ["ok.png"]
 
 
 class TestUploadMask:

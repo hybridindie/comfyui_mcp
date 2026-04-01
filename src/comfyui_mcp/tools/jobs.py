@@ -26,22 +26,22 @@ def register_job_tools(
     tool_fns: dict[str, Any] = {}
 
     @mcp.tool()
-    async def get_queue() -> dict:
+    async def get_queue() -> str:
         """Get the current ComfyUI execution queue state."""
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_queue")
         await audit.async_log(tool="get_queue", action="called")
-        return await client.get_queue()
+        return json.dumps(await client.get_queue())
 
     tool_fns["get_queue"] = get_queue
 
     @mcp.tool()
-    async def get_job(prompt_id: str) -> dict:
+    async def get_job(prompt_id: str) -> str:
         """Check the status of a specific job by its prompt_id."""
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_job")
         await audit.async_log(tool="get_job", action="called", extra={"prompt_id": prompt_id})
-        return await client.get_history_item(prompt_id)
+        return json.dumps(await client.get_history_item(prompt_id))
 
     tool_fns["get_job"] = get_job
 
@@ -66,12 +66,12 @@ def register_job_tools(
     tool_fns["interrupt"] = interrupt
 
     @mcp.tool()
-    async def get_queue_status() -> dict:
+    async def get_queue_status() -> str:
         """Get detailed queue status including currently running and pending prompts."""
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_queue_status")
         await audit.async_log(tool="get_queue_status", action="called")
-        return await client.get_prompt_status()
+        return json.dumps(await client.get_prompt_status())
 
     tool_fns["get_queue_status"] = get_queue_status
 

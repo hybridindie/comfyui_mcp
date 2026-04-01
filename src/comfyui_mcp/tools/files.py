@@ -19,6 +19,7 @@ _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 _MAX_TEXT_CHUNK_BYTES = 10 * 1024 * 1024  # 10 MB limit for decompressed text chunks
+_MAX_TOTAL_METADATA_BYTES = 50 * 1024 * 1024  # 50 MB total
 
 
 def _extract_png_metadata(
@@ -34,6 +35,7 @@ def _extract_png_metadata(
 
     metadata: dict[str, str] = {}
     offset = 8  # Skip PNG signature
+    total_metadata_size = 0
 
     while offset + 8 <= len(data):
         try:
@@ -52,6 +54,9 @@ def _extract_png_metadata(
                 key = chunk_data[:null_idx].decode("latin-1")
                 value = chunk_data[null_idx + 1 :].decode("latin-1")
                 metadata[key] = value
+                total_metadata_size += len(value)
+                if total_metadata_size > _MAX_TOTAL_METADATA_BYTES:
+                    break
 
         elif chunk_type == b"zTXt":
             null_idx = chunk_data.find(b"\x00")
@@ -67,6 +72,9 @@ def _extract_png_metadata(
                         if not decompressor.unconsumed_tail:
                             value = raw.decode("utf-8")
                             metadata[key] = value
+                            total_metadata_size += len(value)
+                            if total_metadata_size > _MAX_TOTAL_METADATA_BYTES:
+                                break
                     except (zlib.error, UnicodeDecodeError, OverflowError):
                         pass
 
@@ -165,12 +173,12 @@ def register_file_tools(
     tool_fns["get_image"] = get_image
 
     @mcp.tool()
-    async def list_outputs() -> list[str]:
+    async def list_outputs() -> str:
         """List files in ComfyUI's output directory."""
         limiter.check("list_outputs")
         await audit.async_log(tool="list_outputs", action="called")
         history = await client.get_history()
-        filenames = set()
+        filenames: set[str] = set()
         for entry in history.values():
             if isinstance(entry, dict):
                 for outputs in entry.get("outputs", {}).values():
@@ -178,7 +186,7 @@ def register_file_tools(
                         for images in outputs.get("images", []):
                             if isinstance(images, dict) and "filename" in images:
                                 filenames.add(images["filename"])
-        return sorted(filenames)
+        return json.dumps(sorted(filenames))
 
     tool_fns["list_outputs"] = list_outputs
 
@@ -208,7 +216,7 @@ def register_file_tools(
     tool_fns["upload_mask"] = upload_mask
 
     @mcp.tool()
-    async def get_workflow_from_image(filename: str, subfolder: str = "output") -> dict:
+    async def get_workflow_from_image(filename: str, subfolder: str = "output") -> str:
         """Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG.
 
         ComfyUI embeds the full workflow JSON and prompt data in PNG text chunks.
@@ -274,7 +282,7 @@ def register_file_tools(
             },
         )
 
-        return {"workflow": workflow, "prompt": prompt, "message": message}
+        return json.dumps({"workflow": workflow, "prompt": prompt, "message": message})
 
     tool_fns["get_workflow_from_image"] = get_workflow_from_image
 

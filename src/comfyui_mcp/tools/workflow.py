@@ -16,6 +16,8 @@ from comfyui_mcp.workflow.operations import apply_operations
 from comfyui_mcp.workflow.templates import create_from_template
 from comfyui_mcp.workflow.validation import validate_workflow as _validate_workflow
 
+_MAX_WORKFLOW_JSON_BYTES = 10 * 1024 * 1024  # 10 MB
+
 _PATH_LIKE_TEMPLATE_PARAMS = {
     "model",
     "model_name",
@@ -69,6 +71,10 @@ def register_workflow_tools(
                     control_strength, lora_name, lora_strength.
         """
         limiter.check("create_workflow")
+        if len(params) > _MAX_WORKFLOW_JSON_BYTES:
+            raise ValueError(
+                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+            )
         try:
             param_dict = json.loads(params)
         except json.JSONDecodeError as e:
@@ -108,6 +114,10 @@ def register_workflow_tools(
                                    "to_node": "3", "to_input": "model"}]
         """
         limiter.check("modify_workflow")
+        if len(workflow) > _MAX_WORKFLOW_JSON_BYTES:
+            raise ValueError(
+                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+            )
         try:
             wf = json.loads(workflow)
         except json.JSONDecodeError as e:
@@ -116,6 +126,10 @@ def register_workflow_tools(
         if not isinstance(wf, dict):
             raise ValueError("Workflow must be a JSON object keyed by node IDs")
 
+        if len(operations) > _MAX_WORKFLOW_JSON_BYTES:
+            raise ValueError(
+                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+            )
         try:
             ops = json.loads(operations)
         except json.JSONDecodeError as e:
@@ -149,6 +163,10 @@ def register_workflow_tools(
             node_count (int), pipeline (str).
         """
         limiter.check("validate_workflow")
+        if len(workflow) > _MAX_WORKFLOW_JSON_BYTES:
+            raise ValueError(
+                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+            )
         try:
             wf = json.loads(workflow)
         except json.JSONDecodeError as e:

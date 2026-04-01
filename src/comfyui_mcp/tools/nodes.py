@@ -197,26 +197,40 @@ def register_node_tools(
         node_packs = data.get("node_packs", {})
 
         query_lower = query.lower()
-        results: list[dict[str, str]] = []
+        scored: list[tuple[float, dict[str, str]]] = []
         for pack_id, pack_info in node_packs.items():
             if not isinstance(pack_info, dict):
                 continue
             name = pack_info.get("name", "")
             description = pack_info.get("description", "")
             author = pack_info.get("author", "")
-            searchable = f"{name} {description} {author}".lower()
-            if query_lower in searchable:
-                results.append(
+            name_lower = name.lower()
+            score = 0.0
+            if query_lower == name_lower:
+                score = 3.0
+            elif query_lower in name_lower:
+                score = 2.0
+            elif query_lower in description.lower():
+                score = 1.0
+            elif query_lower in author.lower():
+                score = 0.5
+            else:
+                continue
+            scored.append(
+                (
+                    score,
                     {
                         "id": pack_id,
                         "name": name,
                         "description": description,
                         "author": author,
                         "installed": pack_info.get("installed", "false"),
-                    }
+                    },
                 )
-            if len(results) >= _MAX_SEARCH_RESULTS:
-                break
+            )
+
+        scored.sort(key=lambda x: -x[0])
+        results = [item for _, item in scored[:_MAX_SEARCH_RESULTS]]
 
         await audit.async_log(
             tool="search_custom_nodes",

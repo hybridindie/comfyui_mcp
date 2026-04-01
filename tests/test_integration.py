@@ -56,6 +56,7 @@ def integration_stack(tmp_path):
         inspector,
         read_limiter=read_limiter,
         model_checker=model_checker,
+        sanitizer=sanitizer,
     )
     job_tools = register_job_tools(mcp, client, audit, wf_limiter, read_limiter=read_limiter)
 
@@ -77,8 +78,11 @@ def enforce_stack(tmp_path):
         dangerous_nodes=[],
         allowed_nodes=["KSampler", "CLIPTextEncode"],
     )
+    sanitizer = PathSanitizer(
+        allowed_extensions=[".png", ".jpg", ".jpeg", ".webp", ".gif", ".json"]
+    )
     mcp = FastMCP("integration-test-enforce")
-    tools = register_generation_tools(mcp, client, audit, limiter, inspector)
+    tools = register_generation_tools(mcp, client, audit, limiter, inspector, sanitizer=sanitizer)
     return tools
 
 
@@ -116,7 +120,7 @@ class TestImageGenerationFlow:
         )
 
         # Step 1: Discover available models
-        models = await integration_stack["list_models"](folder="checkpoints")
+        models = json.loads(await integration_stack["list_models"](folder="checkpoints"))
         assert "sd_v15.safetensors" in models
 
         # Step 2: Generate an image
@@ -124,7 +128,9 @@ class TestImageGenerationFlow:
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
         # Step 3: Check the job
-        job = await integration_stack["get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        job = json.loads(
+            await integration_stack["get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        )
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in job
 
     @respx.mock

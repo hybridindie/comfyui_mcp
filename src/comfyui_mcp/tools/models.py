@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -23,6 +24,8 @@ _CIVITAI_API = "https://civitai.com/api/v1/models"
 
 # Extensions we look for when finding the primary model file in HuggingFace repos
 _MODEL_EXTENSIONS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin"}
+
+_HF_REPO_RE = re.compile(r"^[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+$")
 
 
 async def _search_civitai(
@@ -77,6 +80,17 @@ async def _fetch_hf_model_detail(
 ) -> dict[str, Any]:
     """Fetch detail for a single HuggingFace model."""
     model_id = model.get("id", "")
+    if not _HF_REPO_RE.match(model_id):
+        return {
+            "name": model_id,
+            "type": "",
+            "url": "",
+            "filename": "",
+            "size_mb": 0,
+            "downloads": 0,
+            "likes": 0,
+            "source": "huggingface",
+        }
     detail_url = f"{_HF_API}/{model_id}"
     try:
         dr = await http.get(detail_url, headers=headers, timeout=30)

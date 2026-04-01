@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -21,11 +22,11 @@ def register_history_tools(
     tool_fns: dict[str, Any] = {}
 
     @mcp.tool()
-    async def get_history() -> dict:
+    async def get_history() -> str:
         """Browse ComfyUI execution history (read-only)."""
         limiter.check("get_history")
         await audit.async_log(tool="get_history", action="called")
-        return await client.get_history()
+        return json.dumps(await client.get_history(max_items=200))
 
     tool_fns["get_history"] = get_history
 
