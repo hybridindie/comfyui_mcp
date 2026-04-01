@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_call:
 
 jobs:
   lint:
@@ -59,4 +60,4 @@ jobs:
         run: uv sync
 
       - name: Run tests
-        run: uv run pytest -v --cov=src/comfyui_mcp --cov-report=term-missing
+        run: uv run pytest -v --cov=src/comfyui_mcp --cov-report=term-missing --cov-fail-under=90
