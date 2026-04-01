@@ -55,6 +55,21 @@ class ProgressState:
 class WebSocketProgress:
     """Manages on-demand WebSocket connections for progress tracking."""
 
+    @staticmethod
+    def _extract_outputs(node_id: str, node_output: dict[str, Any]) -> list[dict[str, str]]:
+        """Extract output file info from a node's output data."""
+        items: list[dict[str, str]] = []
+        for key in ("images", "gifs"):
+            for item in node_output.get(key, []):
+                items.append(
+                    {
+                        "node_id": node_id,
+                        "filename": item.get("filename", ""),
+                        "subfolder": item.get("subfolder", ""),
+                    }
+                )
+        return items
+
     def __init__(
         self, client: ComfyUIClient, timeout: float = 300.0, tls_verify: bool = True
     ) -> None:
@@ -101,15 +116,7 @@ class WebSocketProgress:
 
         if msg_type == "executed":
             output = data.get("output", {})
-            for key in ("images", "gifs"):
-                for item in output.get(key, []):
-                    state.outputs.append(
-                        {
-                            "node_id": data.get("node", ""),
-                            "filename": item.get("filename", ""),
-                            "subfolder": item.get("subfolder", ""),
-                        }
-                    )
+            state.outputs.extend(self._extract_outputs(data.get("node", ""), output))
             return False
 
         if msg_type == "execution_success":
@@ -131,15 +138,7 @@ class WebSocketProgress:
         state = ProgressState(prompt_id=prompt_id, status="completed")
         outputs = entry.get("outputs", {})
         for node_id, node_output in outputs.items():
-            for key in ("images", "gifs"):
-                for item in node_output.get(key, []):
-                    state.outputs.append(
-                        {
-                            "node_id": node_id,
-                            "filename": item.get("filename", ""),
-                            "subfolder": item.get("subfolder", ""),
-                        }
-                    )
+            state.outputs.extend(self._extract_outputs(node_id, node_output))
         return state
 
     async def _wait_internal(
@@ -241,6 +240,7 @@ class WebSocketProgress:
 
     async def _poll_until_complete(self, prompt_id: str, start_time: float) -> ProgressState:
         """Poll HTTP endpoints until completion or timeout."""
+        interval = 1.0
         while True:
             elapsed = time.monotonic() - start_time
             if elapsed >= self._timeout:
@@ -251,7 +251,8 @@ class WebSocketProgress:
             if state.status in ("completed", "error"):
                 state.elapsed_seconds = round(time.monotonic() - start_time, 2)
                 return state
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(interval)
+            interval = min(interval * 1.5, 10.0)
 
     async def get_state(self, prompt_id: str) -> ProgressState:
         """Get current state via HTTP fallback (queue + history)."""
@@ -265,15 +266,7 @@ class WebSocketProgress:
                 entry = history[prompt_id]
                 outputs = entry.get("outputs", {})
                 for _node_id, node_output in outputs.items():
-                    for key in ("images", "gifs"):
-                        for item in node_output.get(key, []):
-                            state.outputs.append(
-                                {
-                                    "node_id": _node_id,
-                                    "filename": item.get("filename", ""),
-                                    "subfolder": item.get("subfolder", ""),
-                                }
-                            )
+                    state.outputs.extend(self._extract_outputs(_node_id, node_output))
                 return state
 
         # Check queue (running/pending)

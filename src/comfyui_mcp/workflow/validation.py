@@ -269,8 +269,11 @@ async def validate_workflow(
         warnings.extend(result.warnings)
     except WorkflowBlockedError as e:
         errors.append(f"Security: {e}")
-    except Exception as e:
-        errors.append(f"Security inspection failed due to an internal error: {e}")
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("Security inspection failed unexpectedly")
+        errors.append("Security inspection failed due to an internal error")
 
     # --- Analysis ---
     analysis = analyze_workflow(workflow, object_info)

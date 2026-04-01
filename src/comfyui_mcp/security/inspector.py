@@ -13,6 +13,10 @@ _SUSPICIOUS_PATTERNS = [
     re.compile(r"\bos\.system\s*\("),
     re.compile(r"\bsubprocess\b"),
     re.compile(r"\bopen\s*\(.+,\s*['\"]w"),
+    re.compile(r"\bimportlib\b"),
+    re.compile(r"\bpickle\.loads?\b"),
+    re.compile(r"\bos\.(popen|execv|spawn)"),
+    re.compile(r"\bctypes\b"),
 ]
 
 
