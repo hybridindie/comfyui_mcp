@@ -41,7 +41,7 @@ def register_history_tools(
         limiter.check("get_history")
         await audit.async_log(tool="get_history", action="called")
         raw = await client.get_history(max_items=100)
-        entries = [{"prompt_id": k, **v} for k, v in raw.items()]
+        entries = [{**(v if isinstance(v, dict) else {}), "prompt_id": k} for k, v in raw.items()]
         return json.dumps(paginate(entries, offset, limit, default_limit=25, max_limit=100))
 
     tool_fns["get_history"] = get_history

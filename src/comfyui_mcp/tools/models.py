@@ -202,7 +202,7 @@ def register_model_tools(
         if source not in ("civitai", "huggingface"):
             raise ValueError("source must be 'civitai' or 'huggingface'")
 
-        cap = max(1, min(limit, search_settings.max_search_results))
+        cap = search_settings.max_search_results
 
         await audit.async_log(
             tool="search_models",

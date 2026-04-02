@@ -54,3 +54,19 @@ class TestGetHistory:
         assert len(parsed["items"]) == 2
         assert parsed["total"] == 5
         assert parsed["has_more"] is True
+
+    @respx.mock
+    async def test_handles_non_dict_entries(self, components):
+        """Non-dict history values should be coerced, not crash."""
+        client, audit, limiter = components
+        respx.get("http://test:8188/history").mock(
+            return_value=httpx.Response(200, json={"abc": {"outputs": {}}, "bad": "not-a-dict"})
+        )
+        mcp = FastMCP("test")
+        tools = register_history_tools(mcp, client, audit, limiter)
+        result = await tools["get_history"]()
+        parsed = json.loads(result)
+        assert parsed["total"] == 2
+        prompt_ids = [item["prompt_id"] for item in parsed["items"]]
+        assert "abc" in prompt_ids
+        assert "bad" in prompt_ids

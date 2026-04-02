@@ -66,6 +66,12 @@ class TestPaginate:
         assert result["total"] == 0
         assert result["has_more"] is False
 
+    def test_negative_limit_uses_default(self):
+        items = list(range(50))
+        result = paginate(items, offset=0, limit=-5, default_limit=10)
+        assert result["limit"] == 10
+        assert len(result["items"]) == 10
+
     def test_envelope_keys(self):
         result = paginate([1, 2, 3])
         assert set(result.keys()) == {"items", "total", "offset", "limit", "has_more"}

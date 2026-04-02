@@ -17,14 +17,14 @@ def paginate(
     Args:
         items: Full list to paginate.
         offset: Starting index (clamped to 0 if negative).
-        limit: Requested page size. ``None`` or ``0`` uses *default_limit*.
-        default_limit: Page size when *limit* is falsy.
+        limit: Requested page size. ``None``, ``0``, or negative uses *default_limit*.
+        default_limit: Page size when *limit* is not positive.
         max_limit: Hard cap on page size.
 
     Returns:
         Dict with keys: ``items``, ``total``, ``offset``, ``limit``, ``has_more``.
     """
-    effective_limit = min(limit or default_limit, max_limit)
+    effective_limit = min(limit if limit and limit > 0 else default_limit, max_limit)
     effective_offset = max(offset, 0)
     total = len(items)
     page = items[effective_offset : effective_offset + effective_limit]

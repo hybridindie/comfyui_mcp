@@ -199,6 +199,43 @@ class TestSearchModelsInputValidation:
         # Should not raise — limit is clamped to max_search_results
         await registered_tools["search_models"](query="test", source="civitai", limit=999)
 
+    @respx.mock
+    async def test_offset_and_zero_limit(self, registered_tools):
+        """offset>0 and limit=0 should paginate correctly using defaults."""
+        respx.get("https://civitai.com/api/v1/models").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": i,
+                            "name": f"Model {i}",
+                            "type": "Checkpoint",
+                            "stats": {"downloadCount": 100, "rating": 4.0},
+                            "modelVersions": [
+                                {
+                                    "id": i * 10,
+                                    "downloadUrl": f"https://civitai.com/dl/{i}",
+                                    "files": [{"sizeKB": 1024, "name": f"m{i}.safetensors"}],
+                                }
+                            ],
+                        }
+                        for i in range(8)
+                    ],
+                },
+            )
+        )
+        # limit=0 should use default_limit=5, offset=2 should skip first 2
+        result = await registered_tools["search_models"](
+            query="test", source="civitai", limit=0, offset=2
+        )
+        parsed = json.loads(result)
+        assert parsed["offset"] == 2
+        assert parsed["limit"] == 5
+        assert len(parsed["items"]) == 5
+        assert parsed["total"] == 8
+        assert parsed["has_more"] is True
+
 
 class TestDownloadModel:
     @respx.mock
