@@ -360,13 +360,13 @@ logging:
   audit_file: "~/.comfyui-mcp/audit.log"
 
 transport:
-  sse:
+  remote:
     enabled: false
     host: "127.0.0.1"
     port: 8080
 ```
 
-When `transport.sse.enabled` is `true`, the server starts in SSE mode and binds to `transport.sse.host` and `transport.sse.port`.
+When `transport.remote.enabled` is `true`, the server starts in Streamable HTTP mode and binds to `transport.remote.host` and `transport.remote.port`.
 Keep this bound to localhost unless you are running behind authenticated TLS reverse proxy infrastructure.
 
 ### Environment variables

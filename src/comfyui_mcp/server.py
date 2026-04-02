@@ -203,9 +203,9 @@ def _build_server(
         "lifespan": _lifespan,
     }
 
-    if settings.transport.sse.enabled:
-        server_kwargs["host"] = settings.transport.sse.host
-        server_kwargs["port"] = settings.transport.sse.port
+    if settings.transport.remote.enabled:
+        server_kwargs["host"] = settings.transport.remote.host
+        server_kwargs["port"] = settings.transport.remote.port
 
     server = FastMCP(**server_kwargs)
 
@@ -254,8 +254,8 @@ mcp, _settings, _client, _search_http = _build_server()
 
 def main() -> None:
     """Run the MCP server."""
-    if _settings.transport.sse.enabled:
-        mcp.run(transport="sse")
+    if _settings.transport.remote.enabled:
+        mcp.run(transport="streamable-http")
     else:
         mcp.run()
 

@@ -121,7 +121,7 @@ class LoggingSettings(BaseModel):
     audit_file: str = "~/.comfyui-mcp/audit.log"
 
 
-class SSESettings(BaseModel):
+class RemoteTransportSettings(BaseModel):
     enabled: bool = False
     host: str = "127.0.0.1"
     port: int = 8080
@@ -133,15 +133,16 @@ class SSESettings(BaseModel):
             import logging
 
             logging.getLogger("comfyui_mcp.config").warning(
-                "SSE transport binding to %s — this exposes all MCP tools without "
-                "authentication. Only use behind a reverse proxy with auth and TLS.",
+                "Streamable HTTP transport binding to %s — this exposes all MCP "
+                "tools without authentication. Only use behind a reverse proxy "
+                "with auth and TLS.",
                 v,
             )
         return v
 
 
 class TransportSettings(BaseModel):
-    sse: SSESettings = SSESettings()
+    remote: RemoteTransportSettings = RemoteTransportSettings()
 
 
 class Settings(BaseModel):
