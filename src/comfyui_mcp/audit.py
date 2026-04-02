@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,12 +14,42 @@ from pydantic import BaseModel, Field, model_serializer
 
 _logger = logging.getLogger(__name__)
 
-_SENSITIVE_KEYS = {"token", "password", "secret", "api_key", "authorization"}
+_SENSITIVE_PATTERNS = frozenset(
+    {
+        "token",
+        "password",
+        "secret",
+        "api_key",
+        "authorization",
+        "access_token",
+        "refresh_token",
+        "credential",
+        "private_key",
+        "bearer",
+        "session_id",
+    }
+)
+
+
+def _is_sensitive_key(key: str) -> bool:
+    """Check if a key name matches any sensitive pattern."""
+    lower = key.lower()
+    return any(p in lower for p in _SENSITIVE_PATTERNS)
 
 
 def _redact_sensitive(data: dict[str, object]) -> dict[str, object]:
-    """Remove sensitive keys from a dictionary."""
-    return {k: v for k, v in data.items() if k.lower() not in _SENSITIVE_KEYS}
+    """Remove sensitive keys from a dictionary, recursively including lists."""
+    result: dict[str, object] = {}
+    for k, v in data.items():
+        if _is_sensitive_key(k):
+            continue
+        if isinstance(v, dict):
+            result[k] = _redact_sensitive(v)
+        elif isinstance(v, list):
+            result[k] = [_redact_sensitive(item) if isinstance(item, dict) else item for item in v]
+        else:
+            result[k] = v
+    return result
 
 
 class AuditRecord(BaseModel):
@@ -96,8 +127,19 @@ class AuditLogger:
             if not self._ensure_dir():
                 return
             try:
-                with open(self._audit_file, "a") as f:
-                    f.write(record.model_dump_json() + "\n")
+                flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
+                flags |= getattr(os, "O_NOFOLLOW", 0)
+                fd = os.open(str(self._audit_file), flags, 0o600)
+                try:
+                    data = (record.model_dump_json() + "\n").encode()
+                    view = memoryview(data)
+                    while view:
+                        written = os.write(fd, view)
+                        if written <= 0:
+                            raise OSError("Failed to write audit log record")
+                        view = view[written:]
+                finally:
+                    os.close(fd)
             except OSError as e:
                 _logger.error("AUDIT LOG FAILURE: %s", e)
 

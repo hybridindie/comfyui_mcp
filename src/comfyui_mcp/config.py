@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
 import yaml
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
+
+_logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG_PATH = Path.home() / ".comfyui-mcp" / "config.yaml"
 
@@ -71,6 +74,16 @@ class ComfyUISettings(BaseModel):
             return None
         return cls.validate_url(v)
 
+    @field_validator("tls_verify")
+    @classmethod
+    def warn_tls_disabled(cls, v: bool) -> bool:
+        if not v:
+            _logger.warning(
+                "TLS verification disabled — connections are vulnerable to MITM attacks. "
+                "Only use for local development.",
+            )
+        return v
+
 
 class SecuritySettings(BaseModel):
     mode: Literal["audit", "enforce"] = "audit"
@@ -92,8 +105,8 @@ class SecuritySettings(BaseModel):
 
 
 class ModelSearchSettings(BaseModel):
-    huggingface_token: str = ""
-    civitai_api_key: str = ""
+    huggingface_token: str = Field(default="", repr=False)
+    civitai_api_key: str = Field(default="", repr=False)
     max_search_results: int = 10
 
 
