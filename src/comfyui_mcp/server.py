@@ -239,9 +239,13 @@ def _build_server(
 @contextlib.asynccontextmanager
 async def _lifespan(app: FastMCP) -> AsyncIterator[None]:
     """Manage async resource lifecycle for the MCP server."""
-    yield
-    await _client.close()
-    await _search_http.aclose()
+    try:
+        yield
+    finally:
+        with contextlib.suppress(Exception):
+            await _client.close()
+        with contextlib.suppress(Exception):
+            await _search_http.aclose()
 
 
 # Module-level server instance for import and CLI use
