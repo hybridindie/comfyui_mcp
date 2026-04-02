@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import urlparse
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -168,21 +169,23 @@ def register_model_tools(
         )
     )
     async def comfyui_search_models(
-        query: str,
-        source: str = "civitai",
-        model_type: str = "",
-        limit: int = 5,
-        offset: int = 0,
+        query: Annotated[str, Field(description="Search query (model name, style, etc.)")],
+        source: Annotated[
+            str,
+            Field(description='Where to search — "civitai" (default) or "huggingface"'),
+        ] = "civitai",
+        model_type: Annotated[
+            str,
+            Field(
+                description="Filter by type. CivitAI: Checkpoint, LORA, TextualInversion, etc. "
+                "HuggingFace: text-to-image, etc.",
+                max_length=100,
+            ),
+        ] = "",
+        limit: Annotated[int, Field(description="Maximum results to return", ge=1, le=10)] = 5,
+        offset: Annotated[int, Field(description="Starting index for pagination", ge=0)] = 0,
     ) -> str:
         """Search for models on HuggingFace or CivitAI.
-
-        Args:
-            query: Search query (model name, style, etc.)
-            source: Where to search — "civitai" (default) or "huggingface"
-            model_type: Filter by type. CivitAI: Checkpoint, LORA, TextualInversion, etc.
-                        HuggingFace: text-to-image, etc.
-            limit: Maximum results to return (default: 5, max: 10)
-            offset: Starting index for pagination (default: 0)
 
         Returns:
             JSON with search results including name, download URL, size, and stats.
@@ -243,16 +246,20 @@ def register_model_tools(
         )
     )
     async def comfyui_download_model(
-        url: str,
-        folder: str,
-        filename: str = "",
+        url: Annotated[
+            str,
+            Field(description="Direct download URL (must be from an allowed domain)"),
+        ],
+        folder: Annotated[
+            str,
+            Field(description='Target model folder (e.g. "checkpoints", "loras", "vae")'),
+        ],
+        filename: Annotated[
+            str,
+            Field(description="Filename to save as (optional — inferred from URL if empty)"),
+        ] = "",
     ) -> str:
         """Download a model from HuggingFace or CivitAI via ComfyUI-Model-Manager.
-
-        Args:
-            url: Direct download URL (must be from an allowed domain)
-            folder: Target model folder (e.g. "checkpoints", "loras", "vae")
-            filename: Filename to save as (optional — inferred from URL if empty)
 
         Returns:
             JSON with download task status. Use comfyui_get_download_tasks to check progress.

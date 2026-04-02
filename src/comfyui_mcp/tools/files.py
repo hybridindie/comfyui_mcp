@@ -6,10 +6,11 @@ import base64
 import json
 import struct
 import zlib
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -141,20 +142,26 @@ def register_file_tools(
         )
     )
     async def comfyui_get_image(
-        filename: str,
-        subfolder: str = "",
-        response_format: Literal["data_uri", "url"] = "data_uri",
-        base_url_override: str | None = None,
+        filename: Annotated[str, Field(description="Name of the image file to retrieve")],
+        subfolder: Annotated[
+            str,
+            Field(
+                description="Subfolder within ComfyUI's output directory. "
+                "Use the subfolder value from comfyui_list_outputs or generation results."
+            ),
+        ] = "",
+        response_format: Annotated[
+            Literal["data_uri", "url"],
+            Field(description="'data_uri' to inline the image, or 'url' to return a /view URL"),
+        ] = "data_uri",
+        base_url_override: Annotated[
+            str | None,
+            Field(
+                description="Optional override for URL responses; falls back to configured base URL"
+            ),
+        ] = None,
     ) -> str:
         """Download a generated image from ComfyUI or return a direct view URL.
-
-        Args:
-            filename: Name of the image file to retrieve
-            subfolder: Subfolder within ComfyUI's output directory (default: empty).
-                       Use the subfolder value from comfyui_list_outputs or generation results.
-            response_format: 'data_uri' to inline the image, or 'url' to return a /view URL
-            base_url_override: Optional override for URL responses only;
-                falls back to configured image view base URL, then internal base URL
 
         Returns:
             Base64-encoded image data with content type prefix, or a direct image URL

@@ -5,11 +5,12 @@ from __future__ import annotations
 import contextlib
 import copy
 import json
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -44,6 +45,43 @@ def _validate_cfg(cfg: float) -> None:
 def _validate_strength(strength: float) -> None:
     if not 0.0 <= strength <= 1.0:
         raise ValueError("strength must be between 0.0 and 1.0")
+
+
+# -- Annotated field types for Pydantic schema generation --
+# These provide JSON schema constraints (ge, le, etc.) and descriptions
+# that MCP clients use for tool parameter documentation and validation.
+# Manual validators above are kept for direct-call safety (e.g. tests).
+
+StepsField = Annotated[int, Field(description="Number of sampling steps", ge=1, le=100)]
+CfgField = Annotated[
+    float,
+    Field(description="Classifier-free guidance scale", ge=1.0, le=30.0),
+]
+StrengthField = Annotated[
+    float,
+    Field(description="How much to deviate from the input image", ge=0.0, le=1.0),
+]
+WidthField = Annotated[
+    int,
+    Field(description="Image width in pixels", ge=MIN_DIMENSION, le=MAX_WIDTH),
+]
+HeightField = Annotated[
+    int,
+    Field(description="Image height in pixels", ge=MIN_DIMENSION, le=MAX_HEIGHT),
+]
+ImageFileField = Annotated[
+    str,
+    Field(description="Filename of the image in ComfyUI's input directory"),
+]
+ModelNameField = Annotated[
+    str,
+    Field(description="Checkpoint model name (leave empty for default)"),
+]
+NegativePromptField = Annotated[str, Field(description="What to avoid in the output")]
+WaitField = Annotated[
+    bool,
+    Field(description="If True, block until complete and return result"),
+]
 
 
 def _validate_workflow_json(raw: str) -> dict[str, Any]:
@@ -468,28 +506,16 @@ def register_generation_tools(
         )
     )
     async def comfyui_generate_image(
-        prompt: str,
-        negative_prompt: str = "bad quality, blurry",
-        width: int = 512,
-        height: int = 512,
-        steps: int = 20,
-        cfg: float = 7.0,
-        model: str = "",
-        wait: bool = False,
+        prompt: Annotated[str, Field(description="Text description of the image")],
+        negative_prompt: NegativePromptField = "bad quality, blurry",
+        width: WidthField = 512,
+        height: HeightField = 512,
+        steps: StepsField = 20,
+        cfg: CfgField = 7.0,
+        model: ModelNameField = "",
+        wait: WaitField = False,
     ) -> str:
-        """Generate an image from a text prompt using a default txt2img workflow.
-
-        Args:
-            prompt: Text description of the image to generate
-            negative_prompt: What to avoid in the image
-            width: Image width in pixels (64-4096)
-            height: Image height in pixels (64-4096)
-            steps: Number of sampling steps (more = better quality, slower)
-            cfg: Classifier-free guidance scale (higher = more prompt adherence)
-            model: Checkpoint model name (leave empty for default)
-            wait: If True, block until generation completes and return structured result.
-                  If False (default), return immediately with just the prompt_id.
-        """
+        """Generate an image from a text prompt using a default txt2img workflow."""
         if not MIN_DIMENSION <= width <= MAX_WIDTH:
             raise ValueError(f"width must be between {MIN_DIMENSION} and {MAX_WIDTH}")
         if not MIN_DIMENSION <= height <= MAX_HEIGHT:
@@ -581,28 +607,18 @@ def register_generation_tools(
         )
     )
     async def comfyui_transform_image(
-        image: str,
-        prompt: str,
-        negative_prompt: str = "bad quality, blurry",
-        strength: float = 0.75,
-        steps: int = 20,
-        cfg: float = 7.0,
-        model: str = "",
-        wait: bool = False,
+        image: ImageFileField,
+        prompt: Annotated[str, Field(description="Text description guiding the transformation")],
+        negative_prompt: NegativePromptField = "bad quality, blurry",
+        strength: StrengthField = 0.75,
+        steps: StepsField = 20,
+        cfg: CfgField = 7.0,
+        model: ModelNameField = "",
+        wait: WaitField = False,
     ) -> str:
         """Transform an existing image using a text prompt (img2img).
 
         The input image must already be uploaded to ComfyUI via comfyui_upload_image.
-
-        Args:
-            image: Filename of the input image in ComfyUI's input directory
-            prompt: Text description guiding the transformation
-            negative_prompt: What to avoid in the output image
-            strength: How much to deviate from the input (0.0 = identical, 1.0 = fully reimagined)
-            steps: Number of sampling steps (1-100)
-            cfg: Classifier-free guidance scale (1.0-30.0)
-            model: Checkpoint model name (leave empty for default)
-            wait: If True, block until complete and return structured result with outputs
         """
         _validate_strength(strength)
         _validate_steps(steps)
@@ -648,32 +664,21 @@ def register_generation_tools(
         )
     )
     async def comfyui_inpaint_image(
-        image: str,
-        mask: str,
-        prompt: str,
-        negative_prompt: str = "bad quality, blurry",
-        strength: float = 0.8,
-        steps: int = 20,
-        cfg: float = 7.0,
-        model: str = "",
-        wait: bool = False,
+        image: ImageFileField,
+        mask: Annotated[str, Field(description="Mask image filename (white=inpaint, black=keep)")],
+        prompt: Annotated[str, Field(description="Text description for the inpainted region")],
+        negative_prompt: NegativePromptField = "bad quality, blurry",
+        strength: StrengthField = 0.8,
+        steps: StepsField = 20,
+        cfg: CfgField = 7.0,
+        model: ModelNameField = "",
+        wait: WaitField = False,
     ) -> str:
         """Inpaint regions of an image using a mask and text prompt.
 
         Both the input image and mask must already be uploaded via
         comfyui_upload_image/comfyui_upload_mask.
         White regions in the mask indicate areas to regenerate.
-
-        Args:
-            image: Filename of the input image in ComfyUI's input directory
-            mask: Filename of the mask image (white = inpaint, black = keep)
-            prompt: Text description for the inpainted region
-            negative_prompt: What to avoid in the inpainted region
-            strength: Inpainting strength (0.0 = keep original, 1.0 = fully regenerate)
-            steps: Number of sampling steps (1-100)
-            cfg: Classifier-free guidance scale (1.0-30.0)
-            model: Checkpoint model name (leave empty for default)
-            wait: If True, block until complete and return structured result with outputs
         """
         _validate_strength(strength)
         _validate_steps(steps)
@@ -721,21 +726,21 @@ def register_generation_tools(
         )
     )
     async def comfyui_upscale_image(
-        image: str,
-        upscale_model: str = "RealESRGAN_x4plus.pth",
-        wait: bool = False,
+        image: ImageFileField,
+        upscale_model: Annotated[
+            str,
+            Field(
+                description="Name of the upscale model file. "
+                "Use comfyui_list_models with folder='upscale_models' "
+                "to see available models."
+            ),
+        ] = "RealESRGAN_x4plus.pth",
+        wait: WaitField = False,
     ) -> str:
         """Upscale an image using a model-based upscaler.
 
         The input image must already be uploaded to ComfyUI via comfyui_upload_image.
         The scale factor is determined by the upscale model (e.g. RealESRGAN_x4plus = 4x).
-
-        Args:
-            image: Filename of the input image in ComfyUI's input directory
-            upscale_model: Name of the upscale model file (default: RealESRGAN_x4plus.pth).
-                           Use comfyui_list_models with folder='upscale_models'
-                           to see available models.
-            wait: If True, block until complete and return structured result with outputs
         """
         limiter.check("upscale_image")
         clean_image = _validate_image_filename(image, sanitizer)
