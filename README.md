@@ -155,7 +155,7 @@ The MCP server communicates over stdio. Add one of the following configurations 
       "args": [
         "run", "--rm", "-i",
         "-e", "COMFYUI_URL=http://host.docker.internal:8188",
-        "-v", "~/.comfyui-mcp:/root/.comfyui-mcp:ro",
+        "-v", "~/.comfyui-mcp:/home/app/.comfyui-mcp:ro",
         "ghcr.io/hybridindie/comfyui_mcp:latest"
       ]
     }
@@ -720,7 +720,7 @@ docker pull ghcr.io/hybridindie/comfyui_mcp:latest
 
 ### How it works
 
-The container runs `uv run comfyui-mcp-secure` as its entrypoint, communicating over stdin/stdout (stdio). This makes it compatible with Claude Code, Claude Desktop, and any MCP client. Config is read from `/root/.comfyui-mcp/config.yaml` inside the container — mount your local config directory to provide it, or use environment variables.
+The container runs as a non-root `app` user with `uv run comfyui-mcp-secure` as its entrypoint, communicating over stdin/stdout (stdio). This makes it compatible with Claude Code, Claude Desktop, and any MCP client. Config is read from `/home/app/.comfyui-mcp/config.yaml` inside the container — mount your local config directory to provide it, or use environment variables.
 
 ### Running standalone
 
@@ -728,14 +728,14 @@ The container runs `uv run comfyui-mcp-secure` as its entrypoint, communicating 
 # Using the hosted image
 docker run --rm -i \
   -e COMFYUI_URL=http://host.docker.internal:8188 \
-  -v ~/.comfyui-mcp:/root/.comfyui-mcp:ro \
+  -v ~/.comfyui-mcp:/home/app/.comfyui-mcp:ro \
   ghcr.io/hybridindie/comfyui_mcp:latest
 
 # Or build and run locally
 docker build -t comfyui-mcp-secure .
 docker run --rm -i \
   -e COMFYUI_URL=http://host.docker.internal:8188 \
-  -v ~/.comfyui-mcp:/root/.comfyui-mcp:ro \
+  -v ~/.comfyui-mcp:/home/app/.comfyui-mcp:ro \
   comfyui-mcp-secure
 ```
 
@@ -765,8 +765,8 @@ services:
       - COMFYUI_URL=${COMFYUI_URL:-http://comfyui:8188}
       - COMFYUI_SECURITY_MODE=${COMFYUI_SECURITY_MODE:-audit}
     volumes:
-      - ./config.yaml:/root/.comfyui-mcp/config.yaml:ro
-      - comfyui-mcp-secure-data:/root/.comfyui-mcp/logs
+      - ./config.yaml:/home/app/.comfyui-mcp/config.yaml:ro
+      - comfyui-mcp-secure-data:/home/app/.comfyui-mcp/logs
     restart: unless-stopped
 
 volumes:
@@ -778,7 +778,7 @@ volumes:
 See the [Docker configuration](#add-to-claude-code--claude-desktop) in Quick Start above. The key points:
 
 - Use `docker run --rm -i` (interactive, no detach) so stdio works
-- Mount your config: `-v ~/.comfyui-mcp:/root/.comfyui-mcp:ro`
+- Mount your config: `-v ~/.comfyui-mcp:/home/app/.comfyui-mcp:ro`
 - Set `COMFYUI_URL` to reach your ComfyUI instance from inside the container
 - Use `host.docker.internal` to reach ComfyUI running on your host machine
 - The GHCR image (`ghcr.io/hybridindie/comfyui_mcp:latest`) means no local build needed
