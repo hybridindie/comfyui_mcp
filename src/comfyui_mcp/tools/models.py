@@ -16,6 +16,7 @@ from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.config import ModelSearchSettings
 from comfyui_mcp.model_manager import ModelManagerDetector
+from comfyui_mcp.pagination import paginate
 from comfyui_mcp.security.download_validator import DownloadValidator
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
@@ -171,6 +172,7 @@ def register_model_tools(
         source: str = "civitai",
         model_type: str = "",
         limit: int = 5,
+        offset: int = 0,
     ) -> str:
         """Search for models on HuggingFace or CivitAI.
 
@@ -179,7 +181,8 @@ def register_model_tools(
             source: Where to search — "civitai" (default) or "huggingface"
             model_type: Filter by type. CivitAI: Checkpoint, LORA, TextualInversion, etc.
                         HuggingFace: text-to-image, etc.
-            limit: Maximum results to return (default: 5)
+            limit: Maximum results to return (default: 5, max: 10)
+            offset: Starting index for pagination (default: 0)
 
         Returns:
             JSON with search results including name, download URL, size, and stats.
@@ -222,7 +225,12 @@ def register_model_tools(
             extra={"source": source, "result_count": len(results)},
         )
 
-        return json.dumps({"results": results, "source": source, "query": stripped_query})
+        result = paginate(
+            results, offset, limit, default_limit=5, max_limit=search_settings.max_search_results
+        )
+        result["query"] = stripped_query
+        result["source"] = source
+        return json.dumps(result)
 
     tool_fns["search_models"] = search_models
 

@@ -142,21 +142,26 @@ def _mock_restart_busy_queue():
 
 class TestSearchCustomNodes:
     @respx.mock
-    async def test_returns_matching_results(self, registered_tools):
+    async def test_returns_paginated_envelope(self, registered_tools):
         _mock_node_list()
         result = await registered_tools["search_custom_nodes"](query="test")
         parsed = json.loads(result)
-        assert len(parsed["results"]) == 1
-        assert parsed["results"][0]["id"] == "comfy-pack-one"
-        assert parsed["results"][0]["name"] == "Test Node Pack"
+        assert len(parsed["items"]) == 1
+        assert parsed["items"][0]["id"] == "comfy-pack-one"
+        assert parsed["items"][0]["name"] == "Test Node Pack"
         assert parsed["query"] == "test"
+        assert parsed["total"] == 1
+        assert parsed["offset"] == 0
+        assert parsed["limit"] == 10
+        assert parsed["has_more"] is False
 
     @respx.mock
     async def test_empty_results_when_no_match(self, registered_tools):
         _mock_node_list()
         result = await registered_tools["search_custom_nodes"](query="nonexistent-xyz")
         parsed = json.loads(result)
-        assert parsed["results"] == []
+        assert parsed["items"] == []
+        assert parsed["total"] == 0
 
     @respx.mock
     async def test_rate_limiter_called(self, components, registered_tools):

@@ -1,0 +1,37 @@
+"""Offset-based pagination helper for list tools."""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def paginate(
+    items: list[Any],
+    offset: int = 0,
+    limit: int | None = None,
+    default_limit: int = 25,
+    max_limit: int = 100,
+) -> dict[str, Any]:
+    """Slice a list and return a pagination envelope.
+
+    Args:
+        items: Full list to paginate.
+        offset: Starting index (clamped to 0 if negative).
+        limit: Requested page size. ``None`` or ``0`` uses *default_limit*.
+        default_limit: Page size when *limit* is falsy.
+        max_limit: Hard cap on page size.
+
+    Returns:
+        Dict with keys: ``items``, ``total``, ``offset``, ``limit``, ``has_more``.
+    """
+    effective_limit = min(limit or default_limit, max_limit)
+    effective_offset = max(offset, 0)
+    total = len(items)
+    page = items[effective_offset : effective_offset + effective_limit]
+    return {
+        "items": page,
+        "total": total,
+        "offset": effective_offset,
+        "limit": effective_limit,
+        "has_more": (effective_offset + effective_limit) < total,
+    }

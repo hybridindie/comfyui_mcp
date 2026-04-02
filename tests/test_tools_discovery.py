@@ -38,7 +38,7 @@ def components_with_auditor(tmp_path):
 
 class TestListModels:
     @respx.mock
-    async def test_list_models_returns_models(self, components):
+    async def test_list_models_returns_paginated_envelope(self, components):
         client, audit, limiter, sanitizer = components
         respx.get("http://test:8188/models/checkpoints").mock(
             return_value=httpx.Response(200, json=["v1.safetensors", "v2.safetensors"])
@@ -48,12 +48,38 @@ class TestListModels:
 
         result = await tools["list_models"](folder="checkpoints")
         parsed = json.loads(result)
-        assert "v1.safetensors" in parsed
+        assert parsed["items"] == ["v1.safetensors", "v2.safetensors"]
+        assert parsed["total"] == 2
+        assert parsed["offset"] == 0
+        assert parsed["limit"] == 25
+        assert parsed["has_more"] is False
+
+    @respx.mock
+    async def test_list_models_respects_limit_and_offset(self, components):
+        client, audit, limiter, sanitizer = components
+        models = [f"model_{i}.safetensors" for i in range(10)]
+        respx.get("http://test:8188/models/checkpoints").mock(
+            return_value=httpx.Response(200, json=models)
+        )
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+
+        result = await tools["list_models"](folder="checkpoints", limit=3, offset=2)
+        parsed = json.loads(result)
+        assert parsed["items"] == [
+            "model_2.safetensors",
+            "model_3.safetensors",
+            "model_4.safetensors",
+        ]
+        assert parsed["total"] == 10
+        assert parsed["offset"] == 2
+        assert parsed["limit"] == 3
+        assert parsed["has_more"] is True
 
 
 class TestListNodes:
     @respx.mock
-    async def test_list_nodes_returns_node_types(self, components):
+    async def test_list_nodes_returns_paginated_envelope(self, components):
         client, audit, limiter, sanitizer = components
         respx.get("http://test:8188/object_info").mock(
             return_value=httpx.Response(200, json={"KSampler": {}, "CLIPTextEncode": {}})
@@ -63,8 +89,12 @@ class TestListNodes:
 
         result = await tools["list_nodes"]()
         parsed = json.loads(result)
-        assert "KSampler" in parsed
-        assert "CLIPTextEncode" in parsed
+        assert "CLIPTextEncode" in parsed["items"]
+        assert "KSampler" in parsed["items"]
+        assert parsed["total"] == 2
+        assert parsed["offset"] == 0
+        assert parsed["limit"] == 25
+        assert parsed["has_more"] is False
 
 
 class TestListExtensions:

@@ -96,8 +96,12 @@ class TestSearchModels:
         )
         result = await registered_tools["search_models"](query="epic realism", source="civitai")
         parsed = json.loads(result)
-        assert len(parsed["results"]) == 1
-        assert parsed["results"][0]["name"] == "Epic Realism"
+        assert len(parsed["items"]) == 1
+        assert parsed["items"][0]["name"] == "Epic Realism"
+        assert parsed["query"] == "epic realism"
+        assert parsed["source"] == "civitai"
+        assert parsed["total"] == 1
+        assert parsed["has_more"] is False
 
     @respx.mock
     async def test_search_huggingface(self, registered_tools):
@@ -130,8 +134,10 @@ class TestSearchModels:
         )
         result = await registered_tools["search_models"](query="sdxl", source="huggingface")
         parsed = json.loads(result)
-        assert len(parsed["results"]) == 1
-        assert parsed["results"][0]["name"] == "stabilityai/sdxl"
+        assert len(parsed["items"]) == 1
+        assert parsed["items"][0]["name"] == "stabilityai/sdxl"
+        assert parsed["query"] == "sdxl"
+        assert parsed["source"] == "huggingface"
 
     @respx.mock
     async def test_search_invalid_source(self, registered_tools):
@@ -367,7 +373,7 @@ class TestHuggingFaceConcurrency:
             query="test", source="huggingface", limit=3
         )
         parsed = json.loads(result)
-        assert len(parsed["results"]) == 3
+        assert len(parsed["items"]) == 3
         # 1 search + 3 detail calls
         assert respx.calls.call_count >= 4
 

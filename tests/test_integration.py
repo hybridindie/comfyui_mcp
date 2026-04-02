@@ -121,7 +121,7 @@ class TestImageGenerationFlow:
 
         # Step 1: Discover available models
         models = json.loads(await integration_stack["list_models"](folder="checkpoints"))
-        assert "sd_v15.safetensors" in models
+        assert "sd_v15.safetensors" in models["items"]
 
         # Step 2: Generate an image
         result = await integration_stack["generate_image"](prompt="a sunset over mountains")
