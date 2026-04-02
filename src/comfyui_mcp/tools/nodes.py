@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -173,7 +174,14 @@ def register_node_tools(
     """Register custom node management tools."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def search_custom_nodes(query: str) -> str:
         """Search installed custom node packs by name, description, or author.
 
@@ -247,7 +255,14 @@ def register_node_tools(
 
     tool_fns["search_custom_nodes"] = search_custom_nodes
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def install_custom_node(
         id: str,  # noqa: A002
         version: str = "",
@@ -302,7 +317,14 @@ def register_node_tools(
 
     tool_fns["install_custom_node"] = install_custom_node
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def uninstall_custom_node(
         id: str,  # noqa: A002
         restart: bool = False,
@@ -348,7 +370,14 @@ def register_node_tools(
 
     tool_fns["uninstall_custom_node"] = uninstall_custom_node
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def update_custom_node(
         id: str,  # noqa: A002
         restart: bool = False,
@@ -395,7 +424,14 @@ def register_node_tools(
 
     tool_fns["update_custom_node"] = update_custom_node
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_custom_node_status() -> str:
         """Check the custom node operation queue status.
 

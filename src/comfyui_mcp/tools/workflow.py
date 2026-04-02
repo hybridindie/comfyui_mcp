@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -55,7 +56,14 @@ def register_workflow_tools(
     """Register workflow composition tools."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        )
+    )
     async def create_workflow(template: str, params: str = "{}") -> str:
         """Create a ComfyUI workflow from a template with optional parameter overrides.
 
@@ -98,7 +106,14 @@ def register_workflow_tools(
 
     tool_fns["create_workflow"] = create_workflow
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        )
+    )
     async def modify_workflow(workflow: str, operations: str) -> str:
         """Apply batch operations to a ComfyUI workflow.
 
@@ -148,7 +163,14 @@ def register_workflow_tools(
 
     tool_fns["modify_workflow"] = modify_workflow
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def validate_workflow(workflow: str) -> str:
         """Validate a ComfyUI workflow for structural correctness and security.
 

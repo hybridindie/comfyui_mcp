@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -21,7 +22,14 @@ def register_history_tools(
     """Register history tools and return callable functions for testing."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_history() -> str:
         """Browse ComfyUI execution history (read-only)."""
         limiter.check("get_history")
