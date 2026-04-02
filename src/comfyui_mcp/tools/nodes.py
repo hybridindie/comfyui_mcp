@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.node_manager import ComfyUIManagerDetector
+from comfyui_mcp.pagination import paginate
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 
@@ -24,7 +25,6 @@ _QUEUE_POLL_TIMEOUT = 300
 _RESTART_POLL_INTERVAL = 3
 _RESTART_POLL_TIMEOUT = 60
 _RESTART_SETTLE_DELAY = 5
-_MAX_SEARCH_RESULTS = 10
 
 
 def _validate_node_id(node_id: str) -> str:
@@ -182,11 +182,17 @@ def register_node_tools(
             openWorldHint=True,
         )
     )
-    async def search_custom_nodes(query: str) -> str:
+    async def search_custom_nodes(
+        query: str,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> str:
         """Search installed custom node packs by name, description, or author.
 
         Args:
             query: Search term to match against installed node pack metadata.
+            limit: Maximum number of results to return (default: 10, max: 25)
+            offset: Starting index for pagination (default: 0)
 
         Returns:
             JSON with matching node packs including name, description, author,
@@ -243,7 +249,7 @@ def register_node_tools(
             )
 
         scored.sort(key=lambda x: -x[0])
-        results = [item for _, item in scored[:_MAX_SEARCH_RESULTS]]
+        results = [item for _, item in scored]
 
         await audit.async_log(
             tool="search_custom_nodes",
@@ -251,7 +257,9 @@ def register_node_tools(
             extra={"query": query, "result_count": len(results)},
         )
 
-        return json.dumps({"results": results, "query": query})
+        result = paginate(results, offset, limit, default_limit=10, max_limit=25)
+        result["query"] = query
+        return json.dumps(result)
 
     tool_fns["search_custom_nodes"] = search_custom_nodes
 

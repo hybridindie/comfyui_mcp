@@ -13,6 +13,7 @@ from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
+from comfyui_mcp.pagination import paginate
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
 
@@ -196,16 +197,20 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def list_outputs() -> str:
+    async def list_outputs(limit: int = 25, offset: int = 0) -> str:
         """List output files from ComfyUI's execution history.
 
+        Args:
+            limit: Maximum number of results to return (default: 25, max: 100)
+            offset: Starting index for pagination (default: 0)
+
         Returns:
-            JSON list of objects with 'filename' and 'subfolder' keys.
-            Pass these values to get_image to retrieve the files.
+            JSON envelope with paginated list of objects with 'filename' and
+            'subfolder' keys. Pass these values to get_image to retrieve files.
         """
         limiter.check("list_outputs")
         await audit.async_log(tool="list_outputs", action="called")
-        history = await client.get_history()
+        history = await client.get_history(max_items=100)
         seen: set[tuple[str, str]] = set()
         results: list[dict[str, str]] = []
         for entry in history.values():
@@ -221,7 +226,7 @@ def register_file_tools(
                                     seen.add(key)
                                     results.append({"filename": fn, "subfolder": sf})
         results.sort(key=lambda item: (item["subfolder"], item["filename"]))
-        return json.dumps(results)
+        return json.dumps(paginate(results, offset, limit, default_limit=25, max_limit=100))
 
     tool_fns["list_outputs"] = list_outputs
 

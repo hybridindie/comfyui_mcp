@@ -11,6 +11,7 @@ from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
+from comfyui_mcp.pagination import paginate
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
@@ -165,12 +166,23 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def list_models(folder: str = "checkpoints") -> str:
-        """List available models in a folder (checkpoints, loras, vae, etc.)."""
+    async def list_models(
+        folder: str = "checkpoints",
+        limit: int = 25,
+        offset: int = 0,
+    ) -> str:
+        """List available models in a folder (checkpoints, loras, vae, etc.).
+
+        Args:
+            folder: Model folder type (checkpoints, loras, vae, etc.)
+            limit: Maximum number of results to return (default: 25, max: 100)
+            offset: Starting index for pagination (default: 0)
+        """
         limiter.check("list_models")
         sanitizer.validate_path_segment(folder, label="folder")
         await audit.async_log(tool="list_models", action="called", extra={"folder": folder})
-        return json.dumps(await client.get_models(folder))
+        models = await client.get_models(folder)
+        return json.dumps(paginate(models, offset, limit, default_limit=25, max_limit=100))
 
     tool_fns["list_models"] = list_models
 
@@ -182,12 +194,19 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def list_nodes() -> str:
-        """List all available ComfyUI node types."""
+    async def list_nodes(limit: int = 25, offset: int = 0) -> str:
+        """List all available ComfyUI node types.
+
+        Args:
+            limit: Maximum number of results to return (default: 25, max: 100)
+            offset: Starting index for pagination (default: 0)
+        """
         limiter.check("list_nodes")
         await audit.async_log(tool="list_nodes", action="called")
         info = await client.get_object_info()
-        return json.dumps(sorted(info.keys()))
+        return json.dumps(
+            paginate(sorted(info.keys()), offset, limit, default_limit=25, max_limit=100)
+        )
 
     tool_fns["list_nodes"] = list_nodes
 

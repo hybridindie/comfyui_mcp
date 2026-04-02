@@ -401,7 +401,7 @@ class TestGetWorkflowFromImage:
 
 class TestListOutputs:
     @respx.mock
-    async def test_returns_filenames_from_history(self, components):
+    async def test_returns_paginated_envelope(self, components):
         client, audit, limiter, sanitizer = components
         respx.get("http://test:8188/history").mock(
             return_value=httpx.Response(
@@ -433,11 +433,15 @@ class TestListOutputs:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
         parsed = json.loads(result)
-        assert parsed == [
+        assert parsed["items"] == [
             {"filename": "image_001.png", "subfolder": ""},
             {"filename": "image_002.png", "subfolder": ""},
             {"filename": "image_003.png", "subfolder": ""},
         ]
+        assert parsed["total"] == 3
+        assert parsed["offset"] == 0
+        assert parsed["limit"] == 25
+        assert parsed["has_more"] is False
 
     @respx.mock
     async def test_deduplicates_filenames(self, components):
@@ -455,7 +459,7 @@ class TestListOutputs:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
         parsed = json.loads(result)
-        assert parsed == [{"filename": "dup.png", "subfolder": ""}]
+        assert parsed["items"] == [{"filename": "dup.png", "subfolder": ""}]
 
     @respx.mock
     async def test_empty_history(self, components):
@@ -465,7 +469,9 @@ class TestListOutputs:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
         parsed = json.loads(result)
-        assert parsed == []
+        assert parsed["items"] == []
+        assert parsed["total"] == 0
+        assert parsed["has_more"] is False
 
     @respx.mock
     async def test_handles_malformed_entries(self, components):
@@ -486,7 +492,7 @@ class TestListOutputs:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["list_outputs"]()
         parsed = json.loads(result)
-        assert parsed == [{"filename": "ok.png", "subfolder": ""}]
+        assert parsed["items"] == [{"filename": "ok.png", "subfolder": ""}]
 
 
 class TestUploadMask:

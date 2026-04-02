@@ -96,8 +96,12 @@ class TestSearchModels:
         )
         result = await registered_tools["search_models"](query="epic realism", source="civitai")
         parsed = json.loads(result)
-        assert len(parsed["results"]) == 1
-        assert parsed["results"][0]["name"] == "Epic Realism"
+        assert len(parsed["items"]) == 1
+        assert parsed["items"][0]["name"] == "Epic Realism"
+        assert parsed["query"] == "epic realism"
+        assert parsed["source"] == "civitai"
+        assert parsed["total"] == 1
+        assert parsed["has_more"] is False
 
     @respx.mock
     async def test_search_huggingface(self, registered_tools):
@@ -130,8 +134,10 @@ class TestSearchModels:
         )
         result = await registered_tools["search_models"](query="sdxl", source="huggingface")
         parsed = json.loads(result)
-        assert len(parsed["results"]) == 1
-        assert parsed["results"][0]["name"] == "stabilityai/sdxl"
+        assert len(parsed["items"]) == 1
+        assert parsed["items"][0]["name"] == "stabilityai/sdxl"
+        assert parsed["query"] == "sdxl"
+        assert parsed["source"] == "huggingface"
 
     @respx.mock
     async def test_search_invalid_source(self, registered_tools):
@@ -192,6 +198,43 @@ class TestSearchModelsInputValidation:
         )
         # Should not raise — limit is clamped to max_search_results
         await registered_tools["search_models"](query="test", source="civitai", limit=999)
+
+    @respx.mock
+    async def test_offset_and_zero_limit(self, registered_tools):
+        """offset>0 and limit=0 should paginate correctly using defaults."""
+        respx.get("https://civitai.com/api/v1/models").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": i,
+                            "name": f"Model {i}",
+                            "type": "Checkpoint",
+                            "stats": {"downloadCount": 100, "rating": 4.0},
+                            "modelVersions": [
+                                {
+                                    "id": i * 10,
+                                    "downloadUrl": f"https://civitai.com/dl/{i}",
+                                    "files": [{"sizeKB": 1024, "name": f"m{i}.safetensors"}],
+                                }
+                            ],
+                        }
+                        for i in range(8)
+                    ],
+                },
+            )
+        )
+        # limit=0 should use default_limit=5, offset=2 should skip first 2
+        result = await registered_tools["search_models"](
+            query="test", source="civitai", limit=0, offset=2
+        )
+        parsed = json.loads(result)
+        assert parsed["offset"] == 2
+        assert parsed["limit"] == 5
+        assert len(parsed["items"]) == 5
+        assert parsed["total"] == 8
+        assert parsed["has_more"] is True
 
 
 class TestDownloadModel:
@@ -367,7 +410,7 @@ class TestHuggingFaceConcurrency:
             query="test", source="huggingface", limit=3
         )
         parsed = json.loads(result)
-        assert len(parsed["results"]) == 3
+        assert len(parsed["items"]) == 3
         # 1 search + 3 detail calls
         assert respx.calls.call_count >= 4
 
