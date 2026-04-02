@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -385,7 +386,14 @@ def register_generation_tools(
     """Register generation tools."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def run_workflow(workflow: str, wait: bool = False) -> str:
         """Submit an arbitrary ComfyUI workflow for execution.
 
@@ -414,7 +422,14 @@ def register_generation_tools(
 
     tool_fns["run_workflow"] = run_workflow
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def run_workflow_stream(workflow: str) -> str:
         """Submit a ComfyUI workflow and return websocket stream events plus final status.
 
@@ -444,7 +459,14 @@ def register_generation_tools(
 
     tool_fns["run_workflow_stream"] = run_workflow_stream
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def generate_image(
         prompt: str,
         negative_prompt: str = "bad quality, blurry",
@@ -494,7 +516,14 @@ def register_generation_tools(
 
     tool_fns["generate_image"] = generate_image
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def summarize_workflow(workflow: str, format: str = "text") -> str:  # noqa: A002
         """Summarize a ComfyUI workflow's structure, data flow, and key parameters.
 
@@ -543,7 +572,14 @@ def register_generation_tools(
 
     tool_fns["summarize_workflow"] = summarize_workflow
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def transform_image(
         image: str,
         prompt: str,
@@ -603,7 +639,14 @@ def register_generation_tools(
 
     tool_fns["transform_image"] = transform_image
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def inpaint_image(
         image: str,
         mask: str,
@@ -668,7 +711,14 @@ def register_generation_tools(
 
     tool_fns["inpaint_image"] = inpaint_image
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def upscale_image(
         image: str,
         upscale_model: str = "RealESRGAN_x4plus.pth",

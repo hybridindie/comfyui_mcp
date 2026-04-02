@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -156,7 +157,14 @@ def register_discovery_tools(
     """Register discovery tools and return a dict of callable functions for testing."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def list_models(folder: str = "checkpoints") -> str:
         """List available models in a folder (checkpoints, loras, vae, etc.)."""
         limiter.check("list_models")
@@ -166,7 +174,14 @@ def register_discovery_tools(
 
     tool_fns["list_models"] = list_models
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def list_nodes() -> str:
         """List all available ComfyUI node types."""
         limiter.check("list_nodes")
@@ -176,7 +191,14 @@ def register_discovery_tools(
 
     tool_fns["list_nodes"] = list_nodes
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_node_info(node_class: str) -> str:
         """Get detailed information about a specific node type."""
         limiter.check("get_node_info")
@@ -187,7 +209,14 @@ def register_discovery_tools(
 
     tool_fns["get_node_info"] = get_node_info
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def list_workflows() -> str:
         """List available workflow templates."""
         limiter.check("list_workflows")
@@ -196,7 +225,14 @@ def register_discovery_tools(
 
     tool_fns["list_workflows"] = list_workflows
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def list_extensions() -> str:
         """List available ComfyUI extensions."""
         limiter.check("list_extensions")
@@ -205,7 +241,14 @@ def register_discovery_tools(
 
     tool_fns["list_extensions"] = list_extensions
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_server_features() -> str:
         """Get ComfyUI server features and capabilities."""
         limiter.check("get_server_features")
@@ -214,7 +257,14 @@ def register_discovery_tools(
 
     tool_fns["get_server_features"] = get_server_features
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def list_model_folders() -> str:
         """List available model folder types (checkpoints, loras, vae, etc.)."""
         limiter.check("list_model_folders")
@@ -223,7 +273,14 @@ def register_discovery_tools(
 
     tool_fns["list_model_folders"] = list_model_folders
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_model_metadata(folder: str, filename: str) -> str:
         """Get metadata for a model file.
 
@@ -243,7 +300,14 @@ def register_discovery_tools(
 
     tool_fns["get_model_metadata"] = get_model_metadata
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def audit_dangerous_nodes() -> str:
         """Audit all installed nodes to identify potentially dangerous ones.
 
@@ -290,7 +354,14 @@ def register_discovery_tools(
 
     tool_fns["audit_dangerous_nodes"] = audit_dangerous_nodes
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_system_info() -> str:
         """Return sanitized ComfyUI system information.
 
@@ -344,7 +415,14 @@ def register_discovery_tools(
 
     tool_fns["get_system_info"] = get_system_info
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        )
+    )
     async def get_model_presets(
         model_name: str | None = None,
         model_family: str | None = None,
@@ -388,7 +466,14 @@ def register_discovery_tools(
 
     tool_fns["get_model_presets"] = get_model_presets
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        )
+    )
     async def get_prompting_guide(model_family: str) -> str:
         """Return prompt-engineering guidance for a model family.
 

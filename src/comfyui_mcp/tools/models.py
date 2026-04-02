@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -157,7 +158,14 @@ def register_model_tools(
     """Register model search and download tools."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def search_models(
         query: str,
         source: str = "civitai",
@@ -218,7 +226,14 @@ def register_model_tools(
 
     tool_fns["search_models"] = search_models
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def download_model(
         url: str,
         folder: str,
@@ -288,7 +303,14 @@ def register_model_tools(
 
     tool_fns["download_model"] = download_model
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_download_tasks() -> str:
         """Check the status of active model downloads.
 
@@ -312,7 +334,14 @@ def register_model_tools(
 
     tool_fns["get_download_tasks"] = get_download_tasks
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def cancel_download(task_id: str) -> str:
         """Cancel and remove a model download task.
 

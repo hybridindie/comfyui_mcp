@@ -9,6 +9,7 @@ import zlib
 from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -98,7 +99,14 @@ def register_file_tools(
     """Register file operation tools."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def upload_image(filename: str, image_data: str, subfolder: str = "") -> str:
         """Upload an image to ComfyUI's input directory.
 
@@ -123,7 +131,14 @@ def register_file_tools(
 
     tool_fns["upload_image"] = upload_image
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_image(
         filename: str,
         subfolder: str = "",
@@ -173,7 +188,14 @@ def register_file_tools(
 
     tool_fns["get_image"] = get_image
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def list_outputs() -> str:
         """List output files from ComfyUI's execution history.
 
@@ -203,7 +225,14 @@ def register_file_tools(
 
     tool_fns["list_outputs"] = list_outputs
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def upload_mask(filename: str, mask_data: str, subfolder: str = "") -> str:
         """Upload a mask image to ComfyUI's input directory.
 
@@ -228,7 +257,14 @@ def register_file_tools(
 
     tool_fns["upload_mask"] = upload_mask
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_workflow_from_image(filename: str, subfolder: str = "") -> str:
         """Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG.
 
