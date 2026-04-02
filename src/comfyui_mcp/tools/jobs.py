@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -34,12 +33,12 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_queue() -> str:
+    async def comfyui_get_queue() -> dict[str, Any]:
         """Get the current ComfyUI execution queue state."""
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_queue")
         await audit.async_log(tool="get_queue", action="called")
-        return json.dumps(await client.get_queue())
+        return await client.get_queue()
 
     tool_fns["comfyui_get_queue"] = comfyui_get_queue
 
@@ -51,12 +50,12 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_job(prompt_id: str) -> str:
+    async def comfyui_get_job(prompt_id: str) -> dict[str, Any]:
         """Check the status of a specific job by its prompt_id."""
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_job")
         await audit.async_log(tool="get_job", action="called", extra={"prompt_id": prompt_id})
-        return json.dumps(await client.get_history_item(prompt_id))
+        return await client.get_history_item(prompt_id)
 
     tool_fns["comfyui_get_job"] = comfyui_get_job
 
@@ -102,12 +101,12 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_queue_status() -> str:
+    async def comfyui_get_queue_status() -> dict[str, Any]:
         """Get detailed queue status including currently running and pending prompts."""
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_queue_status")
         await audit.async_log(tool="get_queue_status", action="called")
-        return json.dumps(await client.get_prompt_status())
+        return await client.get_prompt_status()
 
     tool_fns["comfyui_get_queue_status"] = comfyui_get_queue_status
 
@@ -145,7 +144,7 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_progress(prompt_id: str) -> str:
+    async def comfyui_get_progress(prompt_id: str) -> dict[str, Any]:
         """Get the current execution progress for a workflow via HTTP.
 
         Returns status (queued/running/completed/error/unknown), queue position,
@@ -159,15 +158,13 @@ def register_job_tools(
         progress_limiter.check("get_progress")
         await audit.async_log(tool="get_progress", action="called", extra={"prompt_id": prompt_id})
         if progress is None:
-            return json.dumps(
-                {
-                    "prompt_id": prompt_id,
-                    "status": "unknown",
-                    "error": "Progress tracking not configured",
-                }
-            )
+            return {
+                "prompt_id": prompt_id,
+                "status": "unknown",
+                "error": "Progress tracking not configured",
+            }
         state = await progress.get_state(prompt_id)
-        return json.dumps(state.to_dict())
+        return state.to_dict()
 
     tool_fns["comfyui_get_progress"] = comfyui_get_progress
 

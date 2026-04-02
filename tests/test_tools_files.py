@@ -307,7 +307,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = json.loads(await tools["comfyui_get_workflow_from_image"](filename="test.png"))
+        result = await tools["comfyui_get_workflow_from_image"](filename="test.png")
         assert result["workflow"] == {"1": {"class_type": "KSampler", "inputs": {}}}
         assert result["prompt"] == {"1": {"class_type": "KSampler", "inputs": {}}}
         assert "workflow" in result["message"].lower()
@@ -325,7 +325,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = json.loads(await tools["comfyui_get_workflow_from_image"](filename="test.png"))
+        result = await tools["comfyui_get_workflow_from_image"](filename="test.png")
         assert result["workflow"] == {"1": {"class_type": "SaveImage", "inputs": {}}}
 
     @respx.mock
@@ -339,7 +339,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = json.loads(await tools["comfyui_get_workflow_from_image"](filename="test.png"))
+        result = await tools["comfyui_get_workflow_from_image"](filename="test.png")
         assert result["workflow"] is None
         assert result["prompt"] is None
         assert "no workflow metadata" in result["message"].lower()
@@ -394,7 +394,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = json.loads(await tools["comfyui_get_workflow_from_image"](filename="test.png"))
+        result = await tools["comfyui_get_workflow_from_image"](filename="test.png")
         assert result["workflow"] is None
         assert (
             "malformed" in result["message"].lower() or "no workflow" in result["message"].lower()
@@ -434,16 +434,15 @@ class TestListOutputs:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["comfyui_list_outputs"]()
-        parsed = json.loads(result)
-        assert parsed["items"] == [
+        assert result["items"] == [
             {"filename": "image_001.png", "subfolder": ""},
             {"filename": "image_002.png", "subfolder": ""},
             {"filename": "image_003.png", "subfolder": ""},
         ]
-        assert parsed["total"] == 3
-        assert parsed["offset"] == 0
-        assert parsed["limit"] == 25
-        assert parsed["has_more"] is False
+        assert result["total"] == 3
+        assert result["offset"] == 0
+        assert result["limit"] == 25
+        assert result["has_more"] is False
 
     @respx.mock
     async def test_deduplicates_filenames(self, components):
@@ -460,8 +459,7 @@ class TestListOutputs:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["comfyui_list_outputs"]()
-        parsed = json.loads(result)
-        assert parsed["items"] == [{"filename": "dup.png", "subfolder": ""}]
+        assert result["items"] == [{"filename": "dup.png", "subfolder": ""}]
 
     @respx.mock
     async def test_empty_history(self, components):
@@ -470,10 +468,9 @@ class TestListOutputs:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["comfyui_list_outputs"]()
-        parsed = json.loads(result)
-        assert parsed["items"] == []
-        assert parsed["total"] == 0
-        assert parsed["has_more"] is False
+        assert result["items"] == []
+        assert result["total"] == 0
+        assert result["has_more"] is False
 
     @respx.mock
     async def test_handles_malformed_entries(self, components):
@@ -493,8 +490,7 @@ class TestListOutputs:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         result = await tools["comfyui_list_outputs"]()
-        parsed = json.loads(result)
-        assert parsed["items"] == [{"filename": "ok.png", "subfolder": ""}]
+        assert result["items"] == [{"filename": "ok.png", "subfolder": ""}]
 
 
 class TestUploadMask:

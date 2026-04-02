@@ -1,7 +1,5 @@
 """Tests for job management MCP tools."""
 
-import json
-
 import httpx
 import pytest
 import respx
@@ -42,8 +40,7 @@ class TestGetQueue:
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
         result = await tools["comfyui_get_queue"]()
-        parsed = json.loads(result)
-        assert "queue_running" in parsed
+        assert "queue_running" in result
 
 
 class TestCancelJob:
@@ -83,8 +80,7 @@ class TestGetJob:
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
         result = await tools["comfyui_get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-        parsed = json.loads(result)
-        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in parsed
+        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
 
 class TestGetQueueStatus:
@@ -97,8 +93,7 @@ class TestGetQueueStatus:
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
         result = await tools["comfyui_get_queue_status"]()
-        parsed = json.loads(result)
-        assert "exec_info" in parsed
+        assert "exec_info" in result
 
 
 class TestClearQueue:
@@ -151,10 +146,9 @@ class TestGetProgress:
         result = await tools["comfyui_get_progress"](
             prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         )
-        data = json.loads(result)
-        assert data["status"] == "completed"
-        assert data["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-        assert len(data["outputs"]) == 1
+        assert result["status"] == "completed"
+        assert result["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        assert len(result["outputs"]) == 1
 
     @respx.mock
     async def test_returns_unknown_when_not_found(self, progress_components):
@@ -182,5 +176,4 @@ class TestGetProgress:
             progress=progress,
         )
         result = await tools["comfyui_get_progress"](prompt_id=not_found_id)
-        data = json.loads(result)
-        assert data["status"] == "unknown"
+        assert result["status"] == "unknown"

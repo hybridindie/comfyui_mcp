@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 from typing import Annotated, Any, Literal
 from urllib.parse import urlparse
@@ -198,7 +197,7 @@ def register_model_tools(
             ),
         ] = 5,
         offset: Annotated[int, Field(description="Starting index for pagination", ge=0)] = 0,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Search for models on HuggingFace or CivitAI.
 
         Returns:
@@ -247,7 +246,7 @@ def register_model_tools(
         )
         result["query"] = stripped_query
         result["source"] = source
-        return json.dumps(result)
+        return result
 
     tool_fns["comfyui_search_models"] = comfyui_search_models
 
@@ -272,7 +271,7 @@ def register_model_tools(
             str,
             Field(description="Filename to save as (optional — inferred from URL if empty)"),
         ] = "",
-    ) -> str:
+    ) -> dict[str, Any]:
         """Download a model from HuggingFace or CivitAI via ComfyUI-Model-Manager.
 
         Returns:
@@ -328,7 +327,7 @@ def register_model_tools(
             extra={"result": result, "folder": folder, "filename": filename},
         )
 
-        return json.dumps(result)
+        return result
 
     tool_fns["comfyui_download_model"] = comfyui_download_model
 
@@ -340,7 +339,7 @@ def register_model_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_download_tasks() -> str:
+    async def comfyui_get_download_tasks() -> dict[str, Any]:
         """Check the status of active model downloads.
 
         Returns:
@@ -359,7 +358,7 @@ def register_model_tools(
             extra={"task_count": len(tasks)},
         )
 
-        return json.dumps({"tasks": tasks})
+        return {"tasks": tasks}
 
     tool_fns["comfyui_get_download_tasks"] = comfyui_get_download_tasks
 
@@ -371,7 +370,7 @@ def register_model_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_cancel_download(task_id: str) -> str:
+    async def comfyui_cancel_download(task_id: str) -> dict[str, Any]:
         """Cancel and remove a model download task.
 
         Args:
@@ -396,7 +395,7 @@ def register_model_tools(
             extra={"task_id": task_id, "result": result, "success": success},
         )
 
-        return json.dumps({"success": success, "task_id": task_id, "result": result})
+        return {"success": success, "task_id": task_id, "result": result}
 
     tool_fns["comfyui_cancel_download"] = comfyui_cancel_download
 

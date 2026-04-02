@@ -1,7 +1,5 @@
 """Tests for history MCP tools."""
 
-import json
-
 import httpx
 import pytest
 import respx
@@ -31,14 +29,13 @@ class TestGetHistory:
         mcp = FastMCP("test")
         tools = register_history_tools(mcp, client, audit, limiter)
         result = await tools["comfyui_get_history"]()
-        parsed = json.loads(result)
-        assert parsed["total"] == 2
-        assert parsed["offset"] == 0
-        assert parsed["limit"] == 25
-        assert parsed["has_more"] is False
-        assert len(parsed["items"]) == 2
+        assert result["total"] == 2
+        assert result["offset"] == 0
+        assert result["limit"] == 25
+        assert result["has_more"] is False
+        assert len(result["items"]) == 2
         # prompt_id should be injected into each entry
-        prompt_ids = [item["prompt_id"] for item in parsed["items"]]
+        prompt_ids = [item["prompt_id"] for item in result["items"]]
         assert "abc" in prompt_ids
         assert "def" in prompt_ids
 
@@ -50,10 +47,9 @@ class TestGetHistory:
         mcp = FastMCP("test")
         tools = register_history_tools(mcp, client, audit, limiter)
         result = await tools["comfyui_get_history"](limit=2, offset=0)
-        parsed = json.loads(result)
-        assert len(parsed["items"]) == 2
-        assert parsed["total"] == 5
-        assert parsed["has_more"] is True
+        assert len(result["items"]) == 2
+        assert result["total"] == 5
+        assert result["has_more"] is True
 
     @respx.mock
     async def test_handles_non_dict_entries(self, components):
@@ -65,8 +61,7 @@ class TestGetHistory:
         mcp = FastMCP("test")
         tools = register_history_tools(mcp, client, audit, limiter)
         result = await tools["comfyui_get_history"]()
-        parsed = json.loads(result)
-        assert parsed["total"] == 2
-        prompt_ids = [item["prompt_id"] for item in parsed["items"]]
+        assert result["total"] == 2
+        prompt_ids = [item["prompt_id"] for item in result["items"]]
         assert "abc" in prompt_ids
         assert "bad" in prompt_ids

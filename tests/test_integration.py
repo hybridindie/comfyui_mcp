@@ -120,7 +120,7 @@ class TestImageGenerationFlow:
         )
 
         # Step 1: Discover available models
-        models = json.loads(await integration_stack["comfyui_list_models"](folder="checkpoints"))
+        models = await integration_stack["comfyui_list_models"](folder="checkpoints")
         assert "sd_v15.safetensors" in models["items"]
 
         # Step 2: Generate an image
@@ -128,10 +128,8 @@ class TestImageGenerationFlow:
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
         # Step 3: Check the job
-        job = json.loads(
-            await integration_stack["comfyui_get_job"](
-                prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-            )
+        job = await integration_stack["comfyui_get_job"](
+            prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         )
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in job
 
