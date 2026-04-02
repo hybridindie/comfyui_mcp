@@ -516,6 +516,7 @@ def register_generation_tools(
         wait: WaitField = False,
     ) -> str:
         """Generate an image from a text prompt using a default txt2img workflow."""
+        limiter.check("generate_image")
         if not MIN_DIMENSION <= width <= MAX_WIDTH:
             raise ValueError(f"width must be between {MIN_DIMENSION} and {MAX_WIDTH}")
         if not MIN_DIMENSION <= height <= MAX_HEIGHT:
@@ -523,7 +524,6 @@ def register_generation_tools(
         _validate_steps(steps)
         _validate_cfg(cfg)
 
-        limiter.check("generate_image")
         wf = _build_txt2img_workflow(prompt, negative_prompt, width, height, steps, cfg, model)
 
         return await _submit_workflow(
@@ -620,11 +620,11 @@ def register_generation_tools(
 
         The input image must already be uploaded to ComfyUI via comfyui_upload_image.
         """
+        limiter.check("transform_image")
         _validate_strength(strength)
         _validate_steps(steps)
         _validate_cfg(cfg)
 
-        limiter.check("transform_image")
         clean_image = _validate_image_filename(image, sanitizer)
 
         params: dict[str, Any] = {
@@ -680,11 +680,11 @@ def register_generation_tools(
         comfyui_upload_image/comfyui_upload_mask.
         White regions in the mask indicate areas to regenerate.
         """
+        limiter.check("inpaint_image")
         _validate_strength(strength)
         _validate_steps(steps)
         _validate_cfg(cfg)
 
-        limiter.check("inpaint_image")
         clean_image = _validate_image_filename(image, sanitizer)
         clean_mask = _validate_image_filename(mask, sanitizer)
 

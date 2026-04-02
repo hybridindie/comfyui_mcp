@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from urllib.parse import urlparse
 
 import httpx
@@ -169,10 +169,17 @@ def register_model_tools(
         )
     )
     async def comfyui_search_models(
-        query: Annotated[str, Field(description="Search query (model name, style, etc.)")],
-        source: Annotated[
+        query: Annotated[
             str,
-            Field(description='Where to search — "civitai" (default) or "huggingface"'),
+            Field(
+                description="Search query (model name, style, etc.)",
+                min_length=1,
+                max_length=200,
+            ),
+        ],
+        source: Annotated[
+            Literal["civitai", "huggingface"],
+            Field(description='Where to search — "civitai" or "huggingface"'),
         ] = "civitai",
         model_type: Annotated[
             str,
@@ -182,7 +189,14 @@ def register_model_tools(
                 max_length=100,
             ),
         ] = "",
-        limit: Annotated[int, Field(description="Maximum results to return", ge=1, le=10)] = 5,
+        limit: Annotated[
+            int,
+            Field(
+                description="Maximum results to return (0 for default page size; "
+                "values above server max are capped)",
+                ge=0,
+            ),
+        ] = 5,
         offset: Annotated[int, Field(description="Starting index for pagination", ge=0)] = 0,
     ) -> str:
         """Search for models on HuggingFace or CivitAI.
