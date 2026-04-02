@@ -338,7 +338,7 @@ def register_model_tools(
         annotations=ToolAnnotations(
             readOnlyHint=False,
             destructiveHint=True,
-            idempotentHint=True,
+            idempotentHint=False,
             openWorldHint=True,
         )
     )

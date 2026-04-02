@@ -321,7 +321,7 @@ def register_node_tools(
         annotations=ToolAnnotations(
             readOnlyHint=False,
             destructiveHint=True,
-            idempotentHint=True,
+            idempotentHint=False,
             openWorldHint=True,
         )
     )
@@ -374,7 +374,7 @@ def register_node_tools(
         annotations=ToolAnnotations(
             readOnlyHint=False,
             destructiveHint=False,
-            idempotentHint=True,
+            idempotentHint=False,
             openWorldHint=True,
         )
     )
