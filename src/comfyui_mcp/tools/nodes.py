@@ -131,9 +131,9 @@ async def _handle_restart(
 async def _execute_node_operation(
     *,
     client: ComfyUIClient,
-    action_fn: Any,
+    kind: str,
+    params: dict[str, Any],
     node_id: str,
-    version: str,
     restart: bool,
     node_auditor: NodeAuditor,
     audit: AuditLogger,
@@ -141,7 +141,7 @@ async def _execute_node_operation(
     run_post_audit: bool,
 ) -> str:
     """Shared queue→start→poll→restart+audit flow for install/uninstall/update."""
-    await action_fn(node_id, version)
+    await client.queue_manager_task(kind=kind, params=params)
     await client.start_custom_node_queue()
 
     timeout_msg = await _poll_queue_completion(client)
@@ -175,14 +175,14 @@ def register_node_tools(
 
     @mcp.tool()
     async def search_custom_nodes(query: str) -> str:
-        """Search the ComfyUI Manager registry for custom nodes.
+        """Search installed custom node packs by name, description, or author.
 
         Args:
-            query: Search term to match against node pack name, description, or author.
+            query: Search term to match against installed node pack metadata.
 
         Returns:
             JSON with matching node packs including name, description, author,
-            install status, and ID (for use with install_custom_node).
+            install status, version, and ID.
         """
         read_limiter.check("search_custom_nodes")
         await node_manager.require_available()
@@ -193,15 +193,14 @@ def register_node_tools(
             extra={"query": query},
         )
 
-        data = await client.get_custom_node_list(mode="remote")
-        node_packs = data.get("node_packs", {})
+        node_packs = await client.get_installed_custom_nodes()
 
         query_lower = query.lower()
         scored: list[tuple[float, dict[str, str]]] = []
         for pack_id, pack_info in node_packs.items():
             if not isinstance(pack_info, dict):
                 continue
-            name = pack_info.get("name", "")
+            name = pack_info.get("name", pack_id)
             description = pack_info.get("description", "")
             author = pack_info.get("author", "")
             name_lower = name.lower()
@@ -210,21 +209,27 @@ def register_node_tools(
                 score = 3.0
             elif query_lower in name_lower:
                 score = 2.0
+            elif query_lower in pack_id.lower():
+                score = 1.5
             elif query_lower in description.lower():
                 score = 1.0
             elif query_lower in author.lower():
                 score = 0.5
             else:
                 continue
+            installed = pack_info.get("installed", "")
+            if isinstance(installed, bool):
+                installed = str(installed).lower()
             scored.append(
                 (
                     score,
                     {
-                        "id": pack_id,
+                        "id": pack_info.get("cnr_id", pack_id),
                         "name": name,
                         "description": description,
                         "author": author,
-                        "installed": pack_info.get("installed", "false"),
+                        "installed": installed or "true",
+                        "version": pack_info.get("ver", ""),
                     },
                 )
             )
@@ -271,9 +276,15 @@ def register_node_tools(
 
         result = await _execute_node_operation(
             client=client,
-            action_fn=client.queue_custom_node_install,
+            kind="install",
+            params={
+                "id": id,
+                "version": version or "latest",
+                "selected_version": version or "latest",
+                "mode": "remote",
+                "channel": "default",
+            },
             node_id=id,
-            version=version,
             restart=restart,
             node_auditor=node_auditor,
             audit=audit,
@@ -317,9 +328,9 @@ def register_node_tools(
 
         result = await _execute_node_operation(
             client=client,
-            action_fn=client.queue_custom_node_uninstall,
+            kind="uninstall",
+            params={"node_name": id, "is_unknown": False},
             node_id=id,
-            version="",
             restart=restart,
             node_auditor=node_auditor,
             audit=audit,
@@ -364,9 +375,9 @@ def register_node_tools(
 
         result = await _execute_node_operation(
             client=client,
-            action_fn=client.queue_custom_node_update,
+            kind="update",
+            params={"node_name": id, "node_ver": None},
             node_id=id,
-            version="",
             restart=restart,
             node_auditor=node_auditor,
             audit=audit,

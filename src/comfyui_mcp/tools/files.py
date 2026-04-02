@@ -126,7 +126,7 @@ def register_file_tools(
     @mcp.tool()
     async def get_image(
         filename: str,
-        subfolder: str = "output",
+        subfolder: str = "",
         response_format: Literal["data_uri", "url"] = "data_uri",
         base_url_override: str | None = None,
     ) -> str:
@@ -134,7 +134,8 @@ def register_file_tools(
 
         Args:
             filename: Name of the image file to retrieve
-            subfolder: Directory to look in (default: 'output')
+            subfolder: Subfolder within ComfyUI's output directory (default: empty).
+                       Use the subfolder value from list_outputs or generation results.
             response_format: 'data_uri' to inline the image, or 'url' to return a /view URL
             base_url_override: Optional override for URL responses only;
                 falls back to configured image view base URL, then internal base URL
@@ -174,19 +175,31 @@ def register_file_tools(
 
     @mcp.tool()
     async def list_outputs() -> str:
-        """List files in ComfyUI's output directory."""
+        """List output files from ComfyUI's execution history.
+
+        Returns:
+            JSON list of objects with 'filename' and 'subfolder' keys.
+            Pass these values to get_image to retrieve the files.
+        """
         limiter.check("list_outputs")
         await audit.async_log(tool="list_outputs", action="called")
         history = await client.get_history()
-        filenames: set[str] = set()
+        seen: set[tuple[str, str]] = set()
+        results: list[dict[str, str]] = []
         for entry in history.values():
             if isinstance(entry, dict):
                 for outputs in entry.get("outputs", {}).values():
                     if isinstance(outputs, dict):
                         for images in outputs.get("images", []):
                             if isinstance(images, dict) and "filename" in images:
-                                filenames.add(images["filename"])
-        return json.dumps(sorted(filenames))
+                                fn = images["filename"]
+                                sf = images.get("subfolder", "")
+                                key = (fn, sf)
+                                if key not in seen:
+                                    seen.add(key)
+                                    results.append({"filename": fn, "subfolder": sf})
+        results.sort(key=lambda item: (item["subfolder"], item["filename"]))
+        return json.dumps(results)
 
     tool_fns["list_outputs"] = list_outputs
 
@@ -216,7 +229,7 @@ def register_file_tools(
     tool_fns["upload_mask"] = upload_mask
 
     @mcp.tool()
-    async def get_workflow_from_image(filename: str, subfolder: str = "output") -> str:
+    async def get_workflow_from_image(filename: str, subfolder: str = "") -> str:
         """Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG.
 
         ComfyUI embeds the full workflow JSON and prompt data in PNG text chunks.
@@ -225,7 +238,7 @@ def register_file_tools(
 
         Args:
             filename: Name of the PNG file to extract metadata from
-            subfolder: Directory to look in (default: 'output')
+            subfolder: Subfolder within ComfyUI's output directory (default: empty)
 
         Returns:
             Dict with 'workflow' (parsed JSON or None), 'prompt' (parsed JSON or None),
