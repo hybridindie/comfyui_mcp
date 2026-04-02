@@ -6,7 +6,7 @@ description: Show ComfyUI queue status with running and pending jobs
 
 Show the current ComfyUI queue status.
 
-Call `get_queue` and format the response as:
+Call `comfyui_get_queue` and format the response as:
 
 - **Running jobs**: count and list of prompt IDs currently executing
 - **Pending jobs**: count and list of prompt IDs waiting in queue

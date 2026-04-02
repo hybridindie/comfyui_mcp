@@ -6,7 +6,7 @@ description: Show execution progress for a ComfyUI job
 
 Show progress for a specific ComfyUI job. Prompt ID: "$ARGUMENTS".
 
-Call `get_progress` with the prompt_id from "$ARGUMENTS". Format the response showing:
+Call `comfyui_get_progress` with the prompt_id from "$ARGUMENTS". Format the response showing:
 
 - **Current node**: which node is executing
 - **Progress**: step X of Y (percentage)
