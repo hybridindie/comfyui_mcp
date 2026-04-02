@@ -14,16 +14,16 @@ This server adds five security layers between the AI assistant and ComfyUI:
 | **Path Sanitizer** | Validates all filenames, subfolders, and URL path segments — blocks path traversal (`../`), null bytes, percent-encoded attacks, absolute paths, and disallowed file extensions. |
 | **Rate Limiter** | Token-bucket rate limiting per tool category to prevent runaway loops. |
 | **Audit Logger** | Structured JSON logging of every operation with automatic redaction of sensitive fields (tokens, passwords). |
-| **Selective API Surface** | Only exposes safe ComfyUI endpoints. Dangerous endpoints (`/userdata`, `/free`, `/users`) are never proxied. `/system_stats` is called internally by `get_system_info` but only a strict whitelist (GPU VRAM, queue counts, version) is returned. |
+| **Selective API Surface** | Only exposes safe ComfyUI endpoints. Dangerous endpoints (`/userdata`, `/free`, `/users`) are never proxied. `/system_stats` is called internally by `comfyui_get_system_info` but only a strict whitelist (GPU VRAM, queue counts, version) is returned. |
 
 ### Real-time progress tracking
 
-When `wait=True` is passed to `generate_image` or `run_workflow`, the server connects to ComfyUI's WebSocket to track execution in real time — reporting step progress, current node, and output files when complete. If the WebSocket connection fails, it automatically falls back to HTTP polling. Use `get_progress` to check status of any job at any time.
+When `wait=True` is passed to `comfyui_generate_image` or `comfyui_run_workflow`, the server connects to ComfyUI's WebSocket to track execution in real time — reporting step progress, current node, and output files when complete. If the WebSocket connection fails, it automatically falls back to HTTP polling. Use `comfyui_get_progress` to check status of any job at any time.
 
 For workflow streaming, use the mode that matches your use case:
 
-- `run_workflow(..., wait=True)` returns a summarized, tool-friendly completion response.
-- `run_workflow_stream(...)` returns raw WebSocket event flow (`progress`, `executing`, `executed`, etc.) plus final status and outputs.
+- `comfyui_run_workflow(..., wait=True)` returns a summarized, tool-friendly completion response.
+- `comfyui_run_workflow_stream(...)` returns raw WebSocket event flow (`progress`, `executing`, `executed`, etc.) plus final status and outputs.
 
 ## Quick start
 
@@ -205,53 +205,53 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 
 | Tool | Description |
 |------|-------------|
-| `generate_image` | Text-to-image using a built-in workflow. Params: prompt, negative_prompt, width, height, steps, cfg, model. Set `wait=True` to block until complete and return outputs. |
-| `transform_image` | Image-to-image transformation. Params: image (filename), prompt, negative_prompt, strength (0.0-1.0), steps, cfg, model. Input must be uploaded via `upload_image` first. |
-| `inpaint_image` | Inpaint masked regions of an image. Params: image, mask (filenames), prompt, negative_prompt, strength, steps, cfg, model. Both files must be uploaded first. |
-| `upscale_image` | Upscale an image using a model-based upscaler. Params: image (filename), upscale_model (default: RealESRGAN_x4plus.pth). |
-| `run_workflow` | Submit arbitrary ComfyUI workflow JSON. Inspected for dangerous nodes before execution. Set `wait=True` to block until complete and return outputs. |
-| `run_workflow_stream` | Submit workflow JSON and capture ComfyUI websocket stream events (`progress`, `executing`, `executed`, etc.) until terminal status, returning events plus final outputs/status. |
-| `summarize_workflow` | Summarize a workflow's structure, data flow, models, and parameters. Supports `format="text"` (default) or `format="mermaid"` for diagram markup. |
-| `create_workflow` | Create a workflow from templates including txt2img/img2img/upscale/inpaint, txt2vid_animatediff/txt2vid_wan, controlnet_canny/controlnet_depth/controlnet_openpose, ip_adapter, lora_stack, face_restore, flux_txt2img, and sdxl_txt2img. |
-| `modify_workflow` | Apply batch operations (add_node, remove_node, set_input, connect, disconnect) to a workflow. |
-| `validate_workflow` | Validate workflow structure, server compatibility, and security. |
+| `comfyui_generate_image` | Text-to-image using a built-in workflow. Params: prompt, negative_prompt, width, height, steps, cfg, model. Set `wait=True` to block until complete and return outputs. |
+| `comfyui_transform_image` | Image-to-image transformation. Params: image (filename), prompt, negative_prompt, strength (0.0-1.0), steps, cfg, model. Input must be uploaded via `comfyui_upload_image` first. |
+| `comfyui_inpaint_image` | Inpaint masked regions of an image. Params: image, mask (filenames), prompt, negative_prompt, strength, steps, cfg, model. Both files must be uploaded first. |
+| `comfyui_upscale_image` | Upscale an image using a model-based upscaler. Params: image (filename), upscale_model (default: RealESRGAN_x4plus.pth). |
+| `comfyui_run_workflow` | Submit arbitrary ComfyUI workflow JSON. Inspected for dangerous nodes before execution. Set `wait=True` to block until complete and return outputs. |
+| `comfyui_run_workflow_stream` | Submit workflow JSON and capture ComfyUI websocket stream events (`progress`, `executing`, `executed`, etc.) until terminal status, returning events plus final outputs/status. |
+| `comfyui_summarize_workflow` | Summarize a workflow's structure, data flow, models, and parameters. Supports `format="text"` (default) or `format="mermaid"` for diagram markup. |
+| `comfyui_create_workflow` | Create a workflow from templates including txt2img/img2img/upscale/inpaint, txt2vid_animatediff/txt2vid_wan, controlnet_canny/controlnet_depth/controlnet_openpose, ip_adapter, lora_stack, face_restore, flux_txt2img, and sdxl_txt2img. |
+| `comfyui_modify_workflow` | Apply batch operations (add_node, remove_node, set_input, connect, disconnect) to a workflow. |
+| `comfyui_validate_workflow` | Validate workflow structure, server compatibility, and security. |
 
 ### Job Management
 
 | Tool | Description |
 |------|-------------|
-| `get_queue` | Get current execution queue state. |
-| `get_job` | Check status of a job by prompt_id. |
-| `cancel_job` | Cancel a running or queued job. |
-| `interrupt` | Interrupt the currently executing workflow. |
-| `get_queue_status` | Get detailed queue status including running and pending prompts. |
-| `clear_queue` | Clear pending and/or running items from the queue. |
-| `get_progress` | Get execution progress for a workflow by prompt_id. Returns status, queue position, and outputs. |
+| `comfyui_get_queue` | Get current execution queue state. |
+| `comfyui_get_job` | Check status of a job by prompt_id. |
+| `comfyui_cancel_job` | Cancel a running or queued job. |
+| `comfyui_interrupt` | Interrupt the currently executing workflow. |
+| `comfyui_get_queue_status` | Get detailed queue status including running and pending prompts. |
+| `comfyui_clear_queue` | Clear pending and/or running items from the queue. |
+| `comfyui_get_progress` | Get execution progress for a workflow by prompt_id. Returns status, queue position, and outputs. |
 
 ### Discovery
 
 | Tool | Description |
 |------|-------------|
-| `list_models` | List available models by folder (checkpoints, loras, vae, etc.). |
-| `list_nodes` | List all available node types. |
-| `get_node_info` | Get detailed info about a specific node type. |
-| `list_workflows` | List saved workflow templates. |
-| `list_extensions` | List available ComfyUI extensions. |
-| `get_server_features` | Get ComfyUI server features and capabilities. |
-| `list_model_folders` | List available model folder types. |
-| `get_model_metadata` | Get metadata for a specific model file. |
-| `audit_dangerous_nodes` | Scan all installed nodes to identify potentially dangerous ones. |
-| `get_system_info` | Sanitized GPU VRAM, queue depth, and ComfyUI version (whitelist-filtered from `/system_stats`). |
+| `comfyui_list_models` | List available models by folder (checkpoints, loras, vae, etc.). |
+| `comfyui_list_nodes` | List all available node types. |
+| `comfyui_get_node_info` | Get detailed info about a specific node type. |
+| `comfyui_list_workflows` | List saved workflow templates. |
+| `comfyui_list_extensions` | List available ComfyUI extensions. |
+| `comfyui_get_server_features` | Get ComfyUI server features and capabilities. |
+| `comfyui_list_model_folders` | List available model folder types. |
+| `comfyui_get_model_metadata` | Get metadata for a specific model file. |
+| `comfyui_audit_dangerous_nodes` | Scan all installed nodes to identify potentially dangerous ones. |
+| `comfyui_get_system_info` | Sanitized GPU VRAM, queue depth, and ComfyUI version (whitelist-filtered from `/system_stats`). |
 
 ### Custom Node Management
 
 | Tool | Description |
 |------|-------------|
-| `search_custom_nodes` | Search ComfyUI Manager registry custom node packs by name/description/author. |
-| `install_custom_node` | Queue install for a custom node pack by `id`; optional restart and post-install security audit. |
-| `uninstall_custom_node` | Queue uninstall for a custom node pack by `id`; optional restart. |
-| `update_custom_node` | Queue update for a custom node pack by `id`; optional restart and post-update security audit. |
-| `get_custom_node_status` | Get custom node queue status (pending/running/completed). |
+| `comfyui_search_custom_nodes` | Search ComfyUI Manager registry custom node packs by name/description/author. |
+| `comfyui_install_custom_node` | Queue install for a custom node pack by `id`; optional restart and post-install security audit. |
+| `comfyui_uninstall_custom_node` | Queue uninstall for a custom node pack by `id`; optional restart. |
+| `comfyui_update_custom_node` | Queue update for a custom node pack by `id`; optional restart and post-update security audit. |
+| `comfyui_get_custom_node_status` | Get custom node queue status (pending/running/completed). |
 
 > **Requires:** ComfyUI-Manager available on the target ComfyUI server. If unavailable, node-management tools return a helpful error.
 
@@ -259,47 +259,47 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 
 | Tool | Description |
 |------|-------------|
-| `get_history` | Browse execution history (read-only). |
+| `comfyui_get_history` | Browse execution history (read-only). |
 
 ### Model Search & Download
 
 | Tool | Description |
 |------|-------------|
-| `search_models` | Search HuggingFace or CivitAI for models. Returns name, download URL, size, and stats. |
-| `download_model` | Download a model via [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager). URL and extension validated. |
-| `get_download_tasks` | Check status of active model downloads (progress, speed, status). |
-| `cancel_download` | Cancel or clean up a model download task. |
-| `get_model_presets` | Return recommended sampler/scheduler/steps/CFG defaults for a model family. |
-| `get_prompting_guide` | Return model-family prompt engineering tips and negative prompt guidance. |
+| `comfyui_search_models` | Search HuggingFace or CivitAI for models. Returns name, download URL, size, and stats. |
+| `comfyui_download_model` | Download a model via [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager). URL and extension validated. |
+| `comfyui_get_download_tasks` | Check status of active model downloads (progress, speed, status). |
+| `comfyui_cancel_download` | Cancel or clean up a model download task. |
+| `comfyui_get_model_presets` | Return recommended sampler/scheduler/steps/CFG defaults for a model family. |
+| `comfyui_get_prompting_guide` | Return model-family prompt engineering tips and negative prompt guidance. |
 
-> **Requires:** [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager) installed in your ComfyUI instance. Download tools are gated behind lazy detection — if Model Manager is not installed, these tools return a helpful error message. `search_models` works without it.
+> **Requires:** [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager) installed in your ComfyUI instance. Download tools are gated behind lazy detection — if Model Manager is not installed, these tools return a helpful error message. `comfyui_search_models` works without it.
 
 #### Model Manager download lifecycle
 
-Model Manager tracks downloads as tasks. After a download completes, the task remains in the list with `status: "pause"` and `progress: 100` — this is upstream Model Manager behavior. Call `cancel_download` to remove it:
+Model Manager tracks downloads as tasks. After a download completes, the task remains in the list with `status: "pause"` and `progress: 100` — this is upstream Model Manager behavior. Call `comfyui_cancel_download` to remove it:
 
 ```
-download_model(url="...", folder="checkpoints", filename="model.safetensors")
+comfyui_download_model(url="...", folder="checkpoints", filename="model.safetensors")
 → { "taskId": "abc123", ... }
 
-get_download_tasks()
+comfyui_get_download_tasks()
 → { "tasks": [{ "taskId": "abc123", "status": "pause", "progress": 100, ... }] }
 
-cancel_download(task_id="abc123")
+comfyui_cancel_download(task_id="abc123")
 → { "success": true, ... }
 ```
 
-The `download_model` tool always sends a `previewFile` field (required by Model Manager even when empty). Omitting it causes the server to silently fail and delete the task.
+The `comfyui_download_model` tool always sends a `previewFile` field (required by Model Manager even when empty). Omitting it causes the server to silently fail and delete the task.
 
 ### File Operations
 
 | Tool | Description |
 |------|-------------|
-| `upload_image` | Upload a base64-encoded image to ComfyUI's input directory. Path-sanitized. |
-| `get_image` | Download a generated image. `response_format="data_uri"` (default) returns inline base64; `response_format="url"` returns a direct `/view` URL. Optional `base_url_override` can override URL host per call. Path-sanitized. |
-| `list_outputs` | List generated output filenames from history. |
-| `upload_mask` | Upload a mask image to ComfyUI's input directory. Path-sanitized. |
-| `get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |
+| `comfyui_upload_image` | Upload a base64-encoded image to ComfyUI's input directory. Path-sanitized. |
+| `comfyui_get_image` | Download a generated image. `response_format="data_uri"` (default) returns inline base64; `response_format="url"` returns a direct `/view` URL. Optional `base_url_override` can override URL host per call. Path-sanitized. |
+| `comfyui_list_outputs` | List generated output filenames from history. |
+| `comfyui_upload_mask` | Upload a mask image to ComfyUI's input directory. Path-sanitized. |
+| `comfyui_get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |
 
 ### Deliberately not exposed
 
@@ -310,7 +310,7 @@ These ComfyUI endpoints are **never** proxied due to security risks:
 - `/users` — user management
 - `/history` POST — delete history
 
-`/system_stats` is called internally **only** by `get_system_info`, which applies a strict whitelist and never forwards the raw response.
+`/system_stats` is called internally **only** by `comfyui_get_system_info`, which applies a strict whitelist and never forwards the raw response.
 
 ## Configuration
 
@@ -389,7 +389,7 @@ Environment variables override config file values:
 
 ### HuggingFace and CivitAI API keys
 
-`search_models` and `download_model` work without API keys for many public models. Add keys when you need access to gated/private resources or higher provider limits.
+`comfyui_search_models` and `comfyui_download_model` work without API keys for many public models. Add keys when you need access to gated/private resources or higher provider limits.
 
 Set them in config:
 
@@ -447,16 +447,16 @@ The MCP instructions tell the LLM to inform users and ask for confirmation befor
 
 ### Building your dangerous node list
 
-Use the `audit_dangerous_nodes` tool to scan your ComfyUI installation for potentially dangerous nodes:
+Use the `comfyui_audit_dangerous_nodes` tool to scan your ComfyUI installation for potentially dangerous nodes:
 
 | Tool | Description |
 |------|-------------|
-| `audit_dangerous_nodes` | Scans all installed nodes and returns dangerous/suspicious ones with reasons |
+| `comfyui_audit_dangerous_nodes` | Scans all installed nodes and returns dangerous/suspicious ones with reasons |
 
 Run this once to see what dangerous nodes are installed:
 
 ```
-audit_dangerous_nodes() → {
+comfyui_audit_dangerous_nodes() → {
   "total_nodes": 456,
   "dangerous": {
     "count": 12,
@@ -500,7 +500,7 @@ security:
     - "LoraLoader"
 ```
 
-**Tip:** Use `audit_dangerous_nodes` to identify dangerous nodes, run workflows in audit mode to see which nodes you use, then switch to enforce mode with that allowlist.
+**Tip:** Use `comfyui_audit_dangerous_nodes` to identify dangerous nodes, run workflows in audit mode to see which nodes you use, then switch to enforce mode with that allowlist.
 
 ## Audit log
 
@@ -526,7 +526,7 @@ Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are
 | Path traversal via file operations | High | Path sanitizer blocks `..`, null bytes, encoded attacks, absolute paths |
 | Denial of service via request flooding | Medium | Token-bucket rate limiter per tool category |
 | Credential leakage in logs | Medium | Automatic redaction of `token`, `password`, `secret`, `api_key`, `authorization` |
-| Information disclosure via API | Low | Dangerous endpoints (`/userdata`, `/free`) never proxied; `/system_stats` whitelist-filtered by `get_system_info` |
+| Information disclosure via API | Low | Dangerous endpoints (`/userdata`, `/free`) never proxied; `/system_stats` whitelist-filtered by `comfyui_get_system_info` |
 | MITM on ComfyUI connection | Medium | Configurable TLS verification |
 
 ### Security controls by component
@@ -539,7 +539,7 @@ Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are
 
 **Path Sanitizer** (`security/sanitizer.py`)
 - Validates filenames, subfolders, and URL path segments: blocks path traversal, null bytes, absolute paths, control characters
-- URL path segment validation on discovery tools (`list_models`, `get_model_metadata`) prevents folder/filename injection
+- URL path segment validation on discovery tools (`comfyui_list_models`, `comfyui_get_model_metadata`) prevents folder/filename injection
 - Allowlist-based extension filtering (default: `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.json`)
 - Handles percent-encoded inputs (URL decoding before validation)
 - Enforces max upload size (default 50MB), max filename length (255 chars)

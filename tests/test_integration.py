@@ -120,16 +120,18 @@ class TestImageGenerationFlow:
         )
 
         # Step 1: Discover available models
-        models = json.loads(await integration_stack["list_models"](folder="checkpoints"))
+        models = json.loads(await integration_stack["comfyui_list_models"](folder="checkpoints"))
         assert "sd_v15.safetensors" in models["items"]
 
         # Step 2: Generate an image
-        result = await integration_stack["generate_image"](prompt="a sunset over mountains")
+        result = await integration_stack["comfyui_generate_image"](prompt="a sunset over mountains")
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
         # Step 3: Check the job
         job = json.loads(
-            await integration_stack["get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+            await integration_stack["comfyui_get_job"](
+                prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+            )
         )
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in job
 
@@ -143,7 +145,7 @@ class TestImageGenerationFlow:
         )
 
         workflow = json.dumps({"1": {"class_type": "Terminal", "inputs": {}}})
-        result = await integration_stack["run_workflow"](workflow=workflow)
+        result = await integration_stack["comfyui_run_workflow"](workflow=workflow)
         assert "11111111-2222-3333-4444-555555555555" in result
         assert "Terminal" in result
 
@@ -151,4 +153,4 @@ class TestImageGenerationFlow:
         """Enforce mode blocks workflows with unapproved nodes."""
         workflow = json.dumps({"1": {"class_type": "MaliciousNode", "inputs": {}}})
         with pytest.raises(WorkflowBlockedError, match="MaliciousNode"):
-            await enforce_stack["run_workflow"](workflow=workflow)
+            await enforce_stack["comfyui_run_workflow"](workflow=workflow)

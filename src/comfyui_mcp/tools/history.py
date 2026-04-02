@@ -31,7 +31,7 @@ def register_history_tools(
             openWorldHint=True,
         )
     )
-    async def get_history(limit: int = 25, offset: int = 0) -> str:
+    async def comfyui_get_history(limit: int = 25, offset: int = 0) -> str:
         """Browse ComfyUI execution history (read-only).
 
         Args:
@@ -44,6 +44,6 @@ def register_history_tools(
         entries = [{**(v if isinstance(v, dict) else {}), "prompt_id": k} for k, v in raw.items()]
         return json.dumps(paginate(entries, offset, limit, default_limit=25, max_limit=100))
 
-    tool_fns["get_history"] = get_history
+    tool_fns["comfyui_get_history"] = comfyui_get_history
 
     return tool_fns

@@ -34,14 +34,14 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def get_queue() -> str:
+    async def comfyui_get_queue() -> str:
         """Get the current ComfyUI execution queue state."""
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_queue")
         await audit.async_log(tool="get_queue", action="called")
         return json.dumps(await client.get_queue())
 
-    tool_fns["get_queue"] = get_queue
+    tool_fns["comfyui_get_queue"] = comfyui_get_queue
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -51,14 +51,14 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def get_job(prompt_id: str) -> str:
+    async def comfyui_get_job(prompt_id: str) -> str:
         """Check the status of a specific job by its prompt_id."""
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_job")
         await audit.async_log(tool="get_job", action="called", extra={"prompt_id": prompt_id})
         return json.dumps(await client.get_history_item(prompt_id))
 
-    tool_fns["get_job"] = get_job
+    tool_fns["comfyui_get_job"] = comfyui_get_job
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -68,14 +68,14 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def cancel_job(prompt_id: str) -> str:
+    async def comfyui_cancel_job(prompt_id: str) -> str:
         """Cancel a running or queued job by its prompt_id."""
         limiter.check("cancel_job")
         await audit.async_log(tool="cancel_job", action="called", extra={"prompt_id": prompt_id})
         await client.delete_queue_item(prompt_id)
         return f"Cancelled job {prompt_id}"
 
-    tool_fns["cancel_job"] = cancel_job
+    tool_fns["comfyui_cancel_job"] = comfyui_cancel_job
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -85,14 +85,14 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def interrupt() -> str:
+    async def comfyui_interrupt() -> str:
         """Interrupt the currently executing workflow."""
         limiter.check("interrupt")
         await audit.async_log(tool="interrupt", action="called")
         await client.interrupt()
         return "Interrupted current execution"
 
-    tool_fns["interrupt"] = interrupt
+    tool_fns["comfyui_interrupt"] = comfyui_interrupt
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -102,14 +102,14 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def get_queue_status() -> str:
+    async def comfyui_get_queue_status() -> str:
         """Get detailed queue status including currently running and pending prompts."""
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_queue_status")
         await audit.async_log(tool="get_queue_status", action="called")
         return json.dumps(await client.get_prompt_status())
 
-    tool_fns["get_queue_status"] = get_queue_status
+    tool_fns["comfyui_get_queue_status"] = comfyui_get_queue_status
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -119,7 +119,7 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def clear_queue(clear_running: bool = False, clear_pending: bool = True) -> str:
+    async def comfyui_clear_queue(clear_running: bool = False, clear_pending: bool = True) -> str:
         """Clear items from the execution queue.
 
         Args:
@@ -135,7 +135,7 @@ def register_job_tools(
         await client.clear_queue(clear_running=clear_running, clear_pending=clear_pending)
         return f"Queue cleared (running={clear_running}, pending={clear_pending})"
 
-    tool_fns["clear_queue"] = clear_queue
+    tool_fns["comfyui_clear_queue"] = comfyui_clear_queue
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -145,7 +145,7 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def get_progress(prompt_id: str) -> str:
+    async def comfyui_get_progress(prompt_id: str) -> str:
         """Get the current execution progress for a workflow via HTTP.
 
         Returns status (queued/running/completed/error/unknown), queue position,
@@ -169,6 +169,6 @@ def register_job_tools(
         state = await progress.get_state(prompt_id)
         return json.dumps(state.to_dict())
 
-    tool_fns["get_progress"] = get_progress
+    tool_fns["comfyui_get_progress"] = comfyui_get_progress
 
     return tool_fns

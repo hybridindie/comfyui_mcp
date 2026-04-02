@@ -182,7 +182,7 @@ def register_node_tools(
             openWorldHint=True,
         )
     )
-    async def search_custom_nodes(
+    async def comfyui_search_custom_nodes(
         query: str,
         limit: int = 10,
         offset: int = 0,
@@ -261,7 +261,7 @@ def register_node_tools(
         result["query"] = query
         return json.dumps(result)
 
-    tool_fns["search_custom_nodes"] = search_custom_nodes
+    tool_fns["comfyui_search_custom_nodes"] = comfyui_search_custom_nodes
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -271,7 +271,7 @@ def register_node_tools(
             openWorldHint=True,
         )
     )
-    async def install_custom_node(
+    async def comfyui_install_custom_node(
         id: str,  # noqa: A002
         version: str = "",
         restart: bool = False,
@@ -323,7 +323,7 @@ def register_node_tools(
 
         return result
 
-    tool_fns["install_custom_node"] = install_custom_node
+    tool_fns["comfyui_install_custom_node"] = comfyui_install_custom_node
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -333,7 +333,7 @@ def register_node_tools(
             openWorldHint=True,
         )
     )
-    async def uninstall_custom_node(
+    async def comfyui_uninstall_custom_node(
         id: str,  # noqa: A002
         restart: bool = False,
     ) -> str:
@@ -376,7 +376,7 @@ def register_node_tools(
 
         return result
 
-    tool_fns["uninstall_custom_node"] = uninstall_custom_node
+    tool_fns["comfyui_uninstall_custom_node"] = comfyui_uninstall_custom_node
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -386,7 +386,7 @@ def register_node_tools(
             openWorldHint=True,
         )
     )
-    async def update_custom_node(
+    async def comfyui_update_custom_node(
         id: str,  # noqa: A002
         restart: bool = False,
     ) -> str:
@@ -430,7 +430,7 @@ def register_node_tools(
 
         return result
 
-    tool_fns["update_custom_node"] = update_custom_node
+    tool_fns["comfyui_update_custom_node"] = comfyui_update_custom_node
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -440,7 +440,7 @@ def register_node_tools(
             openWorldHint=True,
         )
     )
-    async def get_custom_node_status() -> str:
+    async def comfyui_get_custom_node_status() -> str:
         """Check the custom node operation queue status.
 
         Returns:
@@ -462,6 +462,6 @@ def register_node_tools(
 
         return json.dumps(status)
 
-    tool_fns["get_custom_node_status"] = get_custom_node_status
+    tool_fns["comfyui_get_custom_node_status"] = comfyui_get_custom_node_status
 
     return tool_fns

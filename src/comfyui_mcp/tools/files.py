@@ -108,7 +108,7 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def upload_image(filename: str, image_data: str, subfolder: str = "") -> str:
+    async def comfyui_upload_image(filename: str, image_data: str, subfolder: str = "") -> str:
         """Upload an image to ComfyUI's input directory.
 
         Args:
@@ -130,7 +130,7 @@ def register_file_tools(
         await audit.async_log(tool="upload_image", action="uploaded", extra={"result": result})
         return f"Uploaded {result.get('name', clean_name)} to ComfyUI input directory"
 
-    tool_fns["upload_image"] = upload_image
+    tool_fns["comfyui_upload_image"] = comfyui_upload_image
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -140,7 +140,7 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def get_image(
+    async def comfyui_get_image(
         filename: str,
         subfolder: str = "",
         response_format: Literal["data_uri", "url"] = "data_uri",
@@ -187,7 +187,7 @@ def register_file_tools(
         b64 = base64.b64encode(data).decode()
         return f"data:{content_type};base64,{b64}"
 
-    tool_fns["get_image"] = get_image
+    tool_fns["comfyui_get_image"] = comfyui_get_image
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -197,7 +197,7 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def list_outputs(limit: int = 25, offset: int = 0) -> str:
+    async def comfyui_list_outputs(limit: int = 25, offset: int = 0) -> str:
         """List output files from ComfyUI's execution history.
 
         Args:
@@ -228,7 +228,7 @@ def register_file_tools(
         results.sort(key=lambda item: (item["subfolder"], item["filename"]))
         return json.dumps(paginate(results, offset, limit, default_limit=25, max_limit=100))
 
-    tool_fns["list_outputs"] = list_outputs
+    tool_fns["comfyui_list_outputs"] = comfyui_list_outputs
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -238,7 +238,7 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def upload_mask(filename: str, mask_data: str, subfolder: str = "") -> str:
+    async def comfyui_upload_mask(filename: str, mask_data: str, subfolder: str = "") -> str:
         """Upload a mask image to ComfyUI's input directory.
 
         Args:
@@ -260,7 +260,7 @@ def register_file_tools(
         await audit.async_log(tool="upload_mask", action="uploaded", extra={"result": result})
         return f"Uploaded mask {result.get('name', clean_name)} to ComfyUI input directory"
 
-    tool_fns["upload_mask"] = upload_mask
+    tool_fns["comfyui_upload_mask"] = comfyui_upload_mask
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -270,7 +270,7 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def get_workflow_from_image(filename: str, subfolder: str = "") -> str:
+    async def comfyui_get_workflow_from_image(filename: str, subfolder: str = "") -> str:
         """Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG.
 
         ComfyUI embeds the full workflow JSON and prompt data in PNG text chunks.
@@ -338,6 +338,6 @@ def register_file_tools(
 
         return json.dumps({"workflow": workflow, "prompt": prompt, "message": message})
 
-    tool_fns["get_workflow_from_image"] = get_workflow_from_image
+    tool_fns["comfyui_get_workflow_from_image"] = comfyui_get_workflow_from_image
 
     return tool_fns

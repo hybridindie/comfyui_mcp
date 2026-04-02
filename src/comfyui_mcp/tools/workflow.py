@@ -64,7 +64,7 @@ def register_workflow_tools(
             openWorldHint=False,
         )
     )
-    async def create_workflow(template: str, params: str = "{}") -> str:
+    async def comfyui_create_workflow(template: str, params: str = "{}") -> str:
         """Create a ComfyUI workflow from a template with optional parameter overrides.
 
         Available templates: txt2img, img2img, upscale, inpaint, txt2vid_animatediff,
@@ -104,7 +104,7 @@ def register_workflow_tools(
         )
         return json.dumps(wf)
 
-    tool_fns["create_workflow"] = create_workflow
+    tool_fns["comfyui_create_workflow"] = comfyui_create_workflow
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -114,7 +114,7 @@ def register_workflow_tools(
             openWorldHint=False,
         )
     )
-    async def modify_workflow(workflow: str, operations: str) -> str:
+    async def comfyui_modify_workflow(workflow: str, operations: str) -> str:
         """Apply batch operations to a ComfyUI workflow.
 
         Operations: add_node, remove_node, set_input, connect, disconnect.
@@ -161,7 +161,7 @@ def register_workflow_tools(
         )
         return json.dumps(result)
 
-    tool_fns["modify_workflow"] = modify_workflow
+    tool_fns["comfyui_modify_workflow"] = comfyui_modify_workflow
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -171,7 +171,7 @@ def register_workflow_tools(
             openWorldHint=True,
         )
     )
-    async def validate_workflow(workflow: str) -> str:
+    async def comfyui_validate_workflow(workflow: str) -> str:
         """Validate a ComfyUI workflow for structural correctness and security.
 
         Checks: node structure, connection references, installed node types,
@@ -209,6 +209,6 @@ def register_workflow_tools(
         )
         return json.dumps(result)
 
-    tool_fns["validate_workflow"] = validate_workflow
+    tool_fns["comfyui_validate_workflow"] = comfyui_validate_workflow
 
     return tool_fns

@@ -167,7 +167,7 @@ def register_model_tools(
             openWorldHint=True,
         )
     )
-    async def search_models(
+    async def comfyui_search_models(
         query: str,
         source: str = "civitai",
         model_type: str = "",
@@ -232,7 +232,7 @@ def register_model_tools(
         result["source"] = source
         return json.dumps(result)
 
-    tool_fns["search_models"] = search_models
+    tool_fns["comfyui_search_models"] = comfyui_search_models
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -242,7 +242,7 @@ def register_model_tools(
             openWorldHint=True,
         )
     )
-    async def download_model(
+    async def comfyui_download_model(
         url: str,
         folder: str,
         filename: str = "",
@@ -309,7 +309,7 @@ def register_model_tools(
 
         return json.dumps(result)
 
-    tool_fns["download_model"] = download_model
+    tool_fns["comfyui_download_model"] = comfyui_download_model
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -319,7 +319,7 @@ def register_model_tools(
             openWorldHint=True,
         )
     )
-    async def get_download_tasks() -> str:
+    async def comfyui_get_download_tasks() -> str:
         """Check the status of active model downloads.
 
         Returns:
@@ -340,7 +340,7 @@ def register_model_tools(
 
         return json.dumps({"tasks": tasks})
 
-    tool_fns["get_download_tasks"] = get_download_tasks
+    tool_fns["comfyui_get_download_tasks"] = comfyui_get_download_tasks
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -350,7 +350,7 @@ def register_model_tools(
             openWorldHint=True,
         )
     )
-    async def cancel_download(task_id: str) -> str:
+    async def comfyui_cancel_download(task_id: str) -> str:
         """Cancel and remove a model download task.
 
         Args:
@@ -377,6 +377,6 @@ def register_model_tools(
 
         return json.dumps({"success": success, "task_id": task_id, "result": result})
 
-    tool_fns["cancel_download"] = cancel_download
+    tool_fns["comfyui_cancel_download"] = comfyui_cancel_download
 
     return tool_fns
