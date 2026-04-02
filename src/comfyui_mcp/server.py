@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import atexit
 import contextlib
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import httpx
@@ -200,7 +200,12 @@ def _build_server(
             "for warnings about dangerous nodes or suspicious inputs. If warnings are present, "
             "inform the user and ask for confirmation before proceeding with execution."
         ),
+        "lifespan": _lifespan,
     }
+
+    if settings.transport.sse.enabled:
+        server_kwargs["host"] = settings.transport.sse.host
+        server_kwargs["port"] = settings.transport.sse.port
 
     server = FastMCP(**server_kwargs)
 
@@ -231,35 +236,26 @@ def _build_server(
     return server, settings, client, search_http
 
 
+@contextlib.asynccontextmanager
+async def _lifespan(app: FastMCP) -> AsyncIterator[None]:
+    """Manage async resource lifecycle for the MCP server."""
+    try:
+        yield
+    finally:
+        with contextlib.suppress(Exception):
+            await _client.close()
+        with contextlib.suppress(Exception):
+            await _search_http.aclose()
+
+
 # Module-level server instance for import and CLI use
 mcp, _settings, _client, _search_http = _build_server()
-
-
-def _cleanup() -> None:
-    """Best-effort cleanup of HTTP clients on process exit."""
-    import asyncio
-
-    async def _close() -> None:
-        await _client.close()
-        await _search_http.aclose()
-
-    with contextlib.suppress(Exception):
-        asyncio.run(_close())
-
-
-atexit.register(_cleanup)
 
 
 def main() -> None:
     """Run the MCP server."""
     if _settings.transport.sse.enabled:
-        run_kwargs: dict[str, object] = {
-            "transport": "sse",
-            "host": _settings.transport.sse.host,
-            "port": _settings.transport.sse.port,
-        }
-        # pylint: disable-next=unexpected-keyword-arg
-        mcp.run(**run_kwargs)  # type: ignore[call-arg,arg-type]  # pyright: ignore[reportCallIssue]
+        mcp.run(transport="sse")
     else:
         mcp.run()
 

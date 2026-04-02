@@ -14,10 +14,10 @@ class ComfyUIManagerUnavailableError(Exception):
 
 
 class ComfyUIManagerDetector:
-    """Lazy-init detector that probes ComfyUI Manager on first use and caches the result.
+    """Lazy-init detector that probes ComfyUI Manager V4 on first use and caches the result.
 
     Uses asyncio.Lock to prevent concurrent probes from racing.
-    Calls GET /manager/version once to confirm availability.
+    Calls GET /v2/manager/version once to confirm availability.
     """
 
     _INSTALL_URL = "https://github.com/Comfy-Org/ComfyUI-Manager"

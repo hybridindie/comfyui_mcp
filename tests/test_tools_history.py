@@ -1,5 +1,7 @@
 """Tests for history MCP tools."""
 
+import json
+
 import httpx
 import pytest
 import respx
@@ -29,4 +31,5 @@ class TestGetHistory:
         mcp = FastMCP("test")
         tools = register_history_tools(mcp, client, audit, limiter)
         result = await tools["get_history"]()
-        assert "abc" in result
+        parsed = json.loads(result)
+        assert "abc" in parsed

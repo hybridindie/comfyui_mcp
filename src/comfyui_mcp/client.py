@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
+import uuid
 from urllib.parse import urlencode
 
 import httpx
 
 _ALLOWED_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "DELETE", "PATCH"})
+_IDEMPOTENT_HTTP_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE"})
+_RETRYABLE_STATUS_CODES = frozenset({502, 503, 504})
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 _SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
 
@@ -30,6 +34,8 @@ def _validate_path_segment(value: str, *, label: str = "value") -> str:
 
 
 class ComfyUIClient:
+    _OBJECT_INFO_TTL = 300.0
+
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:8188",
@@ -43,6 +49,9 @@ class ComfyUIClient:
         self._tls_verify = tls_verify
         self._client: httpx.AsyncClient | None = None
         self._max_retries = max_retries
+        self._init_lock = asyncio.Lock()
+        self._object_info_cache: dict | None = None
+        self._object_info_ts: float = 0.0
 
     @property
     def base_url(self) -> str:
@@ -50,12 +59,15 @@ class ComfyUIClient:
         return self._base_url
 
     async def _get_client(self) -> httpx.AsyncClient:
-        if self._client is None:
-            self._client = httpx.AsyncClient(
-                base_url=self._base_url,
-                timeout=self._timeout,
-                verify=self._tls_verify,
-            )
+        if self._client is not None:
+            return self._client
+        async with self._init_lock:
+            if self._client is None:
+                self._client = httpx.AsyncClient(
+                    base_url=self._base_url,
+                    timeout=self._timeout,
+                    verify=self._tls_verify,
+                )
         return self._client
 
     async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
@@ -68,6 +80,19 @@ class ComfyUIClient:
             try:
                 c = await self._get_client()
                 r = await c.request(normalized, path, **kwargs)
+                if (
+                    r.status_code in _RETRYABLE_STATUS_CODES
+                    and normalized in _IDEMPOTENT_HTTP_METHODS
+                    and attempt < self._max_retries - 1
+                ):
+                    last_exception = httpx.HTTPStatusError(
+                        f"Server returned {r.status_code}",
+                        request=r.request,
+                        response=r,
+                    )
+                    await r.aclose()
+                    await asyncio.sleep(0.5 * (attempt + 1))
+                    continue
                 r.raise_for_status()
                 return r
             except httpx.RequestError as e:
@@ -107,18 +132,32 @@ class ComfyUIClient:
         return r.json()
 
     async def get_models(self, folder: str) -> list:
+        _validate_path_segment(folder, label="folder")
         r = await self._request("get", f"/models/{folder}")
         return r.json()
 
     async def get_object_info(self, node_class: str | None = None) -> dict:
         if node_class is not None:
             _validate_path_segment(node_class, label="node_class")
-        path = f"/object_info/{node_class}" if node_class else "/object_info"
-        r = await self._request("get", path)
-        return r.json()
+            r = await self._request("get", f"/object_info/{node_class}")
+            return r.json()
+        now = time.monotonic()
+        cache_age = now - self._object_info_ts
+        if self._object_info_cache is not None and cache_age < self._OBJECT_INFO_TTL:
+            return self._object_info_cache
+        r = await self._request("get", "/object_info")
+        data: dict = r.json()
+        self._object_info_cache = data
+        self._object_info_ts = now
+        return data
 
-    async def get_history(self) -> dict:
-        r = await self._request("get", "/history")
+    async def get_history(self, max_items: int | None = None) -> dict:
+        params: dict[str, int] = {}
+        if max_items is not None:
+            if max_items <= 0:
+                raise ValueError("max_items must be a positive integer")
+            params["max_items"] = min(max_items, 1000)
+        r = await self._request("get", "/history", params=params or None)
         return r.json()
 
     async def get_history_item(self, prompt_id: str) -> dict:
@@ -144,28 +183,21 @@ class ComfyUIClient:
     async def get_image(
         self,
         filename: str,
-        subfolder: str = "output",
-        *,
-        base_url: str | None = None,
+        subfolder: str = "",
     ) -> tuple[bytes, str]:
-        if base_url is None:
-            r = await self._request(
-                "get",
-                "/view",
-                params={"filename": filename, "subfolder": subfolder, "type": "output"},
-            )
-        else:
-            view_url = self.build_image_url(filename, subfolder, base_url=base_url)
-            c = await self._get_client()
-            r = await c.get(view_url)
-            r.raise_for_status()
+        """GET /view — download an output image by filename and subfolder."""
+        r = await self._request(
+            "get",
+            "/view",
+            params={"filename": filename, "subfolder": subfolder, "type": "output"},
+        )
         content_type = r.headers.get("content-type", "image/png")
         return r.content, content_type
 
     def build_image_url(
         self,
         filename: str,
-        subfolder: str = "output",
+        subfolder: str = "",
         *,
         base_url: str | None = None,
     ) -> str:
@@ -181,7 +213,8 @@ class ComfyUIClient:
         r = await self._request("get", "/embeddings")
         return r.json()
 
-    async def get_workflow_templates(self) -> list:
+    async def get_workflow_templates(self) -> dict:
+        """GET /workflow_templates — list installed workflow templates by package."""
         r = await self._request("get", "/workflow_templates")
         return r.json()
 
@@ -198,6 +231,9 @@ class ComfyUIClient:
         return r.json()
 
     async def get_view_metadata(self, folder: str, filename: str) -> dict:
+        _validate_path_segment(folder, label="folder")
+        if not filename or "\x00" in filename or ".." in filename:
+            raise ValueError(f"filename is invalid: {filename!r}")
         r = await self._request("get", f"/view_metadata/{folder}", params={"filename": filename})
         return r.json()
 
@@ -232,57 +268,55 @@ class ComfyUIClient:
         r = await self._request("post", "/upload/mask", files=files, data=form_data)
         return r.json()
 
-    # --- ComfyUI Manager endpoints ---
+    # --- ComfyUI Manager endpoints (V4+, /v2/ prefix) ---
 
     async def get_manager_version(self) -> str:
-        """GET /manager/version — check ComfyUI Manager availability."""
-        r = await self._request("get", "/manager/version")
+        """GET /v2/manager/version — check ComfyUI Manager availability."""
+        r = await self._request("get", "/v2/manager/version")
         return r.text
 
-    async def get_custom_node_list(self, mode: str = "remote") -> dict:
-        """GET /customnode/getlist — search/list registry nodes."""
-        _validate_path_segment(mode, label="mode")
-        r = await self._request("get", "/customnode/getlist", params={"mode": mode})
+    async def get_installed_custom_nodes(self) -> dict:
+        """GET /v2/customnode/installed — list installed custom node packs."""
+        r = await self._request("get", "/v2/customnode/installed")
         return r.json()
 
-    async def queue_custom_node_install(self, node_id: str, version: str = "") -> None:
-        """POST /manager/queue/install — queue a node pack installation."""
-        payload: dict[str, str] = {"id": node_id}
-        if version:
-            payload["version"] = version
-        await self._request("post", "/manager/queue/install", json=payload)
-
-    async def queue_custom_node_uninstall(self, node_id: str, version: str = "") -> None:
-        """POST /manager/queue/uninstall — queue a node pack removal."""
-        payload: dict[str, str] = {"id": node_id}
-        if version:
-            payload["version"] = version
-        await self._request("post", "/manager/queue/uninstall", json=payload)
-
-    async def queue_custom_node_update(self, node_id: str, version: str = "") -> None:
-        """POST /manager/queue/update — queue a node pack update."""
-        payload: dict[str, str] = {"id": node_id}
-        if version:
-            payload["version"] = version
-        await self._request("post", "/manager/queue/update", json=payload)
+    async def queue_manager_task(
+        self,
+        *,
+        kind: str,
+        params: dict,
+        client_id: str = "comfyui-mcp",
+    ) -> None:
+        """POST /v2/manager/queue/task — submit an install/uninstall/update task."""
+        payload = {
+            "ui_id": uuid.uuid4().hex,
+            "client_id": client_id,
+            "kind": kind,
+            "params": params,
+        }
+        await self._request("post", "/v2/manager/queue/task", json=payload)
 
     async def start_custom_node_queue(self) -> None:
-        """GET /manager/queue/start — start processing queued tasks."""
-        await self._request("get", "/manager/queue/start")
+        """GET /v2/manager/queue/start — start processing queued tasks."""
+        await self._request("get", "/v2/manager/queue/start")
 
     async def get_custom_node_queue_status(self) -> dict:
-        """GET /manager/queue/status — poll queue progress."""
-        r = await self._request("get", "/manager/queue/status")
+        """GET /v2/manager/queue/status — poll queue progress."""
+        r = await self._request("get", "/v2/manager/queue/status")
         return r.json()
 
+    async def reset_custom_node_queue(self) -> None:
+        """GET /v2/manager/queue/reset — clear the task queue."""
+        await self._request("get", "/v2/manager/queue/reset")
+
     async def reboot_comfyui(self) -> None:
-        """GET /manager/reboot — restart ComfyUI.
+        """GET /v2/manager/reboot — restart ComfyUI.
 
         NOTE: This endpoint uses GET (unusual for a destructive action) —
         this is upstream ComfyUI Manager behavior. Only called when the user
         explicitly passes restart=True and the job queue is verified empty.
         """
-        await self._request("get", "/manager/reboot")
+        await self._request("get", "/v2/manager/reboot")
 
     # --- Model Manager endpoints ---
 

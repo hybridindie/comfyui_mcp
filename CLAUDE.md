@@ -27,6 +27,8 @@ src/comfyui_mcp/
 ├── client.py              # Async HTTP client for ComfyUI API
 ├── audit.py               # Structured JSON audit logger
 ├── model_manager.py       # Lazy Model Manager detection and folder caching
+├── model_registry.py      # Canonical model loader field registry
+├── node_manager.py        # ComfyUI Manager detector
 ├── progress.py            # WebSocket progress tracking with HTTP polling fallback
 ├── security/
 │   ├── inspector.py       # Workflow node inspection (audit/enforce)
@@ -45,8 +47,9 @@ src/comfyui_mcp/
     ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
     ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
     ├── history.py         # get_history
-    ├── files.py           # upload_image, get_image, list_outputs, upload_mask
-    └── models.py          # search_models, download_model, get_download_tasks, cancel_download
+    ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
+    ├── models.py          # search_models, download_model, get_download_tasks, cancel_download
+    └── nodes.py           # search/install/uninstall/update custom nodes
 
 scripts/
 └── smoke_test.py          # Operator smoke-test against a live ComfyUI instance
@@ -98,7 +101,7 @@ These are non-negotiable. This is a security-focused project.
 7. **No duplicate tools.** Each tool must have a unique purpose. Before adding a new tool, check if an existing tool already covers the same ComfyUI endpoint. Two tools calling the same client method is a bug.
 8. **No dead code.** No placeholder methods, no unused config fields, no unreachable branches. If a field or method isn't used, don't add it. If it stops being used, remove it.
 9. **All imports at the top of the file.** No deferred imports inside function bodies unless the dependency is optional and heavy. stdlib modules are never deferred.
-10. **`_build_server()` returns `tuple[FastMCP, Settings]`.** The module-level `mcp` and `_settings` are built once. `main()` reuses `_settings` — never call `load_settings()` a second time.
+10. **`_build_server()` returns `tuple[FastMCP, Settings, ComfyUIClient, httpx.AsyncClient]`.** The module-level `mcp`, `_settings`, `_client`, and `_search_http` are built once. `main()` reuses `_settings` — never call `load_settings()` a second time.
 11. **Tool registration functions return `dict[str, Any]`.** Every `register_*_tools()` must return a dict mapping tool names to their callable functions. This is how tests invoke tools directly.
 
 ### Test rules

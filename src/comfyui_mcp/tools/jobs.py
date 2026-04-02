@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -25,25 +26,48 @@ def register_job_tools(
     """Register job management tools."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
-    async def get_queue() -> dict:
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
+    async def get_queue() -> str:
         """Get the current ComfyUI execution queue state."""
-        limiter.check("get_queue")
+        rl = read_limiter if read_limiter is not None else limiter
+        rl.check("get_queue")
         await audit.async_log(tool="get_queue", action="called")
-        return await client.get_queue()
+        return json.dumps(await client.get_queue())
 
     tool_fns["get_queue"] = get_queue
 
-    @mcp.tool()
-    async def get_job(prompt_id: str) -> dict:
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
+    async def get_job(prompt_id: str) -> str:
         """Check the status of a specific job by its prompt_id."""
-        limiter.check("get_job")
+        rl = read_limiter if read_limiter is not None else limiter
+        rl.check("get_job")
         await audit.async_log(tool="get_job", action="called", extra={"prompt_id": prompt_id})
-        return await client.get_history_item(prompt_id)
+        return json.dumps(await client.get_history_item(prompt_id))
 
     tool_fns["get_job"] = get_job
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def cancel_job(prompt_id: str) -> str:
         """Cancel a running or queued job by its prompt_id."""
         limiter.check("cancel_job")
@@ -53,7 +77,14 @@ def register_job_tools(
 
     tool_fns["cancel_job"] = cancel_job
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def interrupt() -> str:
         """Interrupt the currently executing workflow."""
         limiter.check("interrupt")
@@ -63,16 +94,31 @@ def register_job_tools(
 
     tool_fns["interrupt"] = interrupt
 
-    @mcp.tool()
-    async def get_queue_status() -> dict:
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
+    async def get_queue_status() -> str:
         """Get detailed queue status including currently running and pending prompts."""
-        limiter.check("get_queue_status")
+        rl = read_limiter if read_limiter is not None else limiter
+        rl.check("get_queue_status")
         await audit.async_log(tool="get_queue_status", action="called")
-        return await client.get_prompt_status()
+        return json.dumps(await client.get_prompt_status())
 
     tool_fns["get_queue_status"] = get_queue_status
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def clear_queue(clear_running: bool = False, clear_pending: bool = True) -> str:
         """Clear items from the execution queue.
 
@@ -91,7 +137,14 @@ def register_job_tools(
 
     tool_fns["clear_queue"] = clear_queue
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_progress(prompt_id: str) -> str:
         """Get the current execution progress for a workflow via HTTP.
 

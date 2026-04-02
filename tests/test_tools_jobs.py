@@ -42,7 +42,8 @@ class TestGetQueue:
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
         result = await tools["get_queue"]()
-        assert "queue_running" in result
+        parsed = json.loads(result)
+        assert "queue_running" in parsed
 
 
 class TestCancelJob:
@@ -82,7 +83,8 @@ class TestGetJob:
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
         result = await tools["get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
+        parsed = json.loads(result)
+        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in parsed
 
 
 class TestGetQueueStatus:
@@ -95,7 +97,8 @@ class TestGetQueueStatus:
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
         result = await tools["get_queue_status"]()
-        assert "exec_info" in result
+        parsed = json.loads(result)
+        assert "exec_info" in parsed
 
 
 class TestClearQueue:

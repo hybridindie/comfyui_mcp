@@ -15,3 +15,7 @@ htmlcov/
 .benchmarks/
 *.log
 .worktrees/
+
+# Review artifacts
+.full-review/
+.full-review/

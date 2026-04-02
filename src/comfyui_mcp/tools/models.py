@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -23,6 +25,8 @@ _CIVITAI_API = "https://civitai.com/api/v1/models"
 
 # Extensions we look for when finding the primary model file in HuggingFace repos
 _MODEL_EXTENSIONS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin"}
+
+_HF_REPO_RE = re.compile(r"^[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+$")
 
 
 async def _search_civitai(
@@ -74,9 +78,11 @@ async def _fetch_hf_model_detail(
     http: httpx.AsyncClient,
     model: dict[str, Any],
     headers: dict[str, str],
-) -> dict[str, Any]:
-    """Fetch detail for a single HuggingFace model."""
+) -> dict[str, Any] | None:
+    """Fetch detail for a single HuggingFace model. Returns None for invalid IDs."""
     model_id = model.get("id", "")
+    if not isinstance(model_id, str) or not _HF_REPO_RE.match(model_id):
+        return None
     detail_url = f"{_HF_API}/{model_id}"
     try:
         dr = await http.get(detail_url, headers=headers, timeout=30)
@@ -134,7 +140,7 @@ async def _search_huggingface(
     models = r.json()
 
     results = await asyncio.gather(*[_fetch_hf_model_detail(http, m, headers) for m in models])
-    return list(results)
+    return [r for r in results if r is not None]
 
 
 def register_model_tools(
@@ -152,7 +158,14 @@ def register_model_tools(
     """Register model search and download tools."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def search_models(
         query: str,
         source: str = "civitai",
@@ -213,7 +226,14 @@ def register_model_tools(
 
     tool_fns["search_models"] = search_models
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def download_model(
         url: str,
         folder: str,
@@ -283,7 +303,14 @@ def register_model_tools(
 
     tool_fns["download_model"] = download_model
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def get_download_tasks() -> str:
         """Check the status of active model downloads.
 
@@ -307,7 +334,14 @@ def register_model_tools(
 
     tool_fns["get_download_tasks"] = get_download_tasks
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=True,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def cancel_download(task_id: str) -> str:
         """Cancel and remove a model download task.
 
