@@ -198,6 +198,7 @@ def register_file_tools(
                                 if key not in seen:
                                     seen.add(key)
                                     results.append({"filename": fn, "subfolder": sf})
+        results.sort(key=lambda item: (item["subfolder"], item["filename"]))
         return json.dumps(results)
 
     tool_fns["list_outputs"] = list_outputs

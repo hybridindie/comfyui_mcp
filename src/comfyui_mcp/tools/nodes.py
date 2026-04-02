@@ -175,14 +175,14 @@ def register_node_tools(
 
     @mcp.tool()
     async def search_custom_nodes(query: str) -> str:
-        """Search the ComfyUI Manager registry for custom nodes.
+        """Search installed custom node packs by name, description, or author.
 
         Args:
-            query: Search term to match against node pack name, description, or author.
+            query: Search term to match against installed node pack metadata.
 
         Returns:
             JSON with matching node packs including name, description, author,
-            install status, and ID (for use with install_custom_node).
+            install status, version, and ID.
         """
         read_limiter.check("search_custom_nodes")
         await node_manager.require_available()
