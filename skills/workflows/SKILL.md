@@ -65,16 +65,16 @@ ComfyUI workflows use a JSON format where each node is a key-value pair:
 
 ## Using the Workflow Tools
 
-1. **`create_workflow`** — Start from a template. Available templates can be listed with `list_workflows`.
-2. **`modify_workflow`** — Add/remove nodes, change connections, update parameters on an existing workflow.
-3. **`validate_workflow`** — Check for missing connections, unknown node types, and potential issues.
-4. **`summarize_workflow`** — Get a human-readable description of what a workflow does.
-5. **`run_workflow`** — Submit a workflow for execution. Use `wait=True` to block until done.
+1. **`comfyui_create_workflow`** — Start from a template. Available templates can be listed with `comfyui_list_workflows`.
+2. **`comfyui_modify_workflow`** — Add/remove nodes, change connections, update parameters on an existing workflow.
+3. **`comfyui_validate_workflow`** — Check for missing connections, unknown node types, and potential issues.
+4. **`comfyui_summarize_workflow`** — Get a human-readable description of what a workflow does.
+5. **`comfyui_run_workflow`** — Submit a workflow for execution. Use `wait=True` to block until done.
 
 ## Tips
 
 - Always validate a workflow before running it.
-- Use `list_nodes` to check what node types are available on the connected ComfyUI instance.
-- Use `get_node_info` to get detailed input/output specs for a specific node type.
+- Use `comfyui_list_nodes` to check what node types are available on the connected ComfyUI instance.
+- Use `comfyui_get_node_info` to get detailed input/output specs for a specific node type.
 - Node IDs must be unique strings. When adding nodes, pick IDs that don't conflict with existing ones.
 - The `seed` parameter controls reproducibility. Use a fixed seed for consistent results, or -1 for random.

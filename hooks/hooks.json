@@ -2,7 +2,7 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "mcp__comfyui__audit_dangerous_nodes|mcp__comfyui__install_custom_node|mcp__comfyui__update_custom_node|mcp__comfyui__run_workflow|mcp__comfyui__generate_image",
+        "matcher": "mcp__comfyui__comfyui_audit_dangerous_nodes|mcp__comfyui__comfyui_install_custom_node|mcp__comfyui__comfyui_update_custom_node|mcp__comfyui__comfyui_run_workflow|mcp__comfyui__comfyui_generate_image",
         "hooks": [
           {
             "type": "command",
