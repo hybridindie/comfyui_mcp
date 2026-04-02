@@ -4,30 +4,34 @@ from __future__ import annotations
 
 import inspect
 
-from comfyui_mcp.client import ComfyUIClient
+import comfyui_mcp.client as client_module
 
 
 class TestBlockedEndpoints:
-    """Verify that blocked ComfyUI endpoints are never exposed in the client."""
+    """Verify that blocked ComfyUI endpoints are never exposed in client.py."""
 
     def test_no_userdata_endpoint(self):
-        source = inspect.getsource(ComfyUIClient)
+        source = inspect.getsource(client_module)
         assert "/userdata" not in source
 
     def test_no_free_endpoint(self):
-        source = inspect.getsource(ComfyUIClient)
+        source = inspect.getsource(client_module)
         assert '"/free"' not in source
 
     def test_no_users_endpoint(self):
-        source = inspect.getsource(ComfyUIClient)
+        source = inspect.getsource(client_module)
         assert '"/users"' not in source
 
     def test_no_history_delete(self):
-        """Verify /history is only used with GET, never DELETE/POST for deletion."""
-        source = inspect.getsource(ComfyUIClient)
-        # /history GET is allowed (get_history, get_history_item)
-        # /history POST with {"delete": ...} is blocked
-        lines = source.split("\n")
-        for line in lines:
-            if "/history" in line and "delete" in line.lower():
-                raise AssertionError(f"History delete endpoint found: {line.strip()}")
+        """Verify /history is only used with GET, never POST/DELETE for mutation."""
+        source = inspect.getsource(client_module)
+        forbidden_patterns = [
+            '_request("post", "/history"',
+            "_request('post', '/history'",
+            '_request("delete", "/history"',
+            "_request('delete', '/history'",
+        ]
+        for pattern in forbidden_patterns:
+            assert (
+                pattern not in source
+            ), f"Blocked history mutation endpoint found in client.py: {pattern}"

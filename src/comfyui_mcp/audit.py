@@ -38,13 +38,15 @@ def _is_sensitive_key(key: str) -> bool:
 
 
 def _redact_sensitive(data: dict[str, object]) -> dict[str, object]:
-    """Remove sensitive keys from a dictionary, recursively."""
+    """Remove sensitive keys from a dictionary, recursively including lists."""
     result: dict[str, object] = {}
     for k, v in data.items():
         if _is_sensitive_key(k):
             continue
         if isinstance(v, dict):
             result[k] = _redact_sensitive(v)
+        elif isinstance(v, list):
+            result[k] = [_redact_sensitive(item) if isinstance(item, dict) else item for item in v]
         else:
             result[k] = v
     return result
@@ -125,13 +127,17 @@ class AuditLogger:
             if not self._ensure_dir():
                 return
             try:
-                fd = os.open(
-                    str(self._audit_file),
-                    os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
-                    0o600,
-                )
+                flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
+                flags |= getattr(os, "O_NOFOLLOW", 0)
+                fd = os.open(str(self._audit_file), flags, 0o600)
                 try:
-                    os.write(fd, (record.model_dump_json() + "\n").encode())
+                    data = (record.model_dump_json() + "\n").encode()
+                    view = memoryview(data)
+                    while view:
+                        written = os.write(fd, view)
+                        if written <= 0:
+                            raise OSError("Failed to write audit log record")
+                        view = view[written:]
                 finally:
                     os.close(fd)
             except OSError as e:
