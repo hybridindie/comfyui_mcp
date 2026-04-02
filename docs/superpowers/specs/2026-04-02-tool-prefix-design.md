@@ -34,7 +34,8 @@ Rename the Python functions directly (Approach B). The function name IS the MCP 
 | Tool modules | `src/comfyui_mcp/tools/{generation,workflow,jobs,discovery,history,models,files,nodes}.py` |
 | Test files | `tests/test_tools_{generation,workflow,jobs,discovery,history,models,files,nodes}.py` |
 | Integration test | `tests/test_integration.py` |
-| Documentation | `README.md` (tools table) |
+| Documentation | `README.md` (tools table), tool docstrings with cross-references |
+| Security | `src/comfyui_mcp/security/model_checker.py` (warning messages) |
 
 ### Tool rename table
 

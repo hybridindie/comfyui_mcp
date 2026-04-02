@@ -151,7 +151,7 @@ def register_file_tools(
         Args:
             filename: Name of the image file to retrieve
             subfolder: Subfolder within ComfyUI's output directory (default: empty).
-                       Use the subfolder value from list_outputs or generation results.
+                       Use the subfolder value from comfyui_list_outputs or generation results.
             response_format: 'data_uri' to inline the image, or 'url' to return a /view URL
             base_url_override: Optional override for URL responses only;
                 falls back to configured image view base URL, then internal base URL
@@ -206,7 +206,7 @@ def register_file_tools(
 
         Returns:
             JSON envelope with paginated list of objects with 'filename' and
-            'subfolder' keys. Pass these values to get_image to retrieve files.
+            'subfolder' keys. Pass these values to comfyui_get_image to retrieve files.
         """
         limiter.check("list_outputs")
         await audit.async_log(tool="list_outputs", action="called")

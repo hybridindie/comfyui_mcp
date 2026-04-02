@@ -186,7 +186,7 @@ def register_model_tools(
 
         Returns:
             JSON with search results including name, download URL, size, and stats.
-            Use download_model with the URL to install a model.
+            Use comfyui_download_model with the URL to install a model.
         """
         read_limiter.check("search_models")
 
@@ -255,7 +255,7 @@ def register_model_tools(
             filename: Filename to save as (optional — inferred from URL if empty)
 
         Returns:
-            JSON with download task status. Use get_download_tasks to check progress.
+            JSON with download task status. Use comfyui_get_download_tasks to check progress.
         """
         file_limiter.check("download_model")
 

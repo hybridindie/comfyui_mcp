@@ -592,7 +592,7 @@ def register_generation_tools(
     ) -> str:
         """Transform an existing image using a text prompt (img2img).
 
-        The input image must already be uploaded to ComfyUI via upload_image.
+        The input image must already be uploaded to ComfyUI via comfyui_upload_image.
 
         Args:
             image: Filename of the input image in ComfyUI's input directory
@@ -660,7 +660,8 @@ def register_generation_tools(
     ) -> str:
         """Inpaint regions of an image using a mask and text prompt.
 
-        Both the input image and mask must already be uploaded via upload_image/upload_mask.
+        Both the input image and mask must already be uploaded via
+        comfyui_upload_image/comfyui_upload_mask.
         White regions in the mask indicate areas to regenerate.
 
         Args:
@@ -726,13 +727,14 @@ def register_generation_tools(
     ) -> str:
         """Upscale an image using a model-based upscaler.
 
-        The input image must already be uploaded to ComfyUI via upload_image.
+        The input image must already be uploaded to ComfyUI via comfyui_upload_image.
         The scale factor is determined by the upscale model (e.g. RealESRGAN_x4plus = 4x).
 
         Args:
             image: Filename of the input image in ComfyUI's input directory
             upscale_model: Name of the upscale model file (default: RealESRGAN_x4plus.pth).
-                           Use list_models with folder='upscale_models' to see available models.
+                           Use comfyui_list_models with folder='upscale_models'
+                           to see available models.
             wait: If True, block until complete and return structured result with outputs
         """
         limiter.check("upscale_image")

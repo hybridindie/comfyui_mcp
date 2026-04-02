@@ -929,7 +929,7 @@ class TestModelCheckIntegration:
         result = await tools["comfyui_run_workflow"](workflow=workflow)
         assert "Missing model" in result
         assert "missing_model.safetensors" in result
-        assert "search_models" in result
+        assert "comfyui_search_models" in result
 
     @respx.mock
     async def test_run_workflow_no_warning_when_model_present(self, components):
