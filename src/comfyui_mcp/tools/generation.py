@@ -45,14 +45,16 @@ def _validate_strength(strength: float) -> None:
         raise ValueError("strength must be between 0.0 and 1.0")
 
 
-def _validate_workflow_json(raw: str) -> dict:
+def _validate_workflow_json(raw: str) -> dict[str, Any]:
     """Parse and validate workflow JSON string."""
-    if len(raw) > _MAX_WORKFLOW_JSON_BYTES:
+    if len(raw.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
         raise ValueError(f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)")
     try:
         wf = json.loads(raw)
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON workflow: {e}") from e
+    if not isinstance(wf, dict):
+        raise ValueError("Workflow JSON must be a JSON object at the top level")
     return wf
 
 

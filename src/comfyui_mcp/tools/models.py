@@ -77,20 +77,11 @@ async def _fetch_hf_model_detail(
     http: httpx.AsyncClient,
     model: dict[str, Any],
     headers: dict[str, str],
-) -> dict[str, Any]:
-    """Fetch detail for a single HuggingFace model."""
+) -> dict[str, Any] | None:
+    """Fetch detail for a single HuggingFace model. Returns None for invalid IDs."""
     model_id = model.get("id", "")
-    if not _HF_REPO_RE.match(model_id):
-        return {
-            "name": model_id,
-            "type": "",
-            "url": "",
-            "filename": "",
-            "size_mb": 0,
-            "downloads": 0,
-            "likes": 0,
-            "source": "huggingface",
-        }
+    if not isinstance(model_id, str) or not _HF_REPO_RE.match(model_id):
+        return None
     detail_url = f"{_HF_API}/{model_id}"
     try:
         dr = await http.get(detail_url, headers=headers, timeout=30)
@@ -148,7 +139,7 @@ async def _search_huggingface(
     models = r.json()
 
     results = await asyncio.gather(*[_fetch_hf_model_detail(http, m, headers) for m in models])
-    return list(results)
+    return [r for r in results if r is not None]
 
 
 def register_model_tools(

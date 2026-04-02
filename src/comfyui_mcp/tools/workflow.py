@@ -71,7 +71,7 @@ def register_workflow_tools(
                     control_strength, lora_name, lora_strength.
         """
         limiter.check("create_workflow")
-        if len(params) > _MAX_WORKFLOW_JSON_BYTES:
+        if len(params.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
                 f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
             )
@@ -114,7 +114,7 @@ def register_workflow_tools(
                                    "to_node": "3", "to_input": "model"}]
         """
         limiter.check("modify_workflow")
-        if len(workflow) > _MAX_WORKFLOW_JSON_BYTES:
+        if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
                 f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
             )
@@ -126,7 +126,7 @@ def register_workflow_tools(
         if not isinstance(wf, dict):
             raise ValueError("Workflow must be a JSON object keyed by node IDs")
 
-        if len(operations) > _MAX_WORKFLOW_JSON_BYTES:
+        if len(operations.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
                 f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
             )
@@ -163,7 +163,7 @@ def register_workflow_tools(
             node_count (int), pipeline (str).
         """
         limiter.check("validate_workflow")
-        if len(workflow) > _MAX_WORKFLOW_JSON_BYTES:
+        if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
                 f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
             )

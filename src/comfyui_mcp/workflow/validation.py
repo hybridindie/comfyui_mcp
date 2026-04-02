@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import graphlib
+import logging
 from typing import Any, TypedDict
 
 import httpx
@@ -12,6 +13,8 @@ import httpx
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.model_registry import MODEL_LOADER_FIELDS, get_single_field_loaders
 from comfyui_mcp.security.inspector import WorkflowBlockedError, WorkflowInspector
+
+_logger = logging.getLogger(__name__)
 
 # Derived view for analyze_workflow: single-field loaders only
 _SINGLE_FIELD_LOADERS = get_single_field_loaders()
@@ -270,9 +273,7 @@ async def validate_workflow(
     except WorkflowBlockedError as e:
         errors.append(f"Security: {e}")
     except Exception:
-        import logging
-
-        logging.getLogger(__name__).exception("Security inspection failed unexpectedly")
+        _logger.exception("Security inspection failed unexpectedly")
         errors.append("Security inspection failed due to an internal error")
 
     # --- Analysis ---
