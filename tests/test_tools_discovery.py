@@ -1,5 +1,7 @@
 """Tests for discovery MCP tools."""
 
+import json
+
 import httpx
 import pytest
 import respx
@@ -45,7 +47,8 @@ class TestListModels:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["list_models"](folder="checkpoints")
-        assert "v1.safetensors" in result
+        parsed = json.loads(result)
+        assert "v1.safetensors" in parsed
 
 
 class TestListNodes:
@@ -59,8 +62,9 @@ class TestListNodes:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["list_nodes"]()
-        assert "KSampler" in result
-        assert "CLIPTextEncode" in result
+        parsed = json.loads(result)
+        assert "KSampler" in parsed
+        assert "CLIPTextEncode" in parsed
 
 
 class TestListExtensions:
@@ -74,7 +78,8 @@ class TestListExtensions:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["list_extensions"]()
-        assert len(result) == 2
+        parsed = json.loads(result)
+        assert len(parsed) == 2
 
 
 class TestGetServerFeatures:
@@ -88,7 +93,8 @@ class TestGetServerFeatures:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["get_server_features"]()
-        assert result["supports_preview_metadata"] is True
+        parsed = json.loads(result)
+        assert parsed["supports_preview_metadata"] is True
 
 
 class TestListModelFolders:
@@ -102,8 +108,9 @@ class TestListModelFolders:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["list_model_folders"]()
-        assert "checkpoints" in result
-        assert "loras" in result
+        parsed = json.loads(result)
+        assert "checkpoints" in parsed
+        assert "loras" in parsed
 
 
 class TestGetModelMetadata:
@@ -117,7 +124,8 @@ class TestGetModelMetadata:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["get_model_metadata"]("checkpoints", "model.safetensors")
-        assert result["filename"] == "model.safetensors"
+        parsed = json.loads(result)
+        assert parsed["filename"] == "model.safetensors"
 
     async def test_get_model_metadata_traversal_in_folder_blocked(self, components):
         client, audit, limiter, sanitizer = components
@@ -173,10 +181,11 @@ class TestAuditDangerousNodes:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer, auditor)
 
         result = await tools["audit_dangerous_nodes"]()
+        parsed = json.loads(result)
 
-        assert result["total_nodes"] == 4
-        assert result["dangerous"]["count"] >= 1
-        assert "RunPython" in [n["class"] for n in result["dangerous"]["nodes"]]
+        assert parsed["total_nodes"] == 4
+        assert parsed["dangerous"]["count"] >= 1
+        assert "RunPython" in [n["class"] for n in parsed["dangerous"]["nodes"]]
 
     @respx.mock
     async def test_audit_dangerous_nodes_without_auditor(self, components):
@@ -194,10 +203,11 @@ class TestAuditDangerousNodes:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["audit_dangerous_nodes"]()
+        parsed = json.loads(result)
 
-        assert result["total_nodes"] == 2
-        assert "dangerous" in result
-        assert "suspicious" in result
+        assert parsed["total_nodes"] == 2
+        assert "dangerous" in parsed
+        assert "suspicious" in parsed
 
 
 _SYSTEM_STATS_RESPONSE = {
@@ -240,7 +250,7 @@ class TestGetSystemInfo:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["get_system_info"]()
+        result = json.loads(await tools["get_system_info"]())
 
         assert result["comfyui_version"] == "0.3.10"
         assert len(result["devices"]) == 1
@@ -266,12 +276,10 @@ class TestGetSystemInfo:
         result = await tools["get_system_info"]()
 
         # Sensitive fields must not appear at any level
-        result_str = str(result)
-        assert "hostname" not in result_str
-        assert "python_version" not in result_str
-        assert "myserver" not in result_str
-        assert "3.12.0" not in result_str
-        assert "os" not in result_str
+        assert "hostname" not in result
+        assert "python_version" not in result
+        assert "myserver" not in result
+        assert "3.12.0" not in result
 
     @respx.mock
     async def test_handles_missing_devices(self, components):
@@ -285,7 +293,7 @@ class TestGetSystemInfo:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["get_system_info"]()
+        result = json.loads(await tools["get_system_info"]())
 
         assert result["devices"] == []
         assert result["comfyui_version"] == "0.3.10"
@@ -312,7 +320,7 @@ class TestModelPresetsAndGuides:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["get_model_presets"](model_family="flux")
+        result = json.loads(await tools["get_model_presets"](model_family="flux"))
 
         assert result["family"] == "flux"
         assert result["recommended"]["sampler"] == "euler"
@@ -323,7 +331,9 @@ class TestModelPresetsAndGuides:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["get_model_presets"](model_name="flux1-dev-fp8.safetensors")
+        result = json.loads(
+            await tools["get_model_presets"](model_name="flux1-dev-fp8.safetensors")
+        )
 
         assert result["family"] == "flux"
 
@@ -340,7 +350,7 @@ class TestModelPresetsAndGuides:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["get_prompting_guide"]("sdxl")
+        result = json.loads(await tools["get_prompting_guide"]("sdxl"))
 
         assert result["family"] == "sdxl"
         assert "prompt_structure" in result["guide"]

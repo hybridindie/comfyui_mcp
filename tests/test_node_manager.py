@@ -23,9 +23,9 @@ def client():
 class TestComfyUIManagerDetector:
     @respx.mock
     async def test_probe_success(self, client):
-        """Detector reports available when /manager/version returns 200."""
-        respx.get("http://test-comfyui:8188/manager/version").mock(
-            return_value=httpx.Response(200, text="1.2.3")
+        """Detector reports available when /v2/manager/version returns 200."""
+        respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(200, text="V4.1")
         )
         detector = ComfyUIManagerDetector(client)
         result = await detector.is_available()
@@ -33,8 +33,10 @@ class TestComfyUIManagerDetector:
 
     @respx.mock
     async def test_probe_failure_not_installed(self, client):
-        """Detector reports unavailable when /manager/version returns 404."""
-        respx.get("http://test-comfyui:8188/manager/version").mock(return_value=httpx.Response(404))
+        """Detector reports unavailable when /v2/manager/version fails."""
+        respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(404)
+        )
         detector = ComfyUIManagerDetector(client)
         result = await detector.is_available()
         assert result is False
@@ -42,8 +44,8 @@ class TestComfyUIManagerDetector:
     @respx.mock
     async def test_probe_caches_result(self, client):
         """Second call to is_available reuses cached result, no extra HTTP call."""
-        route = respx.get("http://test-comfyui:8188/manager/version").mock(
-            return_value=httpx.Response(200, text="1.2.3")
+        route = respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(200, text="V4.1")
         )
         detector = ComfyUIManagerDetector(client)
         await detector.is_available()
@@ -53,8 +55,8 @@ class TestComfyUIManagerDetector:
     @respx.mock
     async def test_concurrent_probe_uses_lock(self, client):
         """Multiple concurrent is_available calls result in only one HTTP probe."""
-        route = respx.get("http://test-comfyui:8188/manager/version").mock(
-            return_value=httpx.Response(200, text="1.2.3")
+        route = respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(200, text="V4.1")
         )
         detector = ComfyUIManagerDetector(client)
         results = await asyncio.gather(
@@ -68,7 +70,9 @@ class TestComfyUIManagerDetector:
     @respx.mock
     async def test_require_available_raises_when_not_installed(self, client):
         """require_available raises ComfyUIManagerUnavailableError when Manager is absent."""
-        respx.get("http://test-comfyui:8188/manager/version").mock(return_value=httpx.Response(404))
+        respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(404)
+        )
         detector = ComfyUIManagerDetector(client)
         with pytest.raises(ComfyUIManagerUnavailableError):
             await detector.require_available()
@@ -76,7 +80,9 @@ class TestComfyUIManagerDetector:
     @respx.mock
     async def test_error_message_includes_install_url(self, client):
         """The error message includes the GitHub install URL."""
-        respx.get("http://test-comfyui:8188/manager/version").mock(return_value=httpx.Response(404))
+        respx.get("http://test-comfyui:8188/v2/manager/version").mock(
+            return_value=httpx.Response(404)
+        )
         detector = ComfyUIManagerDetector(client)
         with pytest.raises(
             ComfyUIManagerUnavailableError,

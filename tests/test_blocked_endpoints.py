@@ -32,6 +32,6 @@ class TestBlockedEndpoints:
             "_request('delete', '/history'",
         ]
         for pattern in forbidden_patterns:
-            assert (
-                pattern not in source
-            ), f"Blocked history mutation endpoint found in client.py: {pattern}"
+            assert pattern not in source, (
+                f"Blocked history mutation endpoint found in client.py: {pattern}"
+            )

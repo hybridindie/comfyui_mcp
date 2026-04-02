@@ -32,7 +32,8 @@ def components(tmp_path):
         dangerous_nodes=["EvalNode"],
         allowed_nodes=[],
     )
-    return client, audit, limiter, inspector
+    sanitizer = PathSanitizer(allowed_extensions=[".png", ".jpg", ".webp", ".pth", ".safetensors"])
+    return client, audit, limiter, inspector, sanitizer
 
 
 @pytest.fixture
@@ -52,7 +53,8 @@ def enforce_components(tmp_path):
             "EmptyLatentImage",
         ],
     )
-    return client, audit, limiter, inspector
+    sanitizer = PathSanitizer(allowed_extensions=[".png", ".jpg", ".webp", ".pth", ".safetensors"])
+    return client, audit, limiter, inspector, sanitizer
 
 
 @pytest.fixture
@@ -66,51 +68,58 @@ def progress_components(tmp_path, monkeypatch):
         dangerous_nodes=["EvalNode"],
         allowed_nodes=[],
     )
+    sanitizer = PathSanitizer(allowed_extensions=[".png", ".jpg", ".webp", ".pth", ".safetensors"])
     progress = WebSocketProgress(client, timeout=10.0)
-    return client, audit, limiter, inspector, progress, monkeypatch
+    return client, audit, limiter, inspector, sanitizer, progress, monkeypatch
 
 
 class TestRunWorkflow:
     @respx.mock
     async def test_submits_workflow(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(
                 200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
             )
         )
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
         workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
         result = await tools["run_workflow"](workflow=json.dumps(workflow))
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
     @respx.mock
     async def test_audit_mode_logs_dangerous_nodes(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(
                 200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
             )
         )
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
         workflow = {"1": {"class_type": "EvalNode", "inputs": {}}}
         result = await tools["run_workflow"](workflow=json.dumps(workflow))
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
         assert "EvalNode" in result
 
     async def test_enforce_mode_blocks_unapproved(self, enforce_components):
-        client, audit, limiter, inspector = enforce_components
+        client, audit, limiter, inspector, sanitizer = enforce_components
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
         workflow = {"1": {"class_type": "MaliciousNode", "inputs": {}}}
         with pytest.raises(WorkflowBlockedError):
             await tools["run_workflow"](workflow=json.dumps(workflow))
 
     @respx.mock
     async def test_run_workflow_stream_returns_events(self, progress_components):
-        client, audit, limiter, inspector, progress, monkeypatch = progress_components
+        client, audit, limiter, inspector, sanitizer, progress, monkeypatch = progress_components
         route = respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(
                 200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
@@ -145,6 +154,7 @@ class TestRunWorkflow:
             limiter,
             inspector,
             progress=progress,
+            sanitizer=sanitizer,
         )
 
         workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
@@ -161,40 +171,50 @@ class TestRunWorkflow:
 class TestGenerateImage:
     @respx.mock
     async def test_generate_image_submits_default_workflow(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(200, json={"prompt_id": "img-001"})
         )
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
         result = await tools["generate_image"](prompt="a beautiful sunset over mountains")
         assert "img-001" in result
 
     async def test_rejects_invalid_width(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
         with pytest.raises(ValueError, match="width"):
             await tools["generate_image"](prompt="test", width=10)
 
     async def test_rejects_invalid_height(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
         with pytest.raises(ValueError, match="height"):
             await tools["generate_image"](prompt="test", height=5000)
 
     async def test_rejects_invalid_steps(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
         with pytest.raises(ValueError, match="steps"):
             await tools["generate_image"](prompt="test", steps=0)
 
     async def test_rejects_invalid_cfg(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
         with pytest.raises(ValueError, match="cfg"):
             await tools["generate_image"](prompt="test", cfg=0.5)
 
@@ -489,7 +509,7 @@ class TestFormatSummary:
 class TestSummarizeWorkflow:
     @respx.mock
     async def test_summarizes_txt2img_workflow(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         read_limiter = RateLimiter(max_per_minute=60)
         respx.get("http://test:8188/object_info").mock(
             return_value=httpx.Response(
@@ -508,6 +528,7 @@ class TestSummarizeWorkflow:
             limiter,
             inspector,
             read_limiter=read_limiter,
+            sanitizer=sanitizer,
         )
         workflow = {
             "4": {
@@ -563,7 +584,7 @@ class TestSummarizeWorkflow:
 
     @respx.mock
     async def test_fallback_when_object_info_fails(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         read_limiter = RateLimiter(max_per_minute=60)
         respx.get("http://test:8188/object_info").mock(side_effect=httpx.ConnectError("offline"))
         mcp_server = FastMCP("test")
@@ -574,6 +595,7 @@ class TestSummarizeWorkflow:
             limiter,
             inspector,
             read_limiter=read_limiter,
+            sanitizer=sanitizer,
         )
         workflow = {
             "1": {
@@ -586,7 +608,7 @@ class TestSummarizeWorkflow:
         assert "CheckpointLoaderSimple" in result
 
     async def test_rejects_non_object_workflow(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         read_limiter = RateLimiter(max_per_minute=60)
         mcp_server = FastMCP("test")
         tools = register_generation_tools(
@@ -596,6 +618,7 @@ class TestSummarizeWorkflow:
             limiter,
             inspector,
             read_limiter=read_limiter,
+            sanitizer=sanitizer,
         )
         with pytest.raises(ValueError, match="JSON object"):
             await tools["summarize_workflow"](workflow="[1, 2, 3]")
@@ -604,7 +627,7 @@ class TestSummarizeWorkflow:
 
     @respx.mock
     async def test_handles_non_dict_inputs(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         read_limiter = RateLimiter(max_per_minute=60)
         respx.get("http://test:8188/object_info").mock(return_value=httpx.Response(200, json={}))
         mcp_server = FastMCP("test")
@@ -615,6 +638,7 @@ class TestSummarizeWorkflow:
             limiter,
             inspector,
             read_limiter=read_limiter,
+            sanitizer=sanitizer,
         )
         workflow = {
             "1": {
@@ -626,7 +650,7 @@ class TestSummarizeWorkflow:
         assert "1 node" in result
 
     async def test_rejects_invalid_json(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         read_limiter = RateLimiter(max_per_minute=60)
         mcp_server = FastMCP("test")
         tools = register_generation_tools(
@@ -636,6 +660,7 @@ class TestSummarizeWorkflow:
             limiter,
             inspector,
             read_limiter=read_limiter,
+            sanitizer=sanitizer,
         )
         with pytest.raises(ValueError, match="Invalid JSON"):
             await tools["summarize_workflow"](workflow="not json")
@@ -643,7 +668,7 @@ class TestSummarizeWorkflow:
     @respx.mock
     async def test_mermaid_escapes_html_characters(self, components):
         """Mermaid labels must HTML-escape <, >, &, and " from workflow values."""
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         read_limiter = RateLimiter(max_per_minute=60)
         respx.get("http://test:8188/object_info").mock(return_value=httpx.Response(200, json={}))
         mcp_server = FastMCP("test")
@@ -654,6 +679,7 @@ class TestSummarizeWorkflow:
             limiter,
             inspector,
             read_limiter=read_limiter,
+            sanitizer=sanitizer,
         )
         workflow = {
             "4": {
@@ -672,7 +698,7 @@ class TestSummarizeWorkflow:
 
     @respx.mock
     async def test_supports_mermaid_output(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         read_limiter = RateLimiter(max_per_minute=60)
         respx.get("http://test:8188/object_info").mock(return_value=httpx.Response(200, json={}))
         mcp_server = FastMCP("test")
@@ -683,6 +709,7 @@ class TestSummarizeWorkflow:
             limiter,
             inspector,
             read_limiter=read_limiter,
+            sanitizer=sanitizer,
         )
         workflow = {
             "4": {
@@ -725,7 +752,7 @@ class TestSummarizeWorkflow:
         assert "classDef output" in result
 
     async def test_rejects_invalid_format(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         read_limiter = RateLimiter(max_per_minute=60)
         mcp_server = FastMCP("test")
         tools = register_generation_tools(
@@ -735,6 +762,7 @@ class TestSummarizeWorkflow:
             limiter,
             inspector,
             read_limiter=read_limiter,
+            sanitizer=sanitizer,
         )
 
         with pytest.raises(ValueError, match='format must be either "text" or "mermaid"'):
@@ -744,7 +772,7 @@ class TestSummarizeWorkflow:
 class TestGenerateImageWait:
     @respx.mock
     async def test_wait_true_returns_structured_result(self, progress_components):
-        client, audit, limiter, inspector, progress, monkeypatch = progress_components
+        client, audit, limiter, inspector, sanitizer, progress, monkeypatch = progress_components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(200, json={"prompt_id": "img-wait-1"})
         )
@@ -769,6 +797,7 @@ class TestGenerateImageWait:
             limiter,
             inspector,
             progress=progress,
+            sanitizer=sanitizer,
         )
         result = await tools["generate_image"](prompt="a cat", wait=True)
         data = json.loads(result)
@@ -778,7 +807,7 @@ class TestGenerateImageWait:
 
     @respx.mock
     async def test_wait_false_returns_prompt_id_string(self, progress_components):
-        client, audit, limiter, inspector, progress, _ = progress_components
+        client, audit, limiter, inspector, sanitizer, progress, _ = progress_components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(200, json={"prompt_id": "img-nowait"})
         )
@@ -790,6 +819,7 @@ class TestGenerateImageWait:
             limiter,
             inspector,
             progress=progress,
+            sanitizer=sanitizer,
         )
         result = await tools["generate_image"](prompt="a dog", wait=False)
         assert "img-nowait" in result
@@ -799,7 +829,7 @@ class TestGenerateImageWait:
 class TestRunWorkflowWait:
     @respx.mock
     async def test_wait_true_returns_structured_result(self, progress_components):
-        client, audit, limiter, inspector, progress, monkeypatch = progress_components
+        client, audit, limiter, inspector, sanitizer, progress, monkeypatch = progress_components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(200, json={"prompt_id": "wait-123"})
         )
@@ -824,6 +854,7 @@ class TestRunWorkflowWait:
             limiter,
             inspector,
             progress=progress,
+            sanitizer=sanitizer,
         )
         result = await tools["run_workflow"](
             workflow=json.dumps({"1": {"class_type": "KSampler", "inputs": {}}}),
@@ -837,7 +868,7 @@ class TestRunWorkflowWait:
 
     @respx.mock
     async def test_wait_false_returns_prompt_id_string(self, progress_components):
-        client, audit, limiter, inspector, progress, _ = progress_components
+        client, audit, limiter, inspector, sanitizer, progress, _ = progress_components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(200, json={"prompt_id": "nowait-456"})
         )
@@ -849,6 +880,7 @@ class TestRunWorkflowWait:
             limiter,
             inspector,
             progress=progress,
+            sanitizer=sanitizer,
         )
         result = await tools["run_workflow"](
             workflow=json.dumps({"1": {"class_type": "KSampler", "inputs": {}}}),
@@ -862,7 +894,7 @@ class TestRunWorkflowWait:
 class TestModelCheckIntegration:
     @respx.mock
     async def test_run_workflow_warns_missing_model(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         respx.get("http://test:8188/models/checkpoints").mock(
             return_value=httpx.Response(200, json=["other_model.safetensors"])
         )
@@ -874,7 +906,13 @@ class TestModelCheckIntegration:
         mcp_server = FastMCP("test")
         model_checker = ModelChecker()
         tools = register_generation_tools(
-            mcp_server, client, audit, limiter, inspector, model_checker=model_checker
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            model_checker=model_checker,
+            sanitizer=sanitizer,
         )
         workflow = json.dumps(
             {
@@ -895,7 +933,7 @@ class TestModelCheckIntegration:
 
     @respx.mock
     async def test_run_workflow_no_warning_when_model_present(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         respx.get("http://test:8188/models/checkpoints").mock(
             return_value=httpx.Response(200, json=["present_model.safetensors"])
         )
@@ -905,7 +943,13 @@ class TestModelCheckIntegration:
         mcp_server = FastMCP("test")
         model_checker = ModelChecker()
         tools = register_generation_tools(
-            mcp_server, client, audit, limiter, inspector, model_checker=model_checker
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            model_checker=model_checker,
+            sanitizer=sanitizer,
         )
         workflow = json.dumps(
             {
@@ -921,7 +965,7 @@ class TestModelCheckIntegration:
 
     @respx.mock
     async def test_generate_image_warns_missing_model(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         respx.get("http://test:8188/models/checkpoints").mock(
             return_value=httpx.Response(200, json=["other_model.safetensors"])
         )
@@ -931,7 +975,13 @@ class TestModelCheckIntegration:
         mcp_server = FastMCP("test")
         model_checker = ModelChecker()
         tools = register_generation_tools(
-            mcp_server, client, audit, limiter, inspector, model_checker=model_checker
+            mcp_server,
+            client,
+            audit,
+            limiter,
+            inspector,
+            model_checker=model_checker,
+            sanitizer=sanitizer,
         )
         result = await tools["generate_image"](prompt="a cat", model="missing_model.safetensors")
         assert "Missing model" in result
@@ -945,6 +995,9 @@ class TestModelCheckIntegration:
             mode="enforce",
             dangerous_nodes=[],
             allowed_nodes=["CheckpointLoaderSimple", "KSampler"],
+        )
+        sanitizer = PathSanitizer(
+            allowed_extensions=[".png", ".jpg", ".webp", ".pth", ".safetensors"]
         )
         mcp_server = FastMCP("test")
         model_checker = ModelChecker()
@@ -961,7 +1014,13 @@ class TestModelCheckIntegration:
             model_checker, "check_models", side_effect=fake_check_models
         ):
             tools = register_generation_tools(
-                mcp_server, client, audit, limiter, inspector, model_checker=model_checker
+                mcp_server,
+                client,
+                audit,
+                limiter,
+                inspector,
+                model_checker=model_checker,
+                sanitizer=sanitizer,
             )
             workflow = json.dumps(
                 {
@@ -976,13 +1035,15 @@ class TestModelCheckIntegration:
 
     @respx.mock
     async def test_run_workflow_no_model_checker_passes_through(self, components):
-        client, audit, limiter, inspector = components
+        client, audit, limiter, inspector, sanitizer = components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(200, json={"prompt_id": "pass-123"})
         )
         mcp_server = FastMCP("test")
         # No model_checker passed — should work fine without checking models
-        tools = register_generation_tools(mcp_server, client, audit, limiter, inspector)
+        tools = register_generation_tools(
+            mcp_server, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
         workflow = json.dumps(
             {
                 "4": {
@@ -1295,25 +1356,31 @@ class TestConvenienceTools:
         assert data["elapsed_seconds"] == 15.0
         assert len(data["outputs"]) == 1
 
-    # --- _validate_image_filename (no sanitizer fallback) ---
+    # --- _validate_image_filename (sanitizer required) ---
 
-    async def test_no_sanitizer_blocks_path_traversal(self, tmp_path):
-        """When sanitizer=None the inline check still blocks path traversal."""
+    async def test_sanitizer_blocks_path_traversal(self, tmp_path):
+        """PathSanitizer blocks path traversal in image filenames."""
         client = ComfyUIClient(base_url="http://test:8188")
         audit = AuditLogger(audit_file=tmp_path / "audit.log")
         limiter = RateLimiter(max_per_minute=60)
         inspector = WorkflowInspector(mode="audit", dangerous_nodes=[], allowed_nodes=[])
+        sanitizer = PathSanitizer(allowed_extensions=[".png", ".jpg", ".webp", ".pth"])
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
-        with pytest.raises(ValueError, match="path traversal"):
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
+        with pytest.raises(PathValidationError, match="traversal"):
             await tools["transform_image"](image="../evil.png", prompt="p")
 
-    async def test_no_sanitizer_blocks_null_byte(self, tmp_path):
+    async def test_sanitizer_blocks_null_byte(self, tmp_path):
         client = ComfyUIClient(base_url="http://test:8188")
         audit = AuditLogger(audit_file=tmp_path / "audit.log")
         limiter = RateLimiter(max_per_minute=60)
         inspector = WorkflowInspector(mode="audit", dangerous_nodes=[], allowed_nodes=[])
+        sanitizer = PathSanitizer(allowed_extensions=[".png", ".jpg", ".webp", ".pth"])
         mcp = FastMCP("test")
-        tools = register_generation_tools(mcp, client, audit, limiter, inspector)
-        with pytest.raises(ValueError, match="null byte"):
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
+        with pytest.raises(PathValidationError, match="null"):
             await tools["transform_image"](image="evil\x00.png", prompt="p")

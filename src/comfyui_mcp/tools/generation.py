@@ -5,12 +5,11 @@ from __future__ import annotations
 import contextlib
 import copy
 import json
-from pathlib import PurePosixPath
 from typing import Any
-from urllib.parse import unquote
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -29,24 +28,40 @@ MAX_WIDTH = 4096
 MAX_HEIGHT = 4096
 MIN_DIMENSION = 64
 
+_MAX_WORKFLOW_JSON_BYTES = 10 * 1024 * 1024  # 10 MB
 
-def _validate_image_filename(filename: str, sanitizer: PathSanitizer | None) -> str:
-    """Validate an image filename for use in workflow tools.
 
-    Delegates to PathSanitizer when one is provided; otherwise applies minimal
-    inline checks to block null bytes, absolute paths, and path traversal.
-    """
-    if sanitizer is not None:
-        return sanitizer.validate_filename(filename)
-    decoded = unquote(filename)
-    if "\x00" in decoded:
-        raise ValueError(f"Filename contains null byte: {filename!r}")
-    norm = decoded.replace("\\\\", "/")
-    if norm.startswith("/"):
-        raise ValueError(f"Filename is an absolute path: {filename!r}")
-    if ".." in PurePosixPath(norm).parts:
-        raise ValueError(f"Filename contains path traversal: {filename!r}")
-    return norm
+def _validate_steps(steps: int) -> None:
+    if steps < 1 or steps > 100:
+        raise ValueError("steps must be between 1 and 100")
+
+
+def _validate_cfg(cfg: float) -> None:
+    if cfg < 1.0 or cfg > 30.0:
+        raise ValueError("cfg must be between 1.0 and 30.0")
+
+
+def _validate_strength(strength: float) -> None:
+    if not 0.0 <= strength <= 1.0:
+        raise ValueError("strength must be between 0.0 and 1.0")
+
+
+def _validate_workflow_json(raw: str) -> dict[str, Any]:
+    """Parse and validate workflow JSON string."""
+    if len(raw.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
+        raise ValueError(f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)")
+    try:
+        wf = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON workflow: {e}") from e
+    if not isinstance(wf, dict):
+        raise ValueError("Workflow JSON must be a JSON object at the top level")
+    return wf
+
+
+def _validate_image_filename(filename: str, sanitizer: PathSanitizer) -> str:
+    """Validate an image filename for use in workflow tools."""
+    return sanitizer.validate_filename(filename)
 
 
 def _format_warnings(warnings: list[str]) -> str:
@@ -366,12 +381,19 @@ def register_generation_tools(
     read_limiter: RateLimiter | None = None,
     progress: WebSocketProgress | None = None,
     model_checker: ModelChecker | None = None,
-    sanitizer: PathSanitizer | None = None,
+    sanitizer: PathSanitizer,
 ) -> dict[str, Any]:
     """Register generation tools."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def run_workflow(workflow: str, wait: bool = False) -> str:
         """Submit an arbitrary ComfyUI workflow for execution.
 
@@ -383,10 +405,7 @@ def register_generation_tools(
                   immediately with just the prompt_id.
         """
         limiter.check("run_workflow")
-        try:
-            wf = json.loads(workflow)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON workflow: {e}") from e
+        wf = _validate_workflow_json(workflow)
 
         return await _submit_workflow(
             wf=wf,
@@ -403,7 +422,14 @@ def register_generation_tools(
 
     tool_fns["run_workflow"] = run_workflow
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def run_workflow_stream(workflow: str) -> str:
         """Submit a ComfyUI workflow and return websocket stream events plus final status.
 
@@ -416,10 +442,7 @@ def register_generation_tools(
             workflow: JSON string of a ComfyUI workflow (API format).
         """
         limiter.check("run_workflow_stream")
-        try:
-            wf = json.loads(workflow)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON workflow: {e}") from e
+        wf = _validate_workflow_json(workflow)
 
         return await _submit_workflow(
             wf=wf,
@@ -436,7 +459,14 @@ def register_generation_tools(
 
     tool_fns["run_workflow_stream"] = run_workflow_stream
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def generate_image(
         prompt: str,
         negative_prompt: str = "bad quality, blurry",
@@ -464,10 +494,8 @@ def register_generation_tools(
             raise ValueError(f"width must be between {MIN_DIMENSION} and {MAX_WIDTH}")
         if not MIN_DIMENSION <= height <= MAX_HEIGHT:
             raise ValueError(f"height must be between {MIN_DIMENSION} and {MAX_HEIGHT}")
-        if steps < 1 or steps > 100:
-            raise ValueError("steps must be between 1 and 100")
-        if cfg < 1.0 or cfg > 30.0:
-            raise ValueError("cfg must be between 1.0 and 30.0")
+        _validate_steps(steps)
+        _validate_cfg(cfg)
 
         limiter.check("generate_image")
         wf = _build_txt2img_workflow(prompt, negative_prompt, width, height, steps, cfg, model)
@@ -488,7 +516,14 @@ def register_generation_tools(
 
     tool_fns["generate_image"] = generate_image
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def summarize_workflow(workflow: str, format: str = "text") -> str:  # noqa: A002
         """Summarize a ComfyUI workflow's structure, data flow, and key parameters.
 
@@ -537,7 +572,14 @@ def register_generation_tools(
 
     tool_fns["summarize_workflow"] = summarize_workflow
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def transform_image(
         image: str,
         prompt: str,
@@ -562,12 +604,9 @@ def register_generation_tools(
             model: Checkpoint model name (leave empty for default)
             wait: If True, block until complete and return structured result with outputs
         """
-        if not 0.0 <= strength <= 1.0:
-            raise ValueError("strength must be between 0.0 and 1.0")
-        if steps < 1 or steps > 100:
-            raise ValueError("steps must be between 1 and 100")
-        if cfg < 1.0 or cfg > 30.0:
-            raise ValueError("cfg must be between 1.0 and 30.0")
+        _validate_strength(strength)
+        _validate_steps(steps)
+        _validate_cfg(cfg)
 
         limiter.check("transform_image")
         clean_image = _validate_image_filename(image, sanitizer)
@@ -600,7 +639,14 @@ def register_generation_tools(
 
     tool_fns["transform_image"] = transform_image
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def inpaint_image(
         image: str,
         mask: str,
@@ -628,12 +674,9 @@ def register_generation_tools(
             model: Checkpoint model name (leave empty for default)
             wait: If True, block until complete and return structured result with outputs
         """
-        if not 0.0 <= strength <= 1.0:
-            raise ValueError("strength must be between 0.0 and 1.0")
-        if steps < 1 or steps > 100:
-            raise ValueError("steps must be between 1 and 100")
-        if cfg < 1.0 or cfg > 30.0:
-            raise ValueError("cfg must be between 1.0 and 30.0")
+        _validate_strength(strength)
+        _validate_steps(steps)
+        _validate_cfg(cfg)
 
         limiter.check("inpaint_image")
         clean_image = _validate_image_filename(image, sanitizer)
@@ -668,7 +711,14 @@ def register_generation_tools(
 
     tool_fns["inpaint_image"] = inpaint_image
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+            openWorldHint=True,
+        )
+    )
     async def upscale_image(
         image: str,
         upscale_model: str = "RealESRGAN_x4plus.pth",

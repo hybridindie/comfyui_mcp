@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -15,6 +16,8 @@ from comfyui_mcp.security.sanitizer import PathSanitizer, PathValidationError
 from comfyui_mcp.workflow.operations import apply_operations
 from comfyui_mcp.workflow.templates import create_from_template
 from comfyui_mcp.workflow.validation import validate_workflow as _validate_workflow
+
+_MAX_WORKFLOW_JSON_BYTES = 10 * 1024 * 1024  # 10 MB
 
 _PATH_LIKE_TEMPLATE_PARAMS = {
     "model",
@@ -53,7 +56,14 @@ def register_workflow_tools(
     """Register workflow composition tools."""
     tool_fns: dict[str, Any] = {}
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        )
+    )
     async def create_workflow(template: str, params: str = "{}") -> str:
         """Create a ComfyUI workflow from a template with optional parameter overrides.
 
@@ -69,6 +79,10 @@ def register_workflow_tools(
                     control_strength, lora_name, lora_strength.
         """
         limiter.check("create_workflow")
+        if len(params.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
+            raise ValueError(
+                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+            )
         try:
             param_dict = json.loads(params)
         except json.JSONDecodeError as e:
@@ -92,7 +106,14 @@ def register_workflow_tools(
 
     tool_fns["create_workflow"] = create_workflow
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=False,
+        )
+    )
     async def modify_workflow(workflow: str, operations: str) -> str:
         """Apply batch operations to a ComfyUI workflow.
 
@@ -108,6 +129,10 @@ def register_workflow_tools(
                                    "to_node": "3", "to_input": "model"}]
         """
         limiter.check("modify_workflow")
+        if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
+            raise ValueError(
+                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+            )
         try:
             wf = json.loads(workflow)
         except json.JSONDecodeError as e:
@@ -116,6 +141,10 @@ def register_workflow_tools(
         if not isinstance(wf, dict):
             raise ValueError("Workflow must be a JSON object keyed by node IDs")
 
+        if len(operations.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
+            raise ValueError(
+                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+            )
         try:
             ops = json.loads(operations)
         except json.JSONDecodeError as e:
@@ -134,7 +163,14 @@ def register_workflow_tools(
 
     tool_fns["modify_workflow"] = modify_workflow
 
-    @mcp.tool()
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
     async def validate_workflow(workflow: str) -> str:
         """Validate a ComfyUI workflow for structural correctness and security.
 
@@ -149,6 +185,10 @@ def register_workflow_tools(
             node_count (int), pipeline (str).
         """
         limiter.check("validate_workflow")
+        if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
+            raise ValueError(
+                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+            )
         try:
             wf = json.loads(workflow)
         except json.JSONDecodeError as e:
