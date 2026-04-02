@@ -30,9 +30,9 @@ class TestSettingsDefaults:
         assert s.rate_limits.workflow == 10
         assert s.rate_limits.read_only == 60
 
-    def test_default_transport_sse_disabled(self):
+    def test_default_transport_remote_disabled(self):
         s = Settings()
-        assert s.transport.sse.enabled is False
+        assert s.transport.remote.enabled is False
 
     def test_dangerous_nodes_default(self):
         s = Settings()
