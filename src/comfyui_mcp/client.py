@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 import httpx
 
 _ALLOWED_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "DELETE", "PATCH"})
+_IDEMPOTENT_HTTP_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE"})
 _RETRYABLE_STATUS_CODES = frozenset({502, 503, 504})
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 _SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
@@ -78,12 +79,17 @@ class ComfyUIClient:
             try:
                 c = await self._get_client()
                 r = await c.request(normalized, path, **kwargs)
-                if r.status_code in _RETRYABLE_STATUS_CODES and attempt < self._max_retries - 1:
+                if (
+                    r.status_code in _RETRYABLE_STATUS_CODES
+                    and normalized in _IDEMPOTENT_HTTP_METHODS
+                    and attempt < self._max_retries - 1
+                ):
                     last_exception = httpx.HTTPStatusError(
                         f"Server returned {r.status_code}",
                         request=r.request,
                         response=r,
                     )
+                    await r.aclose()
                     await asyncio.sleep(0.5 * (attempt + 1))
                     continue
                 r.raise_for_status()
@@ -147,7 +153,9 @@ class ComfyUIClient:
     async def get_history(self, max_items: int | None = None) -> dict:
         params: dict[str, int] = {}
         if max_items is not None:
-            params["max_items"] = max_items
+            if max_items <= 0:
+                raise ValueError("max_items must be a positive integer")
+            params["max_items"] = min(max_items, 1000)
         r = await self._request("get", "/history", params=params or None)
         return r.json()
 
@@ -221,7 +229,8 @@ class ComfyUIClient:
 
     async def get_view_metadata(self, folder: str, filename: str) -> dict:
         _validate_path_segment(folder, label="folder")
-        _validate_path_segment(filename, label="filename")
+        if not filename or "\x00" in filename or ".." in filename:
+            raise ValueError(f"filename is invalid: {filename!r}")
         r = await self._request("get", f"/view_metadata/{folder}", params={"filename": filename})
         return r.json()
 
