@@ -25,6 +25,14 @@ For workflow streaming, use the mode that matches your use case:
 - `comfyui_run_workflow(..., wait=True)` returns a summarized, tool-friendly completion response.
 - `comfyui_run_workflow_stream(...)` returns raw WebSocket event flow (`progress`, `executing`, `executed`, etc.) plus final status and outputs.
 
+### Structured output & rich schemas
+
+Tools expose Pydantic `Field` constraints on input parameters (ranges, lengths, descriptions) and `outputSchema` for structured responses. MCP clients get:
+
+- **Input validation**: Parameter constraints like `steps: 1-100`, `cfg: 1.0-30.0`, `width: 64-4096` appear in the tool's JSON schema
+- **Output schemas**: 26 tools return structured data with auto-generated `outputSchema`, enabling clients to parse responses without guessing the shape
+- **Streamable HTTP transport**: Optional remote transport via `transport.remote.enabled` using the MCP spec's recommended Streamable HTTP protocol
+
 ## Quick start
 
 ### Prerequisites
@@ -635,6 +643,7 @@ src/comfyui_mcp/
 ├── config.py              # Pydantic settings, YAML loading, env overrides
 ├── client.py              # Async HTTP client for ComfyUI API
 ├── progress.py            # WebSocket progress tracking with HTTP polling fallback
+├── pagination.py          # Offset-based pagination helper for list tools
 ├── audit.py               # Structured JSON audit logger
 ├── model_manager.py       # Lazy Model Manager detection and validation
 ├── security/
@@ -655,7 +664,8 @@ src/comfyui_mcp/
     ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
     ├── history.py         # get_history
     ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
-    └── models.py          # search_models, download_model, get_download_tasks, cancel_download
+    ├── models.py          # search_models, download_model, get_download_tasks, cancel_download
+    └── nodes.py           # search/install/uninstall/update custom nodes
 ```
 
 ### Run tests

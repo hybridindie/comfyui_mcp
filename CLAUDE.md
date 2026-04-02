@@ -30,6 +30,7 @@ src/comfyui_mcp/
 ├── model_registry.py      # Canonical model loader field registry
 ├── node_manager.py        # ComfyUI Manager detector
 ├── progress.py            # WebSocket progress tracking with HTTP polling fallback
+├── pagination.py          # Offset-based pagination helper for list tools
 ├── security/
 │   ├── inspector.py       # Workflow node inspection (audit/enforce)
 │   ├── node_auditor.py    # Scans installed nodes for dangerous patterns
@@ -92,9 +93,9 @@ These are non-negotiable. This is a security-focused project.
 
 ### Lint and format rules
 
-17. **All code must pass `ruff check` and `ruff format --check`.** Run `uv run ruff check src/ tests/` and `uv run ruff format --check src/ tests/` before committing. Ruff auto-fix (`--fix`) is safe to use.
-18. **All source code must pass `mypy`.** Run `uv run mypy src/comfyui_mcp/` before committing. Add type annotations to new code. Use `# type: ignore[code]` only when the type stub is wrong, and always include the specific error code.
-19. **Pre-commit hooks must pass.** Run `uv run pre-commit run --all-files` to verify. Hooks are installed via `uv run pre-commit install`.
+19. **All code must pass `ruff check` and `ruff format --check`.** Run `uv run ruff check src/ tests/` and `uv run ruff format --check src/ tests/` before committing. Ruff auto-fix (`--fix`) is safe to use.
+20. **All source code must pass `mypy`.** Run `uv run mypy src/comfyui_mcp/` before committing. Add type annotations to new code. Use `# type: ignore[code]` only when the type stub is wrong, and always include the specific error code.
+21. **Pre-commit hooks must pass.** Run `uv run pre-commit run --all-files` to verify. Hooks are installed via `uv run pre-commit install`.
 
 ### Code rules
 
@@ -103,14 +104,16 @@ These are non-negotiable. This is a security-focused project.
 9. **All imports at the top of the file.** No deferred imports inside function bodies unless the dependency is optional and heavy. stdlib modules are never deferred.
 10. **`_build_server()` returns `tuple[FastMCP, Settings, ComfyUIClient, httpx.AsyncClient]`.** The module-level `mcp`, `_settings`, `_client`, and `_search_http` are built once. `main()` reuses `_settings` — never call `load_settings()` a second time.
 11. **Tool registration functions return `dict[str, Any]`.** Every `register_*_tools()` must return a dict mapping tool names to their callable functions. This is how tests invoke tools directly.
+12. **Tools that always return structured data must return `dict[str, Any]` (not `json.dumps`).** FastMCP auto-generates `outputSchema` from the return type. Tools with mixed return paths (sometimes string, sometimes JSON) stay as `-> str`. When a tool returns a dict, tests access values directly (`result["key"]`) instead of `json.loads(result)["key"]`.
+13. **Use `Annotated[type, Field(...)]` for tool parameters with constraints.** Tools with 3+ parameters should use Pydantic `Field` annotations to expose constraints (`ge`, `le`, `min_length`, etc.) and descriptions in the MCP tool JSON schema. Define reusable type aliases (e.g. `StepsField`, `CfgField`) for parameters shared across tools.
 
 ### Test rules
 
-12. **Tests must call actual tool functions.** Test tools by calling the functions returned from `register_*_tools()`, or by using the tool registration dict. Never access `_tool_manager` or other private SDK attributes.
-13. **Tests must test this project, not libraries.** Don't test that pydantic validates types, that respx mocks work, or that FastMCP registers tools. Test that *our* code does the right thing: security checks block bad input, audit logs are written, correct API calls are made.
-14. **No `@pytest.mark.asyncio` decorators.** `asyncio_mode = auto` is set in `pyproject.toml`. The markers are redundant noise.
-15. **No duplicate test method names.** Python silently shadows the first definition. Each test method in a class must have a unique name.
-16. **Mock ComfyUI responses with `respx`.** Use `@respx.mock` decorator and `respx.get/post().mock()` to simulate ComfyUI API responses. Never make real HTTP calls in tests.
+14. **Tests must call actual tool functions.** Test tools by calling the functions returned from `register_*_tools()`, or by using the tool registration dict. Never access `_tool_manager` or other private SDK attributes.
+15. **Tests must test this project, not libraries.** Don't test that pydantic validates types, that respx mocks work, or that FastMCP registers tools. Test that *our* code does the right thing: security checks block bad input, audit logs are written, correct API calls are made.
+16. **No `@pytest.mark.asyncio` decorators.** `asyncio_mode = auto` is set in `pyproject.toml`. The markers are redundant noise.
+17. **No duplicate test method names.** Python silently shadows the first definition. Each test method in a class must have a unique name.
+18. **Mock ComfyUI responses with `respx`.** Use `@respx.mock` decorator and `respx.get/post().mock()` to simulate ComfyUI API responses. Never make real HTTP calls in tests.
 
 ### Adding a new tool (checklist)
 
@@ -120,10 +123,12 @@ These are non-negotiable. This is a security-focused project.
 4. Call `audit.log(tool="tool_name", action="...")`
 5. If it handles files: validate through `sanitizer`
 6. If it submits workflows: inspect through `inspector`
-7. Add the function to the `tool_fns` dict and return it
-8. Wire it in `server.py` `_register_all_tools()` if it needs new dependencies
-9. Add tests in `tests/test_tools_*.py` that call the function directly
-10. Update the Tools table in `README.md`
+7. Use `Annotated[type, Field(...)]` for parameters with constraints (3+ params)
+8. Return `dict[str, Any]` if all code paths return structured data; use `-> str` only for mixed return paths
+9. Add the function to the `tool_fns` dict and return it
+10. Wire it in `server.py` `_register_all_tools()` if it needs new dependencies
+11. Add tests in `tests/test_tools_*.py` that call the function directly
+12. Update the Tools table in `README.md`
 
 ### Adding a new client method (checklist)
 
