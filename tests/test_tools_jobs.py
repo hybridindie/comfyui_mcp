@@ -41,7 +41,7 @@ class TestGetQueue:
         )
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        result = await tools["get_queue"]()
+        result = await tools["comfyui_get_queue"]()
         parsed = json.loads(result)
         assert "queue_running" in parsed
 
@@ -53,7 +53,7 @@ class TestCancelJob:
         route = respx.post("http://test:8188/queue").mock(return_value=httpx.Response(200, json={}))
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        await tools["cancel_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        await tools["comfyui_cancel_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert route.called
 
 
@@ -66,7 +66,7 @@ class TestInterrupt:
         )
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        await tools["interrupt"]()
+        await tools["comfyui_interrupt"]()
         assert route.called
 
 
@@ -82,7 +82,7 @@ class TestGetJob:
         )
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        result = await tools["get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        result = await tools["comfyui_get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         parsed = json.loads(result)
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in parsed
 
@@ -96,7 +96,7 @@ class TestGetQueueStatus:
         )
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        result = await tools["get_queue_status"]()
+        result = await tools["comfyui_get_queue_status"]()
         parsed = json.loads(result)
         assert "exec_info" in parsed
 
@@ -108,7 +108,7 @@ class TestClearQueue:
         route = respx.post("http://test:8188/queue").mock(return_value=httpx.Response(200, json={}))
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        result = await tools["clear_queue"](clear_pending=True)
+        result = await tools["comfyui_clear_queue"](clear_pending=True)
         assert "pending" in result.lower()
         assert route.called
 
@@ -148,7 +148,9 @@ class TestGetProgress:
             read_limiter=read_limiter,
             progress=progress,
         )
-        result = await tools["get_progress"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        result = await tools["comfyui_get_progress"](
+            prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        )
         data = json.loads(result)
         assert data["status"] == "completed"
         assert data["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -179,6 +181,6 @@ class TestGetProgress:
             read_limiter=read_limiter,
             progress=progress,
         )
-        result = await tools["get_progress"](prompt_id=not_found_id)
+        result = await tools["comfyui_get_progress"](prompt_id=not_found_id)
         data = json.loads(result)
         assert data["status"] == "unknown"

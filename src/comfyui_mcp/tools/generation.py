@@ -394,7 +394,7 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def run_workflow(workflow: str, wait: bool = False) -> str:
+    async def comfyui_run_workflow(workflow: str, wait: bool = False) -> str:
         """Submit an arbitrary ComfyUI workflow for execution.
 
         Args:
@@ -420,7 +420,7 @@ def register_generation_tools(
             model_checker=model_checker,
         )
 
-    tool_fns["run_workflow"] = run_workflow
+    tool_fns["comfyui_run_workflow"] = comfyui_run_workflow
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -430,7 +430,7 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def run_workflow_stream(workflow: str) -> str:
+    async def comfyui_run_workflow_stream(workflow: str) -> str:
         """Submit a ComfyUI workflow and return websocket stream events plus final status.
 
         Uses ComfyUI's websocket stream endpoint internally to capture per-event
@@ -457,7 +457,7 @@ def register_generation_tools(
             model_checker=model_checker,
         )
 
-    tool_fns["run_workflow_stream"] = run_workflow_stream
+    tool_fns["comfyui_run_workflow_stream"] = comfyui_run_workflow_stream
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -467,7 +467,7 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def generate_image(
+    async def comfyui_generate_image(
         prompt: str,
         negative_prompt: str = "bad quality, blurry",
         width: int = 512,
@@ -514,7 +514,7 @@ def register_generation_tools(
             inspect_extra={"prompt": prompt, "width": width, "height": height},
         )
 
-    tool_fns["generate_image"] = generate_image
+    tool_fns["comfyui_generate_image"] = comfyui_generate_image
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -524,7 +524,7 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def summarize_workflow(workflow: str, format: str = "text") -> str:  # noqa: A002
+    async def comfyui_summarize_workflow(workflow: str, format: str = "text") -> str:  # noqa: A002
         """Summarize a ComfyUI workflow's structure, data flow, and key parameters.
 
         Parses the workflow graph, extracts models, parameters, and execution flow.
@@ -570,7 +570,7 @@ def register_generation_tools(
             return _format_mermaid(analysis)
         return _format_summary(analysis)
 
-    tool_fns["summarize_workflow"] = summarize_workflow
+    tool_fns["comfyui_summarize_workflow"] = comfyui_summarize_workflow
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -580,7 +580,7 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def transform_image(
+    async def comfyui_transform_image(
         image: str,
         prompt: str,
         negative_prompt: str = "bad quality, blurry",
@@ -592,7 +592,7 @@ def register_generation_tools(
     ) -> str:
         """Transform an existing image using a text prompt (img2img).
 
-        The input image must already be uploaded to ComfyUI via upload_image.
+        The input image must already be uploaded to ComfyUI via comfyui_upload_image.
 
         Args:
             image: Filename of the input image in ComfyUI's input directory
@@ -637,7 +637,7 @@ def register_generation_tools(
             inspect_extra={"image": clean_image, "prompt": prompt, "strength": strength},
         )
 
-    tool_fns["transform_image"] = transform_image
+    tool_fns["comfyui_transform_image"] = comfyui_transform_image
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -647,7 +647,7 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def inpaint_image(
+    async def comfyui_inpaint_image(
         image: str,
         mask: str,
         prompt: str,
@@ -660,7 +660,8 @@ def register_generation_tools(
     ) -> str:
         """Inpaint regions of an image using a mask and text prompt.
 
-        Both the input image and mask must already be uploaded via upload_image/upload_mask.
+        Both the input image and mask must already be uploaded via
+        comfyui_upload_image/comfyui_upload_mask.
         White regions in the mask indicate areas to regenerate.
 
         Args:
@@ -709,7 +710,7 @@ def register_generation_tools(
             inspect_extra={"image": clean_image, "mask": clean_mask, "prompt": prompt},
         )
 
-    tool_fns["inpaint_image"] = inpaint_image
+    tool_fns["comfyui_inpaint_image"] = comfyui_inpaint_image
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -719,20 +720,21 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def upscale_image(
+    async def comfyui_upscale_image(
         image: str,
         upscale_model: str = "RealESRGAN_x4plus.pth",
         wait: bool = False,
     ) -> str:
         """Upscale an image using a model-based upscaler.
 
-        The input image must already be uploaded to ComfyUI via upload_image.
+        The input image must already be uploaded to ComfyUI via comfyui_upload_image.
         The scale factor is determined by the upscale model (e.g. RealESRGAN_x4plus = 4x).
 
         Args:
             image: Filename of the input image in ComfyUI's input directory
             upscale_model: Name of the upscale model file (default: RealESRGAN_x4plus.pth).
-                           Use list_models with folder='upscale_models' to see available models.
+                           Use comfyui_list_models with folder='upscale_models'
+                           to see available models.
             wait: If True, block until complete and return structured result with outputs
         """
         limiter.check("upscale_image")
@@ -753,6 +755,6 @@ def register_generation_tools(
             inspect_extra={"image": clean_image, "upscale_model": upscale_model},
         )
 
-    tool_fns["upscale_image"] = upscale_image
+    tool_fns["comfyui_upscale_image"] = comfyui_upscale_image
 
     return tool_fns

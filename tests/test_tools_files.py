@@ -92,7 +92,7 @@ class TestUploadImage:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         image_b64 = base64.b64encode(b"fake-png-data").decode()
-        result = await tools["upload_image"](filename="test.png", image_data=image_b64)
+        result = await tools["comfyui_upload_image"](filename="test.png", image_data=image_b64)
         assert "test.png" in result
 
     async def test_upload_path_traversal_blocked(self, components):
@@ -101,7 +101,9 @@ class TestUploadImage:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         image_b64 = base64.b64encode(b"fake").decode()
         with pytest.raises(PathValidationError):
-            await tools["upload_image"](filename="../../etc/passwd.png", image_data=image_b64)
+            await tools["comfyui_upload_image"](
+                filename="../../etc/passwd.png", image_data=image_b64
+            )
 
     async def test_upload_bad_extension_blocked(self, components):
         client, audit, limiter, sanitizer = components
@@ -109,7 +111,7 @@ class TestUploadImage:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         image_b64 = base64.b64encode(b"fake").decode()
         with pytest.raises(PathValidationError):
-            await tools["upload_image"](filename="malicious.py", image_data=image_b64)
+            await tools["comfyui_upload_image"](filename="malicious.py", image_data=image_b64)
 
 
 class TestGetImage:
@@ -123,7 +125,7 @@ class TestGetImage:
         )
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
-        result = await tools["get_image"](filename="output.png")
+        result = await tools["comfyui_get_image"](filename="output.png")
         assert "base64" in result or "image" in result.lower()
 
     @respx.mock
@@ -144,7 +146,7 @@ class TestGetImage:
             image_view_base_url="https://images.example.com/comfyui",
         )
 
-        result = await tools["get_image"](
+        result = await tools["comfyui_get_image"](
             filename="output.png",
             response_format="data_uri",
         )
@@ -172,7 +174,7 @@ class TestGetImage:
             image_view_base_url="https://internal.example.com",
         )
 
-        result = await tools["get_image"](
+        result = await tools["comfyui_get_image"](
             filename="output.png",
             response_format="data_uri",
             base_url_override="https://public.example.com/comfyui",
@@ -195,7 +197,7 @@ class TestGetImage:
             image_view_base_url="https://images.example.com/comfyui",
         )
 
-        result = await tools["get_image"](
+        result = await tools["comfyui_get_image"](
             filename="output.png",
             response_format="url",
         )
@@ -216,7 +218,7 @@ class TestGetImage:
             image_view_base_url="https://internal.example.com",
         )
 
-        result = await tools["get_image"](
+        result = await tools["comfyui_get_image"](
             filename="output.png",
             response_format="url",
             base_url_override="https://public.example.com/comfyui",
@@ -231,7 +233,7 @@ class TestGetImage:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         with pytest.raises(PathValidationError):
-            await tools["get_image"](filename="../../../etc/shadow.png")
+            await tools["comfyui_get_image"](filename="../../../etc/shadow.png")
 
 
 class TestExtractPngMetadata:
@@ -305,7 +307,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = json.loads(await tools["get_workflow_from_image"](filename="test.png"))
+        result = json.loads(await tools["comfyui_get_workflow_from_image"](filename="test.png"))
         assert result["workflow"] == {"1": {"class_type": "KSampler", "inputs": {}}}
         assert result["prompt"] == {"1": {"class_type": "KSampler", "inputs": {}}}
         assert "workflow" in result["message"].lower()
@@ -323,7 +325,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = json.loads(await tools["get_workflow_from_image"](filename="test.png"))
+        result = json.loads(await tools["comfyui_get_workflow_from_image"](filename="test.png"))
         assert result["workflow"] == {"1": {"class_type": "SaveImage", "inputs": {}}}
 
     @respx.mock
@@ -337,7 +339,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = json.loads(await tools["get_workflow_from_image"](filename="test.png"))
+        result = json.loads(await tools["comfyui_get_workflow_from_image"](filename="test.png"))
         assert result["workflow"] is None
         assert result["prompt"] is None
         assert "no workflow metadata" in result["message"].lower()
@@ -353,7 +355,7 @@ class TestGetWorkflowFromImage:
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
         with pytest.raises(ValueError, match="not a PNG"):
-            await tools["get_workflow_from_image"](filename="photo.png")
+            await tools["comfyui_get_workflow_from_image"](filename="photo.png")
 
     @respx.mock
     async def test_rejects_oversized_download(self, components):
@@ -372,14 +374,14 @@ class TestGetWorkflowFromImage:
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, small_sanitizer)
         with pytest.raises(PathValidationError):
-            await tools["get_workflow_from_image"](filename="test.png")
+            await tools["comfyui_get_workflow_from_image"](filename="test.png")
 
     async def test_path_traversal_blocked(self, components):
         client, audit, limiter, sanitizer = components
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
         with pytest.raises(PathValidationError):
-            await tools["get_workflow_from_image"](filename="../../../etc/passwd.png")
+            await tools["comfyui_get_workflow_from_image"](filename="../../../etc/passwd.png")
 
     @respx.mock
     async def test_handles_malformed_json_in_chunk(self, components):
@@ -392,7 +394,7 @@ class TestGetWorkflowFromImage:
         )
         mcp_server = FastMCP("test")
         tools = register_file_tools(mcp_server, client, audit, limiter, sanitizer)
-        result = json.loads(await tools["get_workflow_from_image"](filename="test.png"))
+        result = json.loads(await tools["comfyui_get_workflow_from_image"](filename="test.png"))
         assert result["workflow"] is None
         assert (
             "malformed" in result["message"].lower() or "no workflow" in result["message"].lower()
@@ -431,7 +433,7 @@ class TestListOutputs:
         )
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
-        result = await tools["list_outputs"]()
+        result = await tools["comfyui_list_outputs"]()
         parsed = json.loads(result)
         assert parsed["items"] == [
             {"filename": "image_001.png", "subfolder": ""},
@@ -457,7 +459,7 @@ class TestListOutputs:
         )
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
-        result = await tools["list_outputs"]()
+        result = await tools["comfyui_list_outputs"]()
         parsed = json.loads(result)
         assert parsed["items"] == [{"filename": "dup.png", "subfolder": ""}]
 
@@ -467,7 +469,7 @@ class TestListOutputs:
         respx.get("http://test:8188/history").mock(return_value=httpx.Response(200, json={}))
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
-        result = await tools["list_outputs"]()
+        result = await tools["comfyui_list_outputs"]()
         parsed = json.loads(result)
         assert parsed["items"] == []
         assert parsed["total"] == 0
@@ -490,7 +492,7 @@ class TestListOutputs:
         )
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
-        result = await tools["list_outputs"]()
+        result = await tools["comfyui_list_outputs"]()
         parsed = json.loads(result)
         assert parsed["items"] == [{"filename": "ok.png", "subfolder": ""}]
 
@@ -507,7 +509,7 @@ class TestUploadMask:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"fake-mask-data").decode()
-        result = await tools["upload_mask"](filename="mask.png", mask_data=mask_b64)
+        result = await tools["comfyui_upload_mask"](filename="mask.png", mask_data=mask_b64)
         assert "mask.png" in result
 
     @respx.mock
@@ -517,7 +519,7 @@ class TestUploadMask:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"data").decode()
         with pytest.raises(PathValidationError, match="traversal"):
-            await tools["upload_mask"](filename="../../etc/passwd.png", mask_data=mask_b64)
+            await tools["comfyui_upload_mask"](filename="../../etc/passwd.png", mask_data=mask_b64)
 
     @respx.mock
     async def test_upload_mask_bad_extension_blocked(self, components):
@@ -526,7 +528,7 @@ class TestUploadMask:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"data").decode()
         with pytest.raises(PathValidationError, match="extension"):
-            await tools["upload_mask"](filename="evil.py", mask_data=mask_b64)
+            await tools["comfyui_upload_mask"](filename="evil.py", mask_data=mask_b64)
 
     @respx.mock
     async def test_upload_mask_with_subfolder(self, components):
@@ -539,7 +541,7 @@ class TestUploadMask:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"fake-mask-data").decode()
-        result = await tools["upload_mask"](
+        result = await tools["comfyui_upload_mask"](
             filename="mask.png", mask_data=mask_b64, subfolder="masks"
         )
         assert "mask.png" in result
@@ -555,6 +557,6 @@ class TestUploadMask:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"data").decode()
-        await tools["upload_mask"](filename="m.png", mask_data=mask_b64)
+        await tools["comfyui_upload_mask"](filename="m.png", mask_data=mask_b64)
         content = audit._audit_file.read_text()
         assert "upload_mask" in content

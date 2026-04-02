@@ -47,7 +47,7 @@ class TestModelChecker:
         warnings = await checker.check_models(workflow, client)
         assert len(warnings) == 1
         assert "missing_model.safetensors" in warnings[0]
-        assert "search_models" in warnings[0]
+        assert "comfyui_search_models" in warnings[0]
 
     @respx.mock
     async def test_warns_missing_lora(self, checker, client):

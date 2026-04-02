@@ -30,7 +30,7 @@ class TestGetHistory:
         )
         mcp = FastMCP("test")
         tools = register_history_tools(mcp, client, audit, limiter)
-        result = await tools["get_history"]()
+        result = await tools["comfyui_get_history"]()
         parsed = json.loads(result)
         assert parsed["total"] == 2
         assert parsed["offset"] == 0
@@ -49,7 +49,7 @@ class TestGetHistory:
         respx.get("http://test:8188/history").mock(return_value=httpx.Response(200, json=history))
         mcp = FastMCP("test")
         tools = register_history_tools(mcp, client, audit, limiter)
-        result = await tools["get_history"](limit=2, offset=0)
+        result = await tools["comfyui_get_history"](limit=2, offset=0)
         parsed = json.loads(result)
         assert len(parsed["items"]) == 2
         assert parsed["total"] == 5
@@ -64,7 +64,7 @@ class TestGetHistory:
         )
         mcp = FastMCP("test")
         tools = register_history_tools(mcp, client, audit, limiter)
-        result = await tools["get_history"]()
+        result = await tools["comfyui_get_history"]()
         parsed = json.loads(result)
         assert parsed["total"] == 2
         prompt_ids = [item["prompt_id"] for item in parsed["items"]]

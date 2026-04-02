@@ -87,7 +87,7 @@ class TestRunWorkflow:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
-        result = await tools["run_workflow"](workflow=json.dumps(workflow))
+        result = await tools["comfyui_run_workflow"](workflow=json.dumps(workflow))
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
     @respx.mock
@@ -103,7 +103,7 @@ class TestRunWorkflow:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         workflow = {"1": {"class_type": "EvalNode", "inputs": {}}}
-        result = await tools["run_workflow"](workflow=json.dumps(workflow))
+        result = await tools["comfyui_run_workflow"](workflow=json.dumps(workflow))
         assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
         assert "EvalNode" in result
 
@@ -115,7 +115,7 @@ class TestRunWorkflow:
         )
         workflow = {"1": {"class_type": "MaliciousNode", "inputs": {}}}
         with pytest.raises(WorkflowBlockedError):
-            await tools["run_workflow"](workflow=json.dumps(workflow))
+            await tools["comfyui_run_workflow"](workflow=json.dumps(workflow))
 
     @respx.mock
     async def test_run_workflow_stream_returns_events(self, progress_components):
@@ -158,7 +158,7 @@ class TestRunWorkflow:
         )
 
         workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
-        result = await tools["run_workflow_stream"](workflow=json.dumps(workflow))
+        result = await tools["comfyui_run_workflow_stream"](workflow=json.dumps(workflow))
         parsed = json.loads(result)
         assert parsed["status"] == "completed"
         assert parsed["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -179,7 +179,7 @@ class TestGenerateImage:
         tools = register_generation_tools(
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
-        result = await tools["generate_image"](prompt="a beautiful sunset over mountains")
+        result = await tools["comfyui_generate_image"](prompt="a beautiful sunset over mountains")
         assert "img-001" in result
 
     async def test_rejects_invalid_width(self, components):
@@ -189,7 +189,7 @@ class TestGenerateImage:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(ValueError, match="width"):
-            await tools["generate_image"](prompt="test", width=10)
+            await tools["comfyui_generate_image"](prompt="test", width=10)
 
     async def test_rejects_invalid_height(self, components):
         client, audit, limiter, inspector, sanitizer = components
@@ -198,7 +198,7 @@ class TestGenerateImage:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(ValueError, match="height"):
-            await tools["generate_image"](prompt="test", height=5000)
+            await tools["comfyui_generate_image"](prompt="test", height=5000)
 
     async def test_rejects_invalid_steps(self, components):
         client, audit, limiter, inspector, sanitizer = components
@@ -207,7 +207,7 @@ class TestGenerateImage:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(ValueError, match="steps"):
-            await tools["generate_image"](prompt="test", steps=0)
+            await tools["comfyui_generate_image"](prompt="test", steps=0)
 
     async def test_rejects_invalid_cfg(self, components):
         client, audit, limiter, inspector, sanitizer = components
@@ -216,7 +216,7 @@ class TestGenerateImage:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(ValueError, match="cfg"):
-            await tools["generate_image"](prompt="test", cfg=0.5)
+            await tools["comfyui_generate_image"](prompt="test", cfg=0.5)
 
 
 class TestAnalyzeWorkflow:
@@ -570,7 +570,7 @@ class TestSummarizeWorkflow:
                 "inputs": {"filename_prefix": "test", "images": ["8", 0]},
             },
         }
-        result = await tools["summarize_workflow"](workflow=json.dumps(workflow))
+        result = await tools["comfyui_summarize_workflow"](workflow=json.dumps(workflow))
         assert "7 nodes" in result
         assert "txt2img" in result
         assert "model.safetensors" in result
@@ -603,7 +603,7 @@ class TestSummarizeWorkflow:
                 "inputs": {"ckpt_name": "model.safetensors"},
             },
         }
-        result = await tools["summarize_workflow"](workflow=json.dumps(workflow))
+        result = await tools["comfyui_summarize_workflow"](workflow=json.dumps(workflow))
         assert "1 node" in result
         assert "CheckpointLoaderSimple" in result
 
@@ -621,9 +621,9 @@ class TestSummarizeWorkflow:
             sanitizer=sanitizer,
         )
         with pytest.raises(ValueError, match="JSON object"):
-            await tools["summarize_workflow"](workflow="[1, 2, 3]")
+            await tools["comfyui_summarize_workflow"](workflow="[1, 2, 3]")
         with pytest.raises(ValueError, match="JSON object"):
-            await tools["summarize_workflow"](workflow='"just a string"')
+            await tools["comfyui_summarize_workflow"](workflow='"just a string"')
 
     @respx.mock
     async def test_handles_non_dict_inputs(self, components):
@@ -646,7 +646,7 @@ class TestSummarizeWorkflow:
                 "inputs": [1, 2, 3],
             },
         }
-        result = await tools["summarize_workflow"](workflow=json.dumps(workflow))
+        result = await tools["comfyui_summarize_workflow"](workflow=json.dumps(workflow))
         assert "1 node" in result
 
     async def test_rejects_invalid_json(self, components):
@@ -663,7 +663,7 @@ class TestSummarizeWorkflow:
             sanitizer=sanitizer,
         )
         with pytest.raises(ValueError, match="Invalid JSON"):
-            await tools["summarize_workflow"](workflow="not json")
+            await tools["comfyui_summarize_workflow"](workflow="not json")
 
     @respx.mock
     async def test_mermaid_escapes_html_characters(self, components):
@@ -687,7 +687,7 @@ class TestSummarizeWorkflow:
                 "inputs": {"ckpt_name": '<script>alert("xss")</script>&model.safetensors'},
             },
         }
-        result = await tools["summarize_workflow"](
+        result = await tools["comfyui_summarize_workflow"](
             workflow=json.dumps(workflow),
             format="mermaid",
         )
@@ -739,7 +739,7 @@ class TestSummarizeWorkflow:
             },
         }
 
-        result = await tools["summarize_workflow"](
+        result = await tools["comfyui_summarize_workflow"](
             workflow=json.dumps(workflow),
             format="mermaid",
         )
@@ -766,7 +766,7 @@ class TestSummarizeWorkflow:
         )
 
         with pytest.raises(ValueError, match='format must be either "text" or "mermaid"'):
-            await tools["summarize_workflow"](workflow="{}", format="yaml")
+            await tools["comfyui_summarize_workflow"](workflow="{}", format="yaml")
 
 
 class TestGenerateImageWait:
@@ -799,7 +799,7 @@ class TestGenerateImageWait:
             progress=progress,
             sanitizer=sanitizer,
         )
-        result = await tools["generate_image"](prompt="a cat", wait=True)
+        result = await tools["comfyui_generate_image"](prompt="a cat", wait=True)
         data = json.loads(result)
         assert data["prompt_id"] == "img-wait-1"
         assert data["status"] == "completed"
@@ -821,7 +821,7 @@ class TestGenerateImageWait:
             progress=progress,
             sanitizer=sanitizer,
         )
-        result = await tools["generate_image"](prompt="a dog", wait=False)
+        result = await tools["comfyui_generate_image"](prompt="a dog", wait=False)
         assert "img-nowait" in result
         assert not result.startswith("{")
 
@@ -856,7 +856,7 @@ class TestRunWorkflowWait:
             progress=progress,
             sanitizer=sanitizer,
         )
-        result = await tools["run_workflow"](
+        result = await tools["comfyui_run_workflow"](
             workflow=json.dumps({"1": {"class_type": "KSampler", "inputs": {}}}),
             wait=True,
         )
@@ -882,7 +882,7 @@ class TestRunWorkflowWait:
             progress=progress,
             sanitizer=sanitizer,
         )
-        result = await tools["run_workflow"](
+        result = await tools["comfyui_run_workflow"](
             workflow=json.dumps({"1": {"class_type": "KSampler", "inputs": {}}}),
             wait=False,
         )
@@ -926,10 +926,10 @@ class TestModelCheckIntegration:
                 },
             }
         )
-        result = await tools["run_workflow"](workflow=workflow)
+        result = await tools["comfyui_run_workflow"](workflow=workflow)
         assert "Missing model" in result
         assert "missing_model.safetensors" in result
-        assert "search_models" in result
+        assert "comfyui_search_models" in result
 
     @respx.mock
     async def test_run_workflow_no_warning_when_model_present(self, components):
@@ -959,7 +959,7 @@ class TestModelCheckIntegration:
                 },
             }
         )
-        result = await tools["run_workflow"](workflow=workflow)
+        result = await tools["comfyui_run_workflow"](workflow=workflow)
         assert "abc-456" in result
         assert "Missing model" not in result
 
@@ -983,7 +983,9 @@ class TestModelCheckIntegration:
             model_checker=model_checker,
             sanitizer=sanitizer,
         )
-        result = await tools["generate_image"](prompt="a cat", model="missing_model.safetensors")
+        result = await tools["comfyui_generate_image"](
+            prompt="a cat", model="missing_model.safetensors"
+        )
         assert "Missing model" in result
         assert "missing_model.safetensors" in result
 
@@ -1031,7 +1033,7 @@ class TestModelCheckIntegration:
                 }
             )
             with pytest.raises(WorkflowBlockedError, match="missing models"):
-                await tools["run_workflow"](workflow=workflow)
+                await tools["comfyui_run_workflow"](workflow=workflow)
 
     @respx.mock
     async def test_run_workflow_no_model_checker_passes_through(self, components):
@@ -1052,7 +1054,7 @@ class TestModelCheckIntegration:
                 },
             }
         )
-        result = await tools["run_workflow"](workflow=workflow)
+        result = await tools["comfyui_run_workflow"](workflow=workflow)
         assert "pass-123" in result
         assert "Missing model" not in result
 
@@ -1083,7 +1085,7 @@ class TestConvenienceTools:
         tools = register_generation_tools(
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
-        result = await tools["transform_image"](image="input.png", prompt="a cat in a hat")
+        result = await tools["comfyui_transform_image"](image="input.png", prompt="a cat in a hat")
         assert "t2i-001" in result
 
     @respx.mock
@@ -1102,7 +1104,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with unittest.mock.patch.object(client, "post_prompt", side_effect=capture):
-            await tools["transform_image"](
+            await tools["comfyui_transform_image"](
                 image="input.png", prompt="my custom prompt", strength=0.5
             )
 
@@ -1120,7 +1122,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(ValueError, match="strength"):
-            await tools["transform_image"](image="x.png", prompt="p", strength=1.5)
+            await tools["comfyui_transform_image"](image="x.png", prompt="p", strength=1.5)
 
     async def test_transform_image_rejects_path_traversal(self, gen_components):
         client, audit, limiter, inspector, sanitizer = gen_components
@@ -1129,7 +1131,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(PathValidationError, match="traversal"):
-            await tools["transform_image"](image="../evil.png", prompt="p")
+            await tools["comfyui_transform_image"](image="../evil.png", prompt="p")
 
     @respx.mock
     async def test_transform_image_audit_log_written(self, gen_components):
@@ -1141,7 +1143,7 @@ class TestConvenienceTools:
         tools = register_generation_tools(
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
-        await tools["transform_image"](image="ref.png", prompt="a landscape")
+        await tools["comfyui_transform_image"](image="ref.png", prompt="a landscape")
         lines = audit._audit_file.read_text().strip().split("\n")
         entries = [json.loads(line) for line in lines]
         assert any(e["tool"] == "transform_image" and e["action"] == "submitted" for e in entries)
@@ -1158,7 +1160,7 @@ class TestConvenienceTools:
         tools = register_generation_tools(
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
-        result = await tools["inpaint_image"](
+        result = await tools["comfyui_inpaint_image"](
             image="scene.png", mask="mask.png", prompt="a blue sky"
         )
         assert "inp-001" in result
@@ -1179,7 +1181,9 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with unittest.mock.patch.object(client, "post_prompt", side_effect=capture):
-            await tools["inpaint_image"](image="scene.png", mask="mask.png", prompt="a tree")
+            await tools["comfyui_inpaint_image"](
+                image="scene.png", mask="mask.png", prompt="a tree"
+            )
 
         wf = captured["workflow"]
         load_image = next(n for n in wf.values() if n["class_type"] == "LoadImage")
@@ -1194,7 +1198,9 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(PathValidationError, match="traversal"):
-            await tools["inpaint_image"](image="ok.png", mask="../../etc/passwd", prompt="p")
+            await tools["comfyui_inpaint_image"](
+                image="ok.png", mask="../../etc/passwd", prompt="p"
+            )
 
     async def test_inpaint_image_rejects_invalid_steps(self, gen_components):
         client, audit, limiter, inspector, sanitizer = gen_components
@@ -1203,7 +1209,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(ValueError, match="steps"):
-            await tools["inpaint_image"](image="x.png", mask="m.png", prompt="p", steps=0)
+            await tools["comfyui_inpaint_image"](image="x.png", mask="m.png", prompt="p", steps=0)
 
     # --- upscale_image ---
 
@@ -1217,7 +1223,7 @@ class TestConvenienceTools:
         tools = register_generation_tools(
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
-        result = await tools["upscale_image"](image="small.png")
+        result = await tools["comfyui_upscale_image"](image="small.png")
         assert "up-001" in result
 
     @respx.mock
@@ -1236,7 +1242,9 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with unittest.mock.patch.object(client, "post_prompt", side_effect=capture):
-            await tools["upscale_image"](image="photo.png", upscale_model="4x-UltraSharp.pth")
+            await tools["comfyui_upscale_image"](
+                image="photo.png", upscale_model="4x-UltraSharp.pth"
+            )
 
         wf = captured["workflow"]
         loader = next(n for n in wf.values() if n["class_type"] == "UpscaleModelLoader")
@@ -1249,7 +1257,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(PathValidationError, match="traversal"):
-            await tools["upscale_image"](image="../../secret.png")
+            await tools["comfyui_upscale_image"](image="../../secret.png")
 
     @respx.mock
     async def test_upscale_image_wait_returns_structured_result(self, tmp_path):
@@ -1277,7 +1285,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer, progress=progress
         )
         with unittest.mock.patch.object(progress, "wait_for_completion", side_effect=fake_wait):
-            result = await tools["upscale_image"](image="small.png", wait=True)
+            result = await tools["comfyui_upscale_image"](image="small.png", wait=True)
 
         data = json.loads(result)
         assert data["prompt_id"] == "up-wait-1"
@@ -1310,7 +1318,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer, progress=progress
         )
         with unittest.mock.patch.object(progress, "wait_for_completion", side_effect=fake_wait):
-            result = await tools["transform_image"](
+            result = await tools["comfyui_transform_image"](
                 image="input.png", prompt="a watercolor painting", wait=True
             )
 
@@ -1346,7 +1354,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer, progress=progress
         )
         with unittest.mock.patch.object(progress, "wait_for_completion", side_effect=fake_wait):
-            result = await tools["inpaint_image"](
+            result = await tools["comfyui_inpaint_image"](
                 image="scene.png", mask="mask.png", prompt="a blue sky", wait=True
             )
 
@@ -1370,7 +1378,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(PathValidationError, match="traversal"):
-            await tools["transform_image"](image="../evil.png", prompt="p")
+            await tools["comfyui_transform_image"](image="../evil.png", prompt="p")
 
     async def test_sanitizer_blocks_null_byte(self, tmp_path):
         client = ComfyUIClient(base_url="http://test:8188")
@@ -1383,4 +1391,4 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         with pytest.raises(PathValidationError, match="null"):
-            await tools["transform_image"](image="evil\x00.png", prompt="p")
+            await tools["comfyui_transform_image"](image="evil\x00.png", prompt="p")

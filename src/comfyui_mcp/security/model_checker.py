@@ -56,7 +56,7 @@ class ModelChecker:
             if model_name not in folder_models[folder]:
                 warnings.append(
                     f"Missing model: '{model_name}' not found in {folder}. "
-                    f"Use search_models to find and download_model to install it."
+                    f"Use comfyui_search_models to find and comfyui_download_model to install it."
                 )
 
         return warnings

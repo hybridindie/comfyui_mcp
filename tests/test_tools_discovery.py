@@ -46,7 +46,7 @@ class TestListModels:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["list_models"](folder="checkpoints")
+        result = await tools["comfyui_list_models"](folder="checkpoints")
         parsed = json.loads(result)
         assert parsed["items"] == ["v1.safetensors", "v2.safetensors"]
         assert parsed["total"] == 2
@@ -64,7 +64,7 @@ class TestListModels:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["list_models"](folder="checkpoints", limit=3, offset=2)
+        result = await tools["comfyui_list_models"](folder="checkpoints", limit=3, offset=2)
         parsed = json.loads(result)
         assert parsed["items"] == [
             "model_2.safetensors",
@@ -87,7 +87,7 @@ class TestListNodes:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["list_nodes"]()
+        result = await tools["comfyui_list_nodes"]()
         parsed = json.loads(result)
         assert "CLIPTextEncode" in parsed["items"]
         assert "KSampler" in parsed["items"]
@@ -107,7 +107,7 @@ class TestListExtensions:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["list_extensions"]()
+        result = await tools["comfyui_list_extensions"]()
         parsed = json.loads(result)
         assert len(parsed) == 2
 
@@ -122,7 +122,7 @@ class TestGetServerFeatures:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["get_server_features"]()
+        result = await tools["comfyui_get_server_features"]()
         parsed = json.loads(result)
         assert parsed["supports_preview_metadata"] is True
 
@@ -137,7 +137,7 @@ class TestListModelFolders:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["list_model_folders"]()
+        result = await tools["comfyui_list_model_folders"]()
         parsed = json.loads(result)
         assert "checkpoints" in parsed
         assert "loras" in parsed
@@ -153,7 +153,7 @@ class TestGetModelMetadata:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["get_model_metadata"]("checkpoints", "model.safetensors")
+        result = await tools["comfyui_get_model_metadata"]("checkpoints", "model.safetensors")
         parsed = json.loads(result)
         assert parsed["filename"] == "model.safetensors"
 
@@ -163,7 +163,7 @@ class TestGetModelMetadata:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         with pytest.raises(PathValidationError):
-            await tools["get_model_metadata"]("../etc", "model.safetensors")
+            await tools["comfyui_get_model_metadata"]("../etc", "model.safetensors")
 
     async def test_get_model_metadata_traversal_in_filename_blocked(self, components):
         client, audit, limiter, sanitizer = components
@@ -171,7 +171,7 @@ class TestGetModelMetadata:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         with pytest.raises(PathValidationError, match="path separator"):
-            await tools["get_model_metadata"]("checkpoints", "../../etc/passwd")
+            await tools["comfyui_get_model_metadata"]("checkpoints", "../../etc/passwd")
 
 
 class TestListModelsValidation:
@@ -181,7 +181,7 @@ class TestListModelsValidation:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         with pytest.raises(PathValidationError):
-            await tools["list_models"](folder="../secrets")
+            await tools["comfyui_list_models"](folder="../secrets")
 
     async def test_list_models_slash_blocked(self, components):
         client, audit, limiter, sanitizer = components
@@ -189,7 +189,7 @@ class TestListModelsValidation:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         with pytest.raises(PathValidationError, match="path separator"):
-            await tools["list_models"](folder="checkpoints/../../etc")
+            await tools["comfyui_list_models"](folder="checkpoints/../../etc")
 
 
 class TestAuditDangerousNodes:
@@ -210,7 +210,7 @@ class TestAuditDangerousNodes:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer, auditor)
 
-        result = await tools["audit_dangerous_nodes"]()
+        result = await tools["comfyui_audit_dangerous_nodes"]()
         parsed = json.loads(result)
 
         assert parsed["total_nodes"] == 4
@@ -232,7 +232,7 @@ class TestAuditDangerousNodes:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["audit_dangerous_nodes"]()
+        result = await tools["comfyui_audit_dangerous_nodes"]()
         parsed = json.loads(result)
 
         assert parsed["total_nodes"] == 2
@@ -280,7 +280,7 @@ class TestGetSystemInfo:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = json.loads(await tools["get_system_info"]())
+        result = json.loads(await tools["comfyui_get_system_info"]())
 
         assert result["comfyui_version"] == "0.3.10"
         assert len(result["devices"]) == 1
@@ -303,7 +303,7 @@ class TestGetSystemInfo:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = await tools["get_system_info"]()
+        result = await tools["comfyui_get_system_info"]()
 
         # Sensitive fields must not appear at any level
         assert "hostname" not in result
@@ -323,7 +323,7 @@ class TestGetSystemInfo:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = json.loads(await tools["get_system_info"]())
+        result = json.loads(await tools["comfyui_get_system_info"]())
 
         assert result["devices"] == []
         assert result["comfyui_version"] == "0.3.10"
@@ -341,7 +341,7 @@ class TestGetSystemInfo:
         from comfyui_mcp.security.rate_limit import RateLimitError
 
         with pytest.raises(RateLimitError):
-            await tools["get_system_info"]()
+            await tools["comfyui_get_system_info"]()
 
 
 class TestModelPresetsAndGuides:
@@ -350,7 +350,7 @@ class TestModelPresetsAndGuides:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = json.loads(await tools["get_model_presets"](model_family="flux"))
+        result = json.loads(await tools["comfyui_get_model_presets"](model_family="flux"))
 
         assert result["family"] == "flux"
         assert result["recommended"]["sampler"] == "euler"
@@ -362,7 +362,7 @@ class TestModelPresetsAndGuides:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = json.loads(
-            await tools["get_model_presets"](model_name="flux1-dev-fp8.safetensors")
+            await tools["comfyui_get_model_presets"](model_name="flux1-dev-fp8.safetensors")
         )
 
         assert result["family"] == "flux"
@@ -373,14 +373,14 @@ class TestModelPresetsAndGuides:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         with pytest.raises(ValueError, match="Provide either model_name or model_family"):
-            await tools["get_model_presets"]()
+            await tools["comfyui_get_model_presets"]()
 
     async def test_get_prompting_guide_returns_data(self, components):
         client, audit, limiter, sanitizer = components
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = json.loads(await tools["get_prompting_guide"]("sdxl"))
+        result = json.loads(await tools["comfyui_get_prompting_guide"]("sdxl"))
 
         assert result["family"] == "sdxl"
         assert "prompt_structure" in result["guide"]
@@ -392,7 +392,7 @@ class TestModelPresetsAndGuides:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         with pytest.raises(ValueError, match="Unknown model family"):
-            await tools["get_prompting_guide"]("unknown")
+            await tools["comfyui_get_prompting_guide"]("unknown")
 
     async def test_get_model_presets_rejects_unrecognized_model_name(self, components):
         client, audit, limiter, sanitizer = components
@@ -400,4 +400,4 @@ class TestModelPresetsAndGuides:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         with pytest.raises(ValueError, match="Could not infer model family from"):
-            await tools["get_model_presets"](model_name="mystery_model_v1.safetensors")
+            await tools["comfyui_get_model_presets"](model_name="mystery_model_v1.safetensors")

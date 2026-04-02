@@ -94,7 +94,9 @@ class TestSearchModels:
                 },
             )
         )
-        result = await registered_tools["search_models"](query="epic realism", source="civitai")
+        result = await registered_tools["comfyui_search_models"](
+            query="epic realism", source="civitai"
+        )
         parsed = json.loads(result)
         assert len(parsed["items"]) == 1
         assert parsed["items"][0]["name"] == "Epic Realism"
@@ -132,7 +134,7 @@ class TestSearchModels:
                 },
             )
         )
-        result = await registered_tools["search_models"](query="sdxl", source="huggingface")
+        result = await registered_tools["comfyui_search_models"](query="sdxl", source="huggingface")
         parsed = json.loads(result)
         assert len(parsed["items"]) == 1
         assert parsed["items"][0]["name"] == "stabilityai/sdxl"
@@ -142,7 +144,7 @@ class TestSearchModels:
     @respx.mock
     async def test_search_invalid_source(self, registered_tools):
         with pytest.raises(ValueError, match="source must be"):
-            await registered_tools["search_models"](query="test", source="invalid")
+            await registered_tools["comfyui_search_models"](query="test", source="invalid")
 
     @respx.mock
     async def test_search_with_api_key(self, components):
@@ -163,7 +165,7 @@ class TestSearchModels:
         route = respx.get("https://civitai.com/api/v1/models").mock(
             return_value=httpx.Response(200, json={"items": [], "metadata": {"totalItems": 0}})
         )
-        await tools["search_models"](query="test", source="civitai")
+        await tools["comfyui_search_models"](query="test", source="civitai")
         assert route.calls[0].request.headers.get("authorization") == "Bearer test_key"
 
 
@@ -171,22 +173,22 @@ class TestSearchModelsInputValidation:
     @respx.mock
     async def test_query_too_long_rejected(self, registered_tools):
         with pytest.raises(ValueError, match=r"query.*200"):
-            await registered_tools["search_models"](query="x" * 201, source="civitai")
+            await registered_tools["comfyui_search_models"](query="x" * 201, source="civitai")
 
     @respx.mock
     async def test_empty_query_rejected(self, registered_tools):
         with pytest.raises(ValueError, match=r"query.*empty"):
-            await registered_tools["search_models"](query="", source="civitai")
+            await registered_tools["comfyui_search_models"](query="", source="civitai")
 
     @respx.mock
     async def test_query_whitespace_only_rejected(self, registered_tools):
         with pytest.raises(ValueError, match=r"query.*empty"):
-            await registered_tools["search_models"](query="   ", source="civitai")
+            await registered_tools["comfyui_search_models"](query="   ", source="civitai")
 
     @respx.mock
     async def test_model_type_too_long_rejected(self, registered_tools):
         with pytest.raises(ValueError, match=r"model_type.*100"):
-            await registered_tools["search_models"](
+            await registered_tools["comfyui_search_models"](
                 query="test", source="civitai", model_type="x" * 101
             )
 
@@ -197,7 +199,7 @@ class TestSearchModelsInputValidation:
             return_value=httpx.Response(200, json={"items": []})
         )
         # Should not raise — limit is clamped to max_search_results
-        await registered_tools["search_models"](query="test", source="civitai", limit=999)
+        await registered_tools["comfyui_search_models"](query="test", source="civitai", limit=999)
 
     @respx.mock
     async def test_offset_and_zero_limit(self, registered_tools):
@@ -226,7 +228,7 @@ class TestSearchModelsInputValidation:
             )
         )
         # limit=0 should use default_limit=5, offset=2 should skip first 2
-        result = await registered_tools["search_models"](
+        result = await registered_tools["comfyui_search_models"](
             query="test", source="civitai", limit=0, offset=2
         )
         parsed = json.loads(result)
@@ -256,7 +258,7 @@ class TestDownloadModel:
         respx.post("http://test:8188/model-manager/model").mock(
             return_value=httpx.Response(200, json={"success": True, "data": {"taskId": "t-1"}})
         )
-        result = await registered_tools["download_model"](
+        result = await registered_tools["comfyui_download_model"](
             url="https://civitai.com/api/download/models/12345",
             folder="checkpoints",
             filename="epicrealism.safetensors",
@@ -270,7 +272,7 @@ class TestDownloadModel:
             return_value=httpx.Response(200, json=["checkpoints"])
         )
         with pytest.raises(Exception, match="not in allowed domains"):
-            await registered_tools["download_model"](
+            await registered_tools["comfyui_download_model"](
                 url="https://evil.com/model.safetensors",
                 folder="checkpoints",
                 filename="model.safetensors",
@@ -282,7 +284,7 @@ class TestDownloadModel:
             return_value=httpx.Response(200, json=["checkpoints"])
         )
         with pytest.raises(Exception, match="extension"):
-            await registered_tools["download_model"](
+            await registered_tools["comfyui_download_model"](
                 url="https://civitai.com/api/download/models/123",
                 folder="checkpoints",
                 filename="model.exe",
@@ -303,7 +305,7 @@ class TestDownloadModel:
             )
         )
         with pytest.raises(ValueError, match="not a valid model folder"):
-            await registered_tools["download_model"](
+            await registered_tools["comfyui_download_model"](
                 url="https://civitai.com/api/download/models/123",
                 folder="invalid_folder",
                 filename="model.safetensors",
@@ -313,7 +315,7 @@ class TestDownloadModel:
     async def test_download_model_manager_unavailable(self, registered_tools):
         respx.get("http://test:8188/model-manager/models").mock(return_value=httpx.Response(404))
         with pytest.raises(Exception, match="not detected"):
-            await registered_tools["download_model"](
+            await registered_tools["comfyui_download_model"](
                 url="https://civitai.com/api/download/models/123",
                 folder="checkpoints",
                 filename="model.safetensors",
@@ -330,7 +332,7 @@ class TestDownloadModel:
         route = respx.post("http://test:8188/model-manager/model").mock(
             return_value=httpx.Response(200, json={"success": True, "data": {"taskId": "t-1"}})
         )
-        await registered_tools["download_model"](
+        await registered_tools["comfyui_download_model"](
             url="https://huggingface.co/org/repo/resolve/main/model.safetensors",
             folder="checkpoints",
             filename="model.safetensors",
@@ -365,7 +367,7 @@ class TestGetDownloadTasks:
                 },
             )
         )
-        result = await registered_tools["get_download_tasks"]()
+        result = await registered_tools["comfyui_get_download_tasks"]()
         parsed = json.loads(result)
         assert len(parsed["tasks"]) == 1
 
@@ -379,7 +381,7 @@ class TestCancelDownload:
         respx.delete("http://test:8188/model-manager/download/task-1").mock(
             return_value=httpx.Response(200, json={"success": True})
         )
-        result = await registered_tools["cancel_download"](task_id="task-1")
+        result = await registered_tools["comfyui_cancel_download"](task_id="task-1")
         parsed = json.loads(result)
         assert parsed["success"] is True
         assert parsed["task_id"] == "task-1"
@@ -406,7 +408,7 @@ class TestHuggingFaceConcurrency:
                     },
                 )
             )
-        result = await registered_tools["search_models"](
+        result = await registered_tools["comfyui_search_models"](
             query="test", source="huggingface", limit=3
         )
         parsed = json.loads(result)
