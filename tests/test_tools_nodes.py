@@ -145,23 +145,21 @@ class TestSearchCustomNodes:
     async def test_returns_paginated_envelope(self, registered_tools):
         _mock_node_list()
         result = await registered_tools["comfyui_search_custom_nodes"](query="test")
-        parsed = json.loads(result)
-        assert len(parsed["items"]) == 1
-        assert parsed["items"][0]["id"] == "comfy-pack-one"
-        assert parsed["items"][0]["name"] == "Test Node Pack"
-        assert parsed["query"] == "test"
-        assert parsed["total"] == 1
-        assert parsed["offset"] == 0
-        assert parsed["limit"] == 10
-        assert parsed["has_more"] is False
+        assert len(result["items"]) == 1
+        assert result["items"][0]["id"] == "comfy-pack-one"
+        assert result["items"][0]["name"] == "Test Node Pack"
+        assert result["query"] == "test"
+        assert result["total"] == 1
+        assert result["offset"] == 0
+        assert result["limit"] == 10
+        assert result["has_more"] is False
 
     @respx.mock
     async def test_empty_results_when_no_match(self, registered_tools):
         _mock_node_list()
         result = await registered_tools["comfyui_search_custom_nodes"](query="nonexistent-xyz")
-        parsed = json.loads(result)
-        assert parsed["items"] == []
-        assert parsed["total"] == 0
+        assert result["items"] == []
+        assert result["total"] == 0
 
     @respx.mock
     async def test_rate_limiter_called(self, components, registered_tools):
@@ -351,10 +349,9 @@ class TestGetCustomNodeStatus:
             )
         )
         result = await registered_tools["comfyui_get_custom_node_status"]()
-        parsed = json.loads(result)
-        assert parsed["is_processing"] is True
-        assert parsed["total"] == 3
-        assert parsed["completed"] == 1
+        assert result["is_processing"] is True
+        assert result["total"] == 3
+        assert result["completed"] == 1
 
     @respx.mock
     async def test_rate_limiter_called(self, components, registered_tools):

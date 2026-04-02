@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -170,7 +169,7 @@ def register_discovery_tools(
         folder: str = "checkpoints",
         limit: int = 25,
         offset: int = 0,
-    ) -> str:
+    ) -> dict[str, Any]:
         """List available models in a folder (checkpoints, loras, vae, etc.).
 
         Args:
@@ -182,7 +181,7 @@ def register_discovery_tools(
         sanitizer.validate_path_segment(folder, label="folder")
         await audit.async_log(tool="list_models", action="called", extra={"folder": folder})
         models = await client.get_models(folder)
-        return json.dumps(paginate(models, offset, limit, default_limit=25, max_limit=100))
+        return paginate(models, offset, limit, default_limit=25, max_limit=100)
 
     tool_fns["comfyui_list_models"] = comfyui_list_models
 
@@ -194,7 +193,7 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_nodes(limit: int = 25, offset: int = 0) -> str:
+    async def comfyui_list_nodes(limit: int = 25, offset: int = 0) -> dict[str, Any]:
         """List all available ComfyUI node types.
 
         Args:
@@ -204,9 +203,7 @@ def register_discovery_tools(
         limiter.check("list_nodes")
         await audit.async_log(tool="list_nodes", action="called")
         info = await client.get_object_info()
-        return json.dumps(
-            paginate(sorted(info.keys()), offset, limit, default_limit=25, max_limit=100)
-        )
+        return paginate(sorted(info.keys()), offset, limit, default_limit=25, max_limit=100)
 
     tool_fns["comfyui_list_nodes"] = comfyui_list_nodes
 
@@ -218,13 +215,13 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_node_info(node_class: str) -> str:
+    async def comfyui_get_node_info(node_class: str) -> dict[str, Any]:
         """Get detailed information about a specific node type."""
         limiter.check("get_node_info")
         await audit.async_log(
             tool="get_node_info", action="called", extra={"node_class": node_class}
         )
-        return json.dumps(await client.get_object_info(node_class))
+        return await client.get_object_info(node_class)
 
     tool_fns["comfyui_get_node_info"] = comfyui_get_node_info
 
@@ -236,11 +233,11 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_workflows() -> str:
+    async def comfyui_list_workflows() -> dict[str, Any]:
         """List available workflow templates."""
         limiter.check("list_workflows")
         await audit.async_log(tool="list_workflows", action="called")
-        return json.dumps(await client.get_workflow_templates())
+        return await client.get_workflow_templates()
 
     tool_fns["comfyui_list_workflows"] = comfyui_list_workflows
 
@@ -252,11 +249,11 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_extensions() -> str:
+    async def comfyui_list_extensions() -> list[Any]:
         """List available ComfyUI extensions."""
         limiter.check("list_extensions")
         await audit.async_log(tool="list_extensions", action="called")
-        return json.dumps(await client.get_extensions())
+        return await client.get_extensions()
 
     tool_fns["comfyui_list_extensions"] = comfyui_list_extensions
 
@@ -268,11 +265,11 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_server_features() -> str:
+    async def comfyui_get_server_features() -> dict[str, Any]:
         """Get ComfyUI server features and capabilities."""
         limiter.check("get_server_features")
         await audit.async_log(tool="get_server_features", action="called")
-        return json.dumps(await client.get_features())
+        return await client.get_features()
 
     tool_fns["comfyui_get_server_features"] = comfyui_get_server_features
 
@@ -284,11 +281,11 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_model_folders() -> str:
+    async def comfyui_list_model_folders() -> list[Any]:
         """List available model folder types (checkpoints, loras, vae, etc.)."""
         limiter.check("list_model_folders")
         await audit.async_log(tool="list_model_folders", action="called")
-        return json.dumps(await client.get_model_types())
+        return await client.get_model_types()
 
     tool_fns["comfyui_list_model_folders"] = comfyui_list_model_folders
 
@@ -300,7 +297,7 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_model_metadata(folder: str, filename: str) -> str:
+    async def comfyui_get_model_metadata(folder: str, filename: str) -> dict[str, Any]:
         """Get metadata for a model file.
 
         Args:
@@ -315,7 +312,7 @@ def register_discovery_tools(
             action="called",
             extra={"folder": folder, "filename": filename},
         )
-        return json.dumps(await client.get_view_metadata(folder, filename))
+        return await client.get_view_metadata(folder, filename)
 
     tool_fns["comfyui_get_model_metadata"] = comfyui_get_model_metadata
 
@@ -327,7 +324,7 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_audit_dangerous_nodes() -> str:
+    async def comfyui_audit_dangerous_nodes() -> dict[str, Any]:
         """Audit all installed nodes to identify potentially dangerous ones.
 
         Scans for nodes that could execute arbitrary code, run shell commands,
@@ -369,7 +366,7 @@ def register_discovery_tools(
                 "suspicious": result.suspicious_count,
             },
         )
-        return json.dumps(output)
+        return output
 
     tool_fns["comfyui_audit_dangerous_nodes"] = comfyui_audit_dangerous_nodes
 
@@ -381,7 +378,7 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_system_info() -> str:
+    async def comfyui_get_system_info() -> dict[str, Any]:
         """Return sanitized ComfyUI system information.
 
         Returns a whitelist-filtered subset of system stats useful for making
@@ -430,7 +427,7 @@ def register_discovery_tools(
             "devices": devices,
             "queue": {"running": running, "pending": pending},
         }
-        return json.dumps(result)
+        return result
 
     tool_fns["comfyui_get_system_info"] = comfyui_get_system_info
 
@@ -445,7 +442,7 @@ def register_discovery_tools(
     async def comfyui_get_model_presets(
         model_name: str | None = None,
         model_family: str | None = None,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Return recommended generation presets for a model family.
 
         Args:
@@ -476,12 +473,10 @@ def register_discovery_tools(
             supported = ", ".join(sorted(_SUPPORTED_MODEL_FAMILIES))
             raise ValueError(f"Unknown model family: {family}. Supported families: {supported}")
 
-        return json.dumps(
-            {
-                "family": family,
-                **_MODEL_PRESETS[family],
-            }
-        )
+        return {
+            "family": family,
+            **_MODEL_PRESETS[family],
+        }
 
     tool_fns["comfyui_get_model_presets"] = comfyui_get_model_presets
 
@@ -493,7 +488,7 @@ def register_discovery_tools(
             openWorldHint=False,
         )
     )
-    async def comfyui_get_prompting_guide(model_family: str) -> str:
+    async def comfyui_get_prompting_guide(model_family: str) -> dict[str, Any]:
         """Return prompt-engineering guidance for a model family.
 
         Args:
@@ -511,12 +506,10 @@ def register_discovery_tools(
             supported = ", ".join(sorted(_SUPPORTED_MODEL_FAMILIES))
             raise ValueError(f"Unknown model family: {normalized}. Supported families: {supported}")
 
-        return json.dumps(
-            {
-                "family": normalized,
-                "guide": _PROMPTING_GUIDES[normalized],
-            }
-        )
+        return {
+            "family": normalized,
+            "guide": _PROMPTING_GUIDES[normalized],
+        }
 
     tool_fns["comfyui_get_prompting_guide"] = comfyui_get_prompting_guide
 

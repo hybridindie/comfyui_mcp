@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -31,7 +30,7 @@ def register_history_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_history(limit: int = 25, offset: int = 0) -> str:
+    async def comfyui_get_history(limit: int = 25, offset: int = 0) -> dict[str, Any]:
         """Browse ComfyUI execution history (read-only).
 
         Args:
@@ -42,7 +41,7 @@ def register_history_tools(
         await audit.async_log(tool="get_history", action="called")
         raw = await client.get_history(max_items=100)
         entries = [{**(v if isinstance(v, dict) else {}), "prompt_id": k} for k, v in raw.items()]
-        return json.dumps(paginate(entries, offset, limit, default_limit=25, max_limit=100))
+        return paginate(entries, offset, limit, default_limit=25, max_limit=100)
 
     tool_fns["comfyui_get_history"] = comfyui_get_history
 

@@ -1,7 +1,5 @@
 """Tests for discovery MCP tools."""
 
-import json
-
 import httpx
 import pytest
 import respx
@@ -47,12 +45,11 @@ class TestListModels:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_list_models"](folder="checkpoints")
-        parsed = json.loads(result)
-        assert parsed["items"] == ["v1.safetensors", "v2.safetensors"]
-        assert parsed["total"] == 2
-        assert parsed["offset"] == 0
-        assert parsed["limit"] == 25
-        assert parsed["has_more"] is False
+        assert result["items"] == ["v1.safetensors", "v2.safetensors"]
+        assert result["total"] == 2
+        assert result["offset"] == 0
+        assert result["limit"] == 25
+        assert result["has_more"] is False
 
     @respx.mock
     async def test_list_models_respects_limit_and_offset(self, components):
@@ -65,16 +62,15 @@ class TestListModels:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_list_models"](folder="checkpoints", limit=3, offset=2)
-        parsed = json.loads(result)
-        assert parsed["items"] == [
+        assert result["items"] == [
             "model_2.safetensors",
             "model_3.safetensors",
             "model_4.safetensors",
         ]
-        assert parsed["total"] == 10
-        assert parsed["offset"] == 2
-        assert parsed["limit"] == 3
-        assert parsed["has_more"] is True
+        assert result["total"] == 10
+        assert result["offset"] == 2
+        assert result["limit"] == 3
+        assert result["has_more"] is True
 
 
 class TestListNodes:
@@ -88,13 +84,12 @@ class TestListNodes:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_list_nodes"]()
-        parsed = json.loads(result)
-        assert "CLIPTextEncode" in parsed["items"]
-        assert "KSampler" in parsed["items"]
-        assert parsed["total"] == 2
-        assert parsed["offset"] == 0
-        assert parsed["limit"] == 25
-        assert parsed["has_more"] is False
+        assert "CLIPTextEncode" in result["items"]
+        assert "KSampler" in result["items"]
+        assert result["total"] == 2
+        assert result["offset"] == 0
+        assert result["limit"] == 25
+        assert result["has_more"] is False
 
 
 class TestListExtensions:
@@ -108,8 +103,7 @@ class TestListExtensions:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_list_extensions"]()
-        parsed = json.loads(result)
-        assert len(parsed) == 2
+        assert len(result) == 2
 
 
 class TestGetServerFeatures:
@@ -123,8 +117,7 @@ class TestGetServerFeatures:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_get_server_features"]()
-        parsed = json.loads(result)
-        assert parsed["supports_preview_metadata"] is True
+        assert result["supports_preview_metadata"] is True
 
 
 class TestListModelFolders:
@@ -138,9 +131,8 @@ class TestListModelFolders:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_list_model_folders"]()
-        parsed = json.loads(result)
-        assert "checkpoints" in parsed
-        assert "loras" in parsed
+        assert "checkpoints" in result
+        assert "loras" in result
 
 
 class TestGetModelMetadata:
@@ -154,8 +146,7 @@ class TestGetModelMetadata:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_get_model_metadata"]("checkpoints", "model.safetensors")
-        parsed = json.loads(result)
-        assert parsed["filename"] == "model.safetensors"
+        assert result["filename"] == "model.safetensors"
 
     async def test_get_model_metadata_traversal_in_folder_blocked(self, components):
         client, audit, limiter, sanitizer = components
@@ -211,11 +202,10 @@ class TestAuditDangerousNodes:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer, auditor)
 
         result = await tools["comfyui_audit_dangerous_nodes"]()
-        parsed = json.loads(result)
 
-        assert parsed["total_nodes"] == 4
-        assert parsed["dangerous"]["count"] >= 1
-        assert "RunPython" in [n["class"] for n in parsed["dangerous"]["nodes"]]
+        assert result["total_nodes"] == 4
+        assert result["dangerous"]["count"] >= 1
+        assert "RunPython" in [n["class"] for n in result["dangerous"]["nodes"]]
 
     @respx.mock
     async def test_audit_dangerous_nodes_without_auditor(self, components):
@@ -233,11 +223,10 @@ class TestAuditDangerousNodes:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_audit_dangerous_nodes"]()
-        parsed = json.loads(result)
 
-        assert parsed["total_nodes"] == 2
-        assert "dangerous" in parsed
-        assert "suspicious" in parsed
+        assert result["total_nodes"] == 2
+        assert "dangerous" in result
+        assert "suspicious" in result
 
 
 _SYSTEM_STATS_RESPONSE = {
@@ -280,7 +269,7 @@ class TestGetSystemInfo:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = json.loads(await tools["comfyui_get_system_info"]())
+        result = await tools["comfyui_get_system_info"]()
 
         assert result["comfyui_version"] == "0.3.10"
         assert len(result["devices"]) == 1
@@ -306,10 +295,11 @@ class TestGetSystemInfo:
         result = await tools["comfyui_get_system_info"]()
 
         # Sensitive fields must not appear at any level
-        assert "hostname" not in result
-        assert "python_version" not in result
-        assert "myserver" not in result
-        assert "3.12.0" not in result
+        result_str = str(result)
+        assert "hostname" not in result_str
+        assert "python_version" not in result_str
+        assert "myserver" not in result_str
+        assert "3.12.0" not in result_str
 
     @respx.mock
     async def test_handles_missing_devices(self, components):
@@ -323,7 +313,7 @@ class TestGetSystemInfo:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = json.loads(await tools["comfyui_get_system_info"]())
+        result = await tools["comfyui_get_system_info"]()
 
         assert result["devices"] == []
         assert result["comfyui_version"] == "0.3.10"
@@ -350,7 +340,7 @@ class TestModelPresetsAndGuides:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = json.loads(await tools["comfyui_get_model_presets"](model_family="flux"))
+        result = await tools["comfyui_get_model_presets"](model_family="flux")
 
         assert result["family"] == "flux"
         assert result["recommended"]["sampler"] == "euler"
@@ -361,9 +351,7 @@ class TestModelPresetsAndGuides:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = json.loads(
-            await tools["comfyui_get_model_presets"](model_name="flux1-dev-fp8.safetensors")
-        )
+        result = await tools["comfyui_get_model_presets"](model_name="flux1-dev-fp8.safetensors")
 
         assert result["family"] == "flux"
 
@@ -380,7 +368,7 @@ class TestModelPresetsAndGuides:
         mcp = FastMCP("test")
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
-        result = json.loads(await tools["comfyui_get_prompting_guide"]("sdxl"))
+        result = await tools["comfyui_get_prompting_guide"]("sdxl")
 
         assert result["family"] == "sdxl"
         assert "prompt_structure" in result["guide"]

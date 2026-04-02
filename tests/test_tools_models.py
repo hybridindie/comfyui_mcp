@@ -1,5 +1,3 @@
-import json
-
 import httpx
 import pytest
 import respx
@@ -97,13 +95,12 @@ class TestSearchModels:
         result = await registered_tools["comfyui_search_models"](
             query="epic realism", source="civitai"
         )
-        parsed = json.loads(result)
-        assert len(parsed["items"]) == 1
-        assert parsed["items"][0]["name"] == "Epic Realism"
-        assert parsed["query"] == "epic realism"
-        assert parsed["source"] == "civitai"
-        assert parsed["total"] == 1
-        assert parsed["has_more"] is False
+        assert len(result["items"]) == 1
+        assert result["items"][0]["name"] == "Epic Realism"
+        assert result["query"] == "epic realism"
+        assert result["source"] == "civitai"
+        assert result["total"] == 1
+        assert result["has_more"] is False
 
     @respx.mock
     async def test_search_huggingface(self, registered_tools):
@@ -135,11 +132,10 @@ class TestSearchModels:
             )
         )
         result = await registered_tools["comfyui_search_models"](query="sdxl", source="huggingface")
-        parsed = json.loads(result)
-        assert len(parsed["items"]) == 1
-        assert parsed["items"][0]["name"] == "stabilityai/sdxl"
-        assert parsed["query"] == "sdxl"
-        assert parsed["source"] == "huggingface"
+        assert len(result["items"]) == 1
+        assert result["items"][0]["name"] == "stabilityai/sdxl"
+        assert result["query"] == "sdxl"
+        assert result["source"] == "huggingface"
 
     @respx.mock
     async def test_search_invalid_source(self, registered_tools):
@@ -231,12 +227,11 @@ class TestSearchModelsInputValidation:
         result = await registered_tools["comfyui_search_models"](
             query="test", source="civitai", limit=0, offset=2
         )
-        parsed = json.loads(result)
-        assert parsed["offset"] == 2
-        assert parsed["limit"] == 5
-        assert len(parsed["items"]) == 5
-        assert parsed["total"] == 8
-        assert parsed["has_more"] is True
+        assert result["offset"] == 2
+        assert result["limit"] == 5
+        assert len(result["items"]) == 5
+        assert result["total"] == 8
+        assert result["has_more"] is True
 
 
 class TestDownloadModel:
@@ -263,8 +258,7 @@ class TestDownloadModel:
             folder="checkpoints",
             filename="epicrealism.safetensors",
         )
-        parsed = json.loads(result)
-        assert parsed["taskId"] == "t-1"
+        assert result["taskId"] == "t-1"
 
     @respx.mock
     async def test_download_blocked_domain(self, registered_tools):
@@ -368,8 +362,7 @@ class TestGetDownloadTasks:
             )
         )
         result = await registered_tools["comfyui_get_download_tasks"]()
-        parsed = json.loads(result)
-        assert len(parsed["tasks"]) == 1
+        assert len(result["tasks"]) == 1
 
 
 class TestCancelDownload:
@@ -382,10 +375,9 @@ class TestCancelDownload:
             return_value=httpx.Response(200, json={"success": True})
         )
         result = await registered_tools["comfyui_cancel_download"](task_id="task-1")
-        parsed = json.loads(result)
-        assert parsed["success"] is True
-        assert parsed["task_id"] == "task-1"
-        assert parsed["result"] == {"success": True}
+        assert result["success"] is True
+        assert result["task_id"] == "task-1"
+        assert result["result"] == {"success": True}
 
 
 class TestHuggingFaceConcurrency:
@@ -411,8 +403,7 @@ class TestHuggingFaceConcurrency:
         result = await registered_tools["comfyui_search_models"](
             query="test", source="huggingface", limit=3
         )
-        parsed = json.loads(result)
-        assert len(parsed["items"]) == 3
+        assert len(result["items"]) == 3
         # 1 search + 3 detail calls
         assert respx.calls.call_count >= 4
 

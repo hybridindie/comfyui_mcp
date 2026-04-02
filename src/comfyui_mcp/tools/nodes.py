@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 from typing import Any
 
@@ -186,7 +185,7 @@ def register_node_tools(
         query: str,
         limit: int = 10,
         offset: int = 0,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Search installed custom node packs by name, description, or author.
 
         Args:
@@ -259,7 +258,7 @@ def register_node_tools(
 
         result = paginate(results, offset, limit, default_limit=10, max_limit=25)
         result["query"] = query
-        return json.dumps(result)
+        return result
 
     tool_fns["comfyui_search_custom_nodes"] = comfyui_search_custom_nodes
 
@@ -440,7 +439,7 @@ def register_node_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_custom_node_status() -> str:
+    async def comfyui_get_custom_node_status() -> dict[str, Any]:
         """Check the custom node operation queue status.
 
         Returns:
@@ -460,7 +459,7 @@ def register_node_tools(
             extra={"status": status},
         )
 
-        return json.dumps(status)
+        return status
 
     tool_fns["comfyui_get_custom_node_status"] = comfyui_get_custom_node_status
 

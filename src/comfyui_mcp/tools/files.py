@@ -204,7 +204,7 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_outputs(limit: int = 25, offset: int = 0) -> str:
+    async def comfyui_list_outputs(limit: int = 25, offset: int = 0) -> dict[str, Any]:
         """List output files from ComfyUI's execution history.
 
         Args:
@@ -233,7 +233,7 @@ def register_file_tools(
                                     seen.add(key)
                                     results.append({"filename": fn, "subfolder": sf})
         results.sort(key=lambda item: (item["subfolder"], item["filename"]))
-        return json.dumps(paginate(results, offset, limit, default_limit=25, max_limit=100))
+        return paginate(results, offset, limit, default_limit=25, max_limit=100)
 
     tool_fns["comfyui_list_outputs"] = comfyui_list_outputs
 
@@ -277,7 +277,7 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_workflow_from_image(filename: str, subfolder: str = "") -> str:
+    async def comfyui_get_workflow_from_image(filename: str, subfolder: str = "") -> dict[str, Any]:
         """Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG.
 
         ComfyUI embeds the full workflow JSON and prompt data in PNG text chunks.
@@ -343,7 +343,7 @@ def register_file_tools(
             },
         )
 
-        return json.dumps({"workflow": workflow, "prompt": prompt, "message": message})
+        return {"workflow": workflow, "prompt": prompt, "message": message}
 
     tool_fns["comfyui_get_workflow_from_image"] = comfyui_get_workflow_from_image
 

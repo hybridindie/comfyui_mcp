@@ -50,8 +50,7 @@ class TestCreateWorkflow:
         mcp = FastMCP("test")
         tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
         result = await tools["comfyui_create_workflow"](template="txt2img")
-        wf = json.loads(result)
-        class_types = {v["class_type"] for v in wf.values()}
+        class_types = {v["class_type"] for v in result.values()}
         assert "KSampler" in class_types
         assert "CheckpointLoaderSimple" in class_types
 
@@ -61,8 +60,7 @@ class TestCreateWorkflow:
         tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
         params = json.dumps({"prompt": "a dog", "steps": 30})
         result = await tools["comfyui_create_workflow"](template="txt2img", params=params)
-        wf = json.loads(result)
-        sampler = next(v for v in wf.values() if v["class_type"] == "KSampler")
+        sampler = next(v for v in result.values() if v["class_type"] == "KSampler")
         assert sampler["inputs"]["steps"] == 30
 
     async def test_creates_expanded_template(self, components):
@@ -71,10 +69,11 @@ class TestCreateWorkflow:
         tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
         params = json.dumps({"control_strength": 0.8})
         result = await tools["comfyui_create_workflow"](template="controlnet_canny", params=params)
-        wf = json.loads(result)
-        class_types = {v["class_type"] for v in wf.values()}
+        class_types = {v["class_type"] for v in result.values()}
         assert "ControlNetApplyAdvanced" in class_types
-        control_apply = next(v for v in wf.values() if v["class_type"] == "ControlNetApplyAdvanced")
+        control_apply = next(
+            v for v in result.values() if v["class_type"] == "ControlNetApplyAdvanced"
+        )
         assert control_apply["inputs"]["strength"] == 0.8
 
     async def test_invalid_template_raises(self, components):
@@ -110,8 +109,7 @@ class TestModifyWorkflow:
         wf = json.dumps({"1": {"class_type": "KSampler", "inputs": {}}})
         ops = json.dumps([{"op": "add_node", "class_type": "SaveImage"}])
         result = await tools["comfyui_modify_workflow"](workflow=wf, operations=ops)
-        modified = json.loads(result)
-        assert "2" in modified
+        assert "2" in result
 
     async def test_invalid_workflow_json_raises(self, components):
         client, audit, limiter, inspector, sanitizer = components
@@ -146,8 +144,7 @@ class TestValidateWorkflow:
         tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
         wf = json.dumps({"1": {"class_type": "KSampler", "inputs": {}}})
         result = await tools["comfyui_validate_workflow"](workflow=wf)
-        parsed = json.loads(result)
-        assert parsed["valid"] is True
+        assert result["valid"] is True
 
     async def test_invalid_json_raises(self, components):
         client, audit, limiter, inspector, sanitizer = components
@@ -169,7 +166,6 @@ class TestIntegration:
         created = await tools["comfyui_create_workflow"](
             template="txt2img", params=json.dumps({"prompt": "a cat"})
         )
-        wf = json.loads(created)
 
         # Modify — add a LoRA loader
         ops = json.dumps(
@@ -182,11 +178,11 @@ class TestIntegration:
                 },
             ]
         )
-        modified = await tools["comfyui_modify_workflow"](workflow=json.dumps(wf), operations=ops)
-        mod_wf = json.loads(modified)
-        assert "20" in mod_wf
+        modified = await tools["comfyui_modify_workflow"](
+            workflow=json.dumps(created), operations=ops
+        )
+        assert "20" in modified
 
         # Validate
-        validated = await tools["comfyui_validate_workflow"](workflow=modified)
-        result = json.loads(validated)
-        assert result["node_count"] == len(mod_wf)
+        validated = await tools["comfyui_validate_workflow"](workflow=json.dumps(modified))
+        assert validated["node_count"] == len(modified)
