@@ -200,7 +200,11 @@ class TestComfyUIClient:
                 200, json={"name": "mask.png", "subfolder": "", "type": "input"}
             )
         )
-        result = await client.upload_mask(b"fake-mask-data", "mask.png")
+        result = await client.upload_mask(
+            b"fake-mask-data",
+            "mask.png",
+            {"filename": "original.png", "type": "input"},
+        )
         assert result["name"] == "mask.png"
 
     @respx.mock

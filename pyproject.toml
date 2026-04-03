@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-mcp-secure"
-version = "1.0.0"
+version = "1.0.1"
 description = "Secure MCP server for ComfyUI with workflow inspection and audit logging"
 readme = "README.md"
 license = { file = "LICENSE" }

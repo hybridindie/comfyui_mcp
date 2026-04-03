@@ -505,7 +505,9 @@ class TestUploadMask:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"fake-mask-data").decode()
-        result = await tools["comfyui_upload_mask"](filename="mask.png", mask_data=mask_b64)
+        result = await tools["comfyui_upload_mask"](
+            filename="mask.png", mask_data=mask_b64, original_image="photo.png"
+        )
         assert "mask.png" in result
 
     @respx.mock
@@ -515,7 +517,11 @@ class TestUploadMask:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"data").decode()
         with pytest.raises(PathValidationError, match="traversal"):
-            await tools["comfyui_upload_mask"](filename="../../etc/passwd.png", mask_data=mask_b64)
+            await tools["comfyui_upload_mask"](
+                filename="../../etc/passwd.png",
+                mask_data=mask_b64,
+                original_image="photo.png",
+            )
 
     @respx.mock
     async def test_upload_mask_bad_extension_blocked(self, components):
@@ -524,7 +530,9 @@ class TestUploadMask:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"data").decode()
         with pytest.raises(PathValidationError, match="extension"):
-            await tools["comfyui_upload_mask"](filename="evil.py", mask_data=mask_b64)
+            await tools["comfyui_upload_mask"](
+                filename="evil.py", mask_data=mask_b64, original_image="photo.png"
+            )
 
     @respx.mock
     async def test_upload_mask_with_subfolder(self, components):
@@ -538,7 +546,10 @@ class TestUploadMask:
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"fake-mask-data").decode()
         result = await tools["comfyui_upload_mask"](
-            filename="mask.png", mask_data=mask_b64, subfolder="masks"
+            filename="mask.png",
+            mask_data=mask_b64,
+            original_image="photo.png",
+            subfolder="masks",
         )
         assert "mask.png" in result
 
@@ -553,6 +564,8 @@ class TestUploadMask:
         mcp = FastMCP("test")
         tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
         mask_b64 = base64.b64encode(b"data").decode()
-        await tools["comfyui_upload_mask"](filename="m.png", mask_data=mask_b64)
+        await tools["comfyui_upload_mask"](
+            filename="m.png", mask_data=mask_b64, original_image="photo.png"
+        )
         content = audit._audit_file.read_text()
         assert "upload_mask" in content

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import time
 import uuid
@@ -260,9 +261,15 @@ class ComfyUIClient:
             data["clear"].append("pending")
         await self._request("post", "/queue", json=data)
 
-    async def upload_mask(self, data: bytes, filename: str, subfolder: str = "") -> dict:
-        files = {"mask": (filename, data, "image/png")}
-        form_data: dict[str, str] = {}
+    async def upload_mask(
+        self,
+        data: bytes,
+        filename: str,
+        original_ref: dict[str, str],
+        subfolder: str = "",
+    ) -> dict:
+        files = {"image": (filename, data, "image/png")}
+        form_data: dict[str, str] = {"original_ref": json.dumps(original_ref)}
         if subfolder:
             form_data["subfolder"] = subfolder
         r = await self._request("post", "/upload/mask", files=files, data=form_data)

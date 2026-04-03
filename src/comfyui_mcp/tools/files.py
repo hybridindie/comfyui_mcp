@@ -245,25 +245,49 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_upload_mask(filename: str, mask_data: str, subfolder: str = "") -> str:
+    async def comfyui_upload_mask(
+        filename: str,
+        mask_data: str,
+        original_image: str,
+        subfolder: str = "",
+        original_subfolder: str = "",
+    ) -> str:
         """Upload a mask image to ComfyUI's input directory.
+
+        The mask's alpha channel is merged into the original image's alpha channel
+        by the ComfyUI server. The original image must already exist in ComfyUI.
 
         Args:
             filename: Name for the uploaded mask file (e.g. 'mask.png')
             mask_data: Base64-encoded mask image data
-            subfolder: Optional subfolder within ComfyUI's input directory
+            original_image: Filename of the original image the mask applies to
+                (must already exist in ComfyUI's input directory)
+            subfolder: Optional subfolder for the mask file
+            original_subfolder: Optional subfolder of the original image
         """
         limiter.check("upload_mask")
         clean_name = sanitizer.validate_filename(filename)
+        clean_original = sanitizer.validate_filename(original_image)
         clean_subfolder = sanitizer.validate_subfolder(subfolder)
+        clean_original_subfolder = sanitizer.validate_subfolder(original_subfolder)
         raw = base64.b64decode(mask_data)
         sanitizer.validate_size(len(raw))
+        original_ref: dict[str, str] = {
+            "filename": clean_original,
+            "type": "input",
+        }
+        if clean_original_subfolder:
+            original_ref["subfolder"] = clean_original_subfolder
         await audit.async_log(
             tool="upload_mask",
             action="uploading",
-            extra={"filename": clean_name, "size_bytes": len(raw)},
+            extra={
+                "filename": clean_name,
+                "original_image": clean_original,
+                "size_bytes": len(raw),
+            },
         )
-        result = await client.upload_mask(raw, clean_name, clean_subfolder)
+        result = await client.upload_mask(raw, clean_name, original_ref, clean_subfolder)
         await audit.async_log(tool="upload_mask", action="uploaded", extra={"result": result})
         return f"Uploaded mask {result.get('name', clean_name)} to ComfyUI input directory"
 
