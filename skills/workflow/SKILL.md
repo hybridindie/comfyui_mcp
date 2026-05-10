@@ -8,7 +8,7 @@ Create and optionally run a ComfyUI workflow. Template or description: "$ARGUMEN
 
 ## Steps
 
-1. **List available templates.** If no specific template was requested, call `comfyui_list_workflows` to show the available built-in templates (txt2img, img2img, etc.) and let the user choose.
+1. **Pick a template.** If no specific template was requested, choose from the built-in template names accepted by `comfyui_create_workflow`: `txt2img`, `img2img`, `upscale`, `inpaint`, `txt2vid_animatediff`, `txt2vid_wan`, `controlnet_canny`, `controlnet_depth`, `controlnet_openpose`, `ip_adapter`, `lora_stack`, `face_restore`, `flux_txt2img`, `sdxl_txt2img`. The full list is also in `comfyui_create_workflow`'s docstring. (Note: `comfyui_list_workflows` returns server-side `/workflow_templates` from front-end packages — *not* these MCP-built-in templates.)
 
 2. **Create the workflow.** Call `comfyui_create_workflow` with the chosen template name and any parameters the user specified (as a JSON string). For example:
    ```
