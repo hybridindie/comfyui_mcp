@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import json
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -550,24 +550,37 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_summarize_workflow(workflow: str, format: str = "text") -> str:  # noqa: A002
+    async def comfyui_summarize_workflow(
+        workflow: Annotated[
+            str,
+            Field(
+                description="JSON string of a ComfyUI workflow (API format). "
+                "Each top-level key is a node ID, each value has 'class_type' and 'inputs'.",
+            ),
+        ],
+        output_format: Annotated[
+            Literal["text", "mermaid"],
+            Field(
+                default="text",
+                description="Output format: 'text' (human-readable summary) or "
+                "'mermaid' (Mermaid flowchart markup).",
+            ),
+        ] = "text",
+    ) -> str:
         """Summarize a ComfyUI workflow's structure, data flow, and key parameters.
 
         Parses the workflow graph, extracts models, parameters, and execution flow.
         Enriches with display names from the ComfyUI server when available.
-
-        Args:
-            workflow: JSON string of a ComfyUI workflow (API format).
-                      Each key is a node ID, each value has 'class_type' and 'inputs'.
-            format: Output format. "text" for human-readable summary (default),
-                    "mermaid" for Mermaid flowchart markup.
         """
         summary_limiter = read_limiter if read_limiter is not None else limiter
         summary_limiter.check("summarize_workflow")
 
-        output_format = format.lower().strip()
-        if output_format not in {"text", "mermaid"}:
-            raise ValueError('format must be either "text" or "mermaid"')
+        # Defense-in-depth: pydantic enforces Literal at the FastMCP boundary,
+        # but direct Python callers (including tests) bypass that. Keep the
+        # runtime check.
+        normalized_format = output_format.lower().strip() if isinstance(output_format, str) else ""
+        if normalized_format not in {"text", "mermaid"}:
+            raise ValueError('output_format must be either "text" or "mermaid"')
 
         try:
             wf = json.loads(workflow)
@@ -589,10 +602,10 @@ def register_generation_tools(
             extra={
                 "node_count": analysis["node_count"],
                 "pipeline": analysis["pipeline"],
-                "format": output_format,
+                "output_format": normalized_format,
             },
         )
-        if output_format == "mermaid":
+        if normalized_format == "mermaid":
             return _format_mermaid(analysis)
         return _format_summary(analysis)
 
