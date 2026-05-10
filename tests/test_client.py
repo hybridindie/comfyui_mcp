@@ -206,6 +206,49 @@ class TestComfyUIClient:
         assert request.url.params["type"] == "output"
 
     @respx.mock
+    async def test_get_image_preview_webp(self, client):
+        route = respx.get("http://test-comfyui:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"fake-webp-bytes",
+                headers={"content-type": "image/webp"},
+            )
+        )
+        data, content_type = await client.get_image("out.png", preview="webp;90")
+        assert data == b"fake-webp-bytes"
+        assert content_type == "image/webp"
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["filename"] == "out.png"
+        assert params["preview"] == "webp;90"
+        assert params["type"] == "output"
+
+    @respx.mock
+    async def test_get_image_preview_jpeg(self, client):
+        route = respx.get("http://test-comfyui:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"fake-jpeg-bytes",
+                headers={"content-type": "image/jpeg"},
+            )
+        )
+        await client.get_image("out.png", preview="jpeg;75")
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["preview"] == "jpeg;75"
+
+    @respx.mock
+    async def test_get_image_without_preview_omits_param(self, client):
+        route = respx.get("http://test-comfyui:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"png-bytes",
+                headers={"content-type": "image/png"},
+            )
+        )
+        await client.get_image("out.png")
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert "preview" not in params
+
+    @respx.mock
     async def test_delete_queue_item(self, client):
         respx.post("http://test-comfyui:8188/queue").mock(return_value=httpx.Response(200, json={}))
         await client.delete_queue_item("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")

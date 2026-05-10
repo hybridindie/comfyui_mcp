@@ -249,13 +249,26 @@ class ComfyUIClient:
         self,
         filename: str,
         subfolder: str = "",
+        *,
+        preview: str | None = None,
     ) -> tuple[bytes, str]:
-        """GET /view — download an output image by filename and subfolder."""
-        r = await self._request(
-            "get",
-            "/view",
-            params={"filename": filename, "subfolder": subfolder, "type": "output"},
-        )
+        """GET /view — download an output image by filename and subfolder.
+
+        Args:
+            filename: Image filename in ComfyUI's output dir.
+            subfolder: Subfolder within ComfyUI's output dir.
+            preview: Optional thumbnail spec passed to ComfyUI as ``preview=<spec>``.
+                Format ``<format>;<quality>`` where format is ``webp`` or ``jpeg``
+                and quality is 1-100. ComfyUI re-encodes the image server-side.
+        """
+        params: dict[str, str] = {
+            "filename": filename,
+            "subfolder": subfolder,
+            "type": "output",
+        }
+        if preview is not None:
+            params["preview"] = preview
+        r = await self._request("get", "/view", params=params)
         content_type = r.headers.get("content-type", "image/png")
         return r.content, content_type
 
