@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -218,8 +219,24 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_node_info(node_class: str) -> dict[str, Any]:
-        """Get detailed information about a specific node type."""
+    async def comfyui_get_node_info(
+        node_class: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=200,
+                description="Node class name (e.g. 'KSampler', 'CLIPTextEncode'). "
+                "Use comfyui_list_nodes to discover available class names.",
+            ),
+        ],
+    ) -> dict[str, Any]:
+        """Get the input/output schema and metadata for a single ComfyUI node type.
+
+        Returns a dict with keys: input, input_order, is_input_list, output,
+        output_is_list, output_name, name, display_name, description, python_module,
+        category, output_node, search_aliases, plus optional flags like deprecated,
+        experimental, and api_node when set on the node.
+        """
         limiter.check("get_node_info")
         await audit.async_log(
             tool="get_node_info", action="called", extra={"node_class": node_class}
@@ -296,7 +313,13 @@ def register_discovery_tools(
         )
     )
     async def comfyui_get_server_features() -> dict[str, Any]:
-        """Get ComfyUI server features and capabilities."""
+        """Get the feature flags advertised by the ComfyUI server.
+
+        Returns the raw ``/features`` response — typically a dict of
+        {feature_name: bool}. Useful for capability-based branching, e.g.
+        checking ``supports_preview_metadata`` before requesting preview-format
+        images via ``comfyui_get_image``.
+        """
         limiter.check("get_server_features")
         await audit.async_log(tool="get_server_features", action="called")
         return await client.get_features()

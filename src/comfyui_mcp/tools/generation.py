@@ -435,6 +435,9 @@ def register_generation_tools(
     async def comfyui_run_workflow(workflow: str, wait: bool = False) -> str:
         """Submit an arbitrary ComfyUI workflow for execution.
 
+        See also: comfyui_run_workflow_stream for a streaming variant that emits
+        per-node progress events while the workflow executes.
+
         Args:
             workflow: JSON string of a ComfyUI workflow (API format).
                       Each key is a node ID, each value has 'class_type' and 'inputs'.
@@ -475,6 +478,12 @@ def register_generation_tools(
         execution updates (for example, `progress`, `executing`, `executed`).
         Events are filtered by `prompt_id` when that field is present in the
         websocket payload.
+
+        See also: comfyui_run_workflow for a non-streaming variant. Use this
+        streaming version when you need real-time per-node progress events
+        (intended for tooling that surfaces progress to a user); use the
+        non-streaming variant for fire-and-forget submission or when you only
+        need the final result.
 
         Args:
             workflow: JSON string of a ComfyUI workflow (API format).
