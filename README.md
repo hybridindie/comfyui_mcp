@@ -229,9 +229,10 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | Tool | Description |
 |------|-------------|
 | `comfyui_get_queue` | Get current execution queue state. |
-| `comfyui_get_job` | Check status of a job by prompt_id. |
+| `comfyui_list_jobs` | List jobs across queue + history with status filter, sorting, and pagination. |
+| `comfyui_get_job` | Look up a single job (queued/running/finished) by prompt_id. |
 | `comfyui_cancel_job` | Cancel a running or queued job. |
-| `comfyui_interrupt` | Interrupt the currently executing workflow. |
+| `comfyui_interrupt` | Interrupt the running workflow (global, or targeted via optional prompt_id). |
 | `comfyui_get_queue_status` | Get detailed queue status including running and pending prompts. |
 | `comfyui_clear_queue` | Clear pending and/or running items from the queue. |
 | `comfyui_get_progress` | Get execution progress for a workflow by prompt_id. Returns status, queue position, and outputs. |
