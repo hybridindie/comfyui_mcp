@@ -30,11 +30,11 @@ _RESTART_SETTLE_DELAY = 5
 def _validate_node_id(node_id: str) -> str:
     """Validate a node pack ID."""
     if not node_id:
-        raise ValueError("id must not be empty")
+        raise ValueError("node_id must not be empty")
     if len(node_id) > 200:
-        raise ValueError("id must not exceed 200 characters")
+        raise ValueError("node_id must not exceed 200 characters")
     if _CONTROL_CHAR_RE.search(node_id):
-        raise ValueError(f"id contains invalid characters: {node_id!r}")
+        raise ValueError(f"node_id contains invalid characters: {node_id!r}")
     return node_id
 
 
