@@ -16,6 +16,9 @@ _IDEMPOTENT_HTTP_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE"})
 _RETRYABLE_STATUS_CODES = frozenset({502, 503, 504})
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 _SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+_VALID_JOB_STATUSES = frozenset({"pending", "in_progress", "completed", "failed"})
+_VALID_JOB_SORT_BY = frozenset({"created_at", "execution_duration"})
+_VALID_JOB_SORT_ORDER = frozenset({"asc", "desc"})
 
 
 def _validate_prompt_id(prompt_id: str) -> str:
@@ -166,8 +169,69 @@ class ComfyUIClient:
         r = await self._request("get", f"/history/{prompt_id}")
         return r.json()
 
-    async def interrupt(self) -> None:
-        await self._request("post", "/interrupt")
+    async def get_job(self, job_id: str) -> dict:
+        """GET /api/jobs/{job_id} — unified job lookup across queue + history."""
+        _validate_prompt_id(job_id)
+        r = await self._request("get", f"/api/jobs/{job_id}")
+        return r.json()
+
+    async def get_jobs(
+        self,
+        *,
+        status: list[str] | None = None,
+        workflow_id: str | None = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> dict:
+        """GET /api/jobs — unified, paginated, filterable job list."""
+        if status is not None:
+            invalid = [s for s in status if s not in _VALID_JOB_STATUSES]
+            if invalid:
+                raise ValueError(
+                    f"Invalid status value(s): {invalid}. Valid: {sorted(_VALID_JOB_STATUSES)}"
+                )
+        if sort_by not in _VALID_JOB_SORT_BY:
+            raise ValueError(
+                f"sort_by must be one of {sorted(_VALID_JOB_SORT_BY)}, got {sort_by!r}"
+            )
+        if sort_order not in _VALID_JOB_SORT_ORDER:
+            raise ValueError(
+                f"sort_order must be one of {sorted(_VALID_JOB_SORT_ORDER)}, got {sort_order!r}"
+            )
+        if limit is not None and limit <= 0:
+            raise ValueError("limit must be a positive integer")
+        if offset < 0:
+            raise ValueError("offset must be >= 0")
+
+        params: dict[str, str] = {
+            "sort_by": sort_by,
+            "sort_order": sort_order,
+            "offset": str(offset),
+        }
+        if status:
+            params["status"] = ",".join(status)
+        if workflow_id:
+            params["workflow_id"] = workflow_id
+        if limit is not None:
+            params["limit"] = str(limit)
+
+        r = await self._request("get", "/api/jobs", params=params)
+        return r.json()
+
+    async def interrupt(self, prompt_id: str | None = None) -> None:
+        """POST /interrupt — global interrupt, or targeted if prompt_id is given.
+
+        Without prompt_id, interrupts whatever is currently executing.
+        With prompt_id, ComfyUI only interrupts if that prompt is the running one;
+        otherwise the call is a no-op (server returns 200 either way).
+        """
+        if prompt_id is not None:
+            _validate_prompt_id(prompt_id)
+            await self._request("post", "/interrupt", json={"prompt_id": prompt_id})
+        else:
+            await self._request("post", "/interrupt")
 
     async def delete_queue_item(self, prompt_id: str) -> None:
         _validate_prompt_id(prompt_id)

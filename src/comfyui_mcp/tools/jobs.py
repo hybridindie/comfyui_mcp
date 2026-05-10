@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -51,13 +52,92 @@ def register_job_tools(
         )
     )
     async def comfyui_get_job(prompt_id: str) -> dict[str, Any]:
-        """Check the status of a specific job by its prompt_id."""
+        """Look up a single job by prompt_id across queue + history.
+
+        Returns a flat unified job object with top-level keys: prompt_id, status
+        (pending/in_progress/completed/failed), timing fields (created_at,
+        started_at, completed_at, execution_duration), outputs (when completed),
+        and error (when failed). Use this to check on a job that may be queued,
+        running, or already finished.
+
+        Note: this replaces the previous /history/{prompt_id} envelope shape
+        (`{prompt_id: {...}}`); callers should index fields directly on the
+        returned object.
+        """
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_job")
         await audit.async_log(tool="get_job", action="called", extra={"prompt_id": prompt_id})
-        return await client.get_history_item(prompt_id)
+        return await client.get_job(prompt_id)
 
     tool_fns["comfyui_get_job"] = comfyui_get_job
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
+    async def comfyui_list_jobs(
+        status: Annotated[
+            list[Literal["pending", "in_progress", "completed", "failed"]] | None,
+            Field(
+                default=None,
+                description="Filter by job status (any combination).",
+            ),
+        ] = None,
+        workflow_id: Annotated[
+            str | None,
+            Field(default=None, description="Filter by workflow ID set in extra_data."),
+        ] = None,
+        sort_by: Annotated[
+            Literal["created_at", "execution_duration"],
+            Field(default="created_at", description="Sort field."),
+        ] = "created_at",
+        sort_order: Annotated[
+            Literal["asc", "desc"],
+            Field(default="desc", description="Sort direction."),
+        ] = "desc",
+        limit: Annotated[
+            int | None,
+            Field(default=None, ge=1, le=1000, description="Max jobs to return."),
+        ] = None,
+        offset: Annotated[
+            int,
+            Field(default=0, ge=0, description="Jobs to skip for pagination."),
+        ] = 0,
+    ) -> dict[str, Any]:
+        """List jobs across queue and history with filtering, sorting, and pagination.
+
+        Returns {"jobs": [...], "pagination": {"offset", "limit", "total", "has_more"}}.
+        Each job includes prompt_id, status (pending/in_progress/completed/failed),
+        timing, and outputs (when completed).
+        """
+        rl = read_limiter if read_limiter is not None else limiter
+        rl.check("list_jobs")
+        await audit.async_log(
+            tool="list_jobs",
+            action="called",
+            extra={
+                "status": status,
+                "workflow_id": workflow_id,
+                "sort_by": sort_by,
+                "sort_order": sort_order,
+                "limit": limit,
+                "offset": offset,
+            },
+        )
+        return await client.get_jobs(
+            status=list(status) if status is not None else None,
+            workflow_id=workflow_id,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            limit=limit,
+            offset=offset,
+        )
+
+    tool_fns["comfyui_list_jobs"] = comfyui_list_jobs
 
     @mcp.tool(
         annotations=ToolAnnotations(
@@ -84,12 +164,20 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_interrupt() -> str:
-        """Interrupt the currently executing workflow."""
+    async def comfyui_interrupt(prompt_id: str | None = None) -> str:
+        """Interrupt the currently executing workflow.
+
+        Without prompt_id: global interrupt — stops whatever is running now.
+        With prompt_id: targeted — only interrupts if that prompt is the
+        running one. ComfyUI silently no-ops if prompt_id is queued but
+        not yet running.
+        """
         limiter.check("interrupt")
-        await audit.async_log(tool="interrupt", action="called")
-        await client.interrupt()
-        return "Interrupted current execution"
+        await audit.async_log(tool="interrupt", action="called", extra={"prompt_id": prompt_id})
+        await client.interrupt(prompt_id=prompt_id)
+        if prompt_id is None:
+            return "Interrupted current execution (global)"
+        return f"Requested interrupt for prompt {prompt_id} (no-op if not running)"
 
     tool_fns["comfyui_interrupt"] = comfyui_interrupt
 

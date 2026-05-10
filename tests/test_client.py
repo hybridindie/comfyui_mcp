@@ -56,6 +56,92 @@ class TestComfyUIClient:
         assert "abc" in result
 
     @respx.mock
+    async def test_get_job_returns_job_object(self, client):
+        job_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        respx.get(f"http://test-comfyui:8188/api/jobs/{job_id}").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "prompt_id": job_id,
+                    "status": "in_progress",
+                    "outputs": {},
+                },
+            )
+        )
+        result = await client.get_job(job_id)
+        assert result["prompt_id"] == job_id
+        assert result["status"] == "in_progress"
+
+    async def test_get_job_rejects_non_uuid(self, client):
+        with pytest.raises(ValueError, match="Invalid prompt_id"):
+            await client.get_job("not-a-uuid")
+
+    @respx.mock
+    async def test_get_jobs_no_params(self, client):
+        respx.get("http://test-comfyui:8188/api/jobs").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "jobs": [],
+                    "pagination": {"offset": 0, "limit": None, "total": 0, "has_more": False},
+                },
+            )
+        )
+        result = await client.get_jobs()
+        assert "jobs" in result
+        assert "pagination" in result
+
+    @respx.mock
+    async def test_get_jobs_passes_filters(self, client):
+        route = respx.get("http://test-comfyui:8188/api/jobs").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "jobs": [],
+                    "pagination": {"offset": 5, "limit": 10, "total": 0, "has_more": False},
+                },
+            )
+        )
+        await client.get_jobs(
+            status=["pending", "in_progress"],
+            workflow_id="wf-123",
+            sort_by="execution_duration",
+            sort_order="asc",
+            limit=10,
+            offset=5,
+        )
+        request = route.calls.last.request
+        params = dict(request.url.params.multi_items())
+        assert params["status"] == "pending,in_progress"
+        assert params["workflow_id"] == "wf-123"
+        assert params["sort_by"] == "execution_duration"
+        assert params["sort_order"] == "asc"
+        assert params["limit"] == "10"
+        assert params["offset"] == "5"
+
+    async def test_get_jobs_rejects_invalid_status(self, client):
+        with pytest.raises(ValueError, match="Invalid status"):
+            await client.get_jobs(status=["bogus"])
+
+    async def test_get_jobs_rejects_invalid_sort_by(self, client):
+        with pytest.raises(ValueError, match="sort_by"):
+            await client.get_jobs(sort_by="random")
+
+    async def test_get_jobs_rejects_invalid_sort_order(self, client):
+        with pytest.raises(ValueError, match="sort_order"):
+            await client.get_jobs(sort_order="sideways")
+
+    async def test_get_jobs_rejects_non_positive_limit(self, client):
+        with pytest.raises(ValueError, match="limit"):
+            await client.get_jobs(limit=0)
+        with pytest.raises(ValueError, match="limit"):
+            await client.get_jobs(limit=-1)
+
+    async def test_get_jobs_rejects_negative_offset(self, client):
+        with pytest.raises(ValueError, match="offset"):
+            await client.get_jobs(offset=-1)
+
+    @respx.mock
     async def test_get_object_info(self, client):
         respx.get("http://test-comfyui:8188/object_info").mock(
             return_value=httpx.Response(200, json={"KSampler": {"input": {}}})
@@ -69,6 +155,31 @@ class TestComfyUIClient:
             return_value=httpx.Response(200, json={})
         )
         await client.interrupt()
+
+    @respx.mock
+    async def test_interrupt_with_prompt_id_sends_body(self, client):
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        route = respx.post("http://test-comfyui:8188/interrupt").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        await client.interrupt(prompt_id=prompt_id)
+        request = route.calls.last.request
+        body = json.loads(request.content)
+        assert body == {"prompt_id": prompt_id}
+
+    @respx.mock
+    async def test_interrupt_without_prompt_id_sends_no_body(self, client):
+        route = respx.post("http://test-comfyui:8188/interrupt").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        await client.interrupt()
+        request = route.calls.last.request
+        # Either no body or empty body — definitely no prompt_id
+        assert request.content in (b"", b"{}", None)
+
+    async def test_interrupt_rejects_non_uuid_prompt_id(self, client):
+        with pytest.raises(ValueError, match="Invalid prompt_id"):
+            await client.interrupt(prompt_id="not-a-uuid")
 
     @respx.mock
     async def test_upload_image(self, client):

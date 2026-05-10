@@ -56,31 +56,106 @@ class TestCancelJob:
 
 class TestInterrupt:
     @respx.mock
-    async def test_interrupt_posts(self, components):
+    async def test_interrupt_global(self, components):
         client, audit, limiter = components
         route = respx.post("http://test:8188/interrupt").mock(
             return_value=httpx.Response(200, json={})
         )
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        await tools["comfyui_interrupt"]()
+        result = await tools["comfyui_interrupt"]()
         assert route.called
+        body = route.calls.last.request.content
+        # No prompt_id sent → no body, or empty
+        assert body in (b"", b"{}", None)
+        assert "current" in result.lower() or "global" in result.lower()
+
+    @respx.mock
+    async def test_interrupt_targeted(self, components):
+        import json as _json
+
+        client, audit, limiter = components
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        route = respx.post("http://test:8188/interrupt").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        mcp = FastMCP("test")
+        tools = register_job_tools(mcp, client, audit, limiter)
+        result = await tools["comfyui_interrupt"](prompt_id=prompt_id)
+        assert route.called
+        body = _json.loads(route.calls.last.request.content)
+        assert body == {"prompt_id": prompt_id}
+        assert prompt_id in result
 
 
 class TestGetJob:
     @respx.mock
-    async def test_get_job_returns_history_item(self, components):
+    async def test_get_job_returns_unified_job_object(self, components):
         client, audit, limiter = components
-        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
             return_value=httpx.Response(
                 200,
-                json={"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {"outputs": {"9": {"images": []}}}},
+                json={
+                    "prompt_id": prompt_id,
+                    "status": "in_progress",
+                    "outputs": {},
+                },
             )
         )
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        result = await tools["comfyui_get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
+        result = await tools["comfyui_get_job"](prompt_id=prompt_id)
+        assert result["prompt_id"] == prompt_id
+        assert result["status"] == "in_progress"
+
+
+class TestListJobs:
+    @respx.mock
+    async def test_list_jobs_default(self, components):
+        client, audit, limiter = components
+        respx.get("http://test:8188/api/jobs").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "jobs": [{"prompt_id": "abc", "status": "completed"}],
+                    "pagination": {"offset": 0, "limit": None, "total": 1, "has_more": False},
+                },
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_job_tools(mcp, client, audit, limiter)
+        result = await tools["comfyui_list_jobs"]()
+        assert "jobs" in result
+        assert "pagination" in result
+        assert result["jobs"][0]["status"] == "completed"
+
+    @respx.mock
+    async def test_list_jobs_passes_filters(self, components):
+        client, audit, limiter = components
+        route = respx.get("http://test:8188/api/jobs").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "jobs": [],
+                    "pagination": {"offset": 0, "limit": 5, "total": 0, "has_more": False},
+                },
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_job_tools(mcp, client, audit, limiter)
+        await tools["comfyui_list_jobs"](
+            status=["pending", "in_progress"],
+            sort_by="execution_duration",
+            sort_order="asc",
+            limit=5,
+            offset=0,
+        )
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["status"] == "pending,in_progress"
+        assert params["sort_by"] == "execution_duration"
+        assert params["sort_order"] == "asc"
+        assert params["limit"] == "5"
 
 
 class TestGetQueueStatus:
