@@ -33,13 +33,16 @@ def register_history_tools(
     async def comfyui_get_history(limit: int = 25, offset: int = 0) -> dict[str, Any]:
         """Browse ComfyUI execution history (read-only).
 
+        Covers up to the 1000 most recent history entries — older entries are
+        unreachable. Pagination operates over that window.
+
         Args:
             limit: Maximum number of results to return (default: 25, max: 100)
             offset: Starting index for pagination (default: 0)
         """
         limiter.check("get_history")
         await audit.async_log(tool="get_history", action="called")
-        raw = await client.get_history(max_items=100)
+        raw = await client.get_history(max_items=1000)
         entries = [{**(v if isinstance(v, dict) else {}), "prompt_id": k} for k, v in raw.items()]
         return paginate(entries, offset, limit, default_limit=25, max_limit=100)
 
