@@ -236,6 +236,73 @@ class TestGetImage:
             await tools["comfyui_get_image"](filename="../../../etc/shadow.png")
 
 
+class TestGetImagePreview:
+    @respx.mock
+    async def test_data_uri_with_webp_preview(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"webp-bytes",
+                headers={"content-type": "image/webp"},
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        result = await tools["comfyui_get_image"](
+            filename="out.png",
+            preview_format="webp",
+            preview_quality=85,
+        )
+        assert result.startswith("data:image/webp;base64,")
+
+    @respx.mock
+    async def test_data_uri_with_jpeg_preview(self, components):
+        client, audit, limiter, sanitizer = components
+        route = respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"jpeg-bytes",
+                headers={"content-type": "image/jpeg"},
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        await tools["comfyui_get_image"](
+            filename="out.png",
+            preview_format="jpeg",
+            preview_quality=50,
+        )
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["preview"] == "jpeg;50"
+
+    async def test_quality_without_format_rejected(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="preview_format"):
+            await tools["comfyui_get_image"](
+                filename="out.png",
+                preview_quality=85,
+            )
+
+    async def test_url_format_ignores_preview(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        # When response_format='url', preview params should be ignored
+        # (the returned /view URL is unchanged; LLMs that want a thumbnail
+        # should use response_format='data_uri').
+        result = await tools["comfyui_get_image"](
+            filename="out.png",
+            response_format="url",
+            preview_format="webp",
+            preview_quality=80,
+        )
+        assert "/view?" in result
+        assert "preview" not in result
+
+
 class TestExtractPngMetadata:
     def test_extracts_text_chunks(self):
         workflow = json.dumps({"1": {"class_type": "KSampler", "inputs": {}}})
