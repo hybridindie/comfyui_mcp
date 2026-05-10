@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
-from comfyui_mcp.pagination import paginate
+from comfyui_mcp.pagination import LimitField, OffsetField, paginate
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
@@ -167,8 +168,8 @@ def register_discovery_tools(
     )
     async def comfyui_list_models(
         folder: str = "checkpoints",
-        limit: int = 25,
-        offset: int = 0,
+        limit: LimitField = 25,
+        offset: OffsetField = 0,
     ) -> dict[str, Any]:
         """List available models in a folder (checkpoints, loras, vae, etc.).
 
@@ -193,7 +194,10 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_nodes(limit: int = 25, offset: int = 0) -> dict[str, Any]:
+    async def comfyui_list_nodes(
+        limit: LimitField = 25,
+        offset: OffsetField = 0,
+    ) -> dict[str, Any]:
         """List all available ComfyUI node types.
 
         Args:
@@ -215,8 +219,24 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_node_info(node_class: str) -> dict[str, Any]:
-        """Get detailed information about a specific node type."""
+    async def comfyui_get_node_info(
+        node_class: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=200,
+                description="Node class name (e.g. 'KSampler', 'CLIPTextEncode'). "
+                "Use comfyui_list_nodes to discover available class names.",
+            ),
+        ],
+    ) -> dict[str, Any]:
+        """Get the input/output schema and metadata for a single ComfyUI node type.
+
+        Returns a dict with keys: input, input_order, is_input_list, output,
+        output_is_list, output_name, name, display_name, description, python_module,
+        category, output_node, search_aliases, plus optional flags like deprecated,
+        experimental, and api_node when set on the node.
+        """
         limiter.check("get_node_info")
         await audit.async_log(
             tool="get_node_info", action="called", extra={"node_class": node_class}
@@ -233,11 +253,29 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_workflows() -> dict[str, Any]:
-        """List available workflow templates."""
+    async def comfyui_list_workflows(
+        limit: LimitField = 25,
+        offset: OffsetField = 0,
+    ) -> dict[str, Any]:
+        """List workflow templates registered on the ComfyUI server (the
+        ``/workflow_templates`` endpoint, populated by installed front-end packages).
+
+        This is distinct from ``comfyui_create_workflow``'s built-in template names
+        (txt2img, img2img, etc.) which are hard-coded in the MCP for graph generation.
+
+        Returns a paginated envelope: ``{items, total, offset, limit, has_more}``.
+        Each item is ``{"package": str, "templates": [...]}`` from the server.
+        """
         limiter.check("list_workflows")
         await audit.async_log(tool="list_workflows", action="called")
-        return await client.get_workflow_templates()
+        templates_by_package = await client.get_workflow_templates()
+        # client.get_workflow_templates returns dict[package_name, list[template]];
+        # flatten to a list of {package, templates} so paginate() can slice it.
+        items = [
+            {"package": package, "templates": templates}
+            for package, templates in (templates_by_package or {}).items()
+        ]
+        return paginate(items, offset, limit, default_limit=25, max_limit=100)
 
     tool_fns["comfyui_list_workflows"] = comfyui_list_workflows
 
@@ -249,11 +287,20 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_extensions() -> list[Any]:
-        """List available ComfyUI extensions."""
+    async def comfyui_list_extensions(
+        limit: LimitField = 25,
+        offset: OffsetField = 0,
+    ) -> dict[str, Any]:
+        """List installed ComfyUI extensions (front-end / back-end JavaScript modules
+        registered with the ComfyUI server).
+
+        Returns a paginated envelope: ``{items, total, offset, limit, has_more}``.
+        Each item is the extension's URL/path string.
+        """
         limiter.check("list_extensions")
         await audit.async_log(tool="list_extensions", action="called")
-        return await client.get_extensions()
+        extensions = await client.get_extensions()
+        return paginate(extensions, offset, limit, default_limit=25, max_limit=100)
 
     tool_fns["comfyui_list_extensions"] = comfyui_list_extensions
 
@@ -266,7 +313,13 @@ def register_discovery_tools(
         )
     )
     async def comfyui_get_server_features() -> dict[str, Any]:
-        """Get ComfyUI server features and capabilities."""
+        """Get the feature flags advertised by the ComfyUI server.
+
+        Returns the raw ``/features`` response — typically a dict of
+        {feature_name: bool}. Useful for capability-based branching, e.g.
+        checking ``supports_preview_metadata`` before requesting preview-format
+        images via ``comfyui_get_image``.
+        """
         limiter.check("get_server_features")
         await audit.async_log(tool="get_server_features", action="called")
         return await client.get_features()
@@ -281,11 +334,20 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_model_folders() -> list[Any]:
-        """List available model folder types (checkpoints, loras, vae, etc.)."""
+    async def comfyui_list_model_folders(
+        limit: LimitField = 25,
+        offset: OffsetField = 0,
+    ) -> dict[str, Any]:
+        """List the model-folder types ComfyUI recognizes (checkpoints, loras, vae,
+        controlnet, etc.). Pass any returned name as the ``folder`` argument to
+        ``comfyui_list_models`` or ``comfyui_get_model_metadata``.
+
+        Returns a paginated envelope: ``{items, total, offset, limit, has_more}``.
+        """
         limiter.check("list_model_folders")
         await audit.async_log(tool="list_model_folders", action="called")
-        return await client.get_model_types()
+        folders = await client.get_model_types()
+        return paginate(folders, offset, limit, default_limit=25, max_limit=100)
 
     tool_fns["comfyui_list_model_folders"] = comfyui_list_model_folders
 

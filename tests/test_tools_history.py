@@ -65,3 +65,19 @@ class TestGetHistory:
         prompt_ids = [item["prompt_id"] for item in result["items"]]
         assert "abc" in prompt_ids
         assert "bad" in prompt_ids
+
+    @respx.mock
+    async def test_passes_1000_cap_to_client(self, components):
+        # The tool should request up to 1000 history items from the client
+        # so that pagination can report a meaningful `total` for callers paging
+        # through history.
+        client, audit, limiter = components
+        route = respx.get("http://test:8188/history").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        mcp = FastMCP("test")
+        tools = register_history_tools(mcp, client, audit, limiter)
+        await tools["comfyui_get_history"]()
+        request = route.calls.last.request
+        params = dict(request.url.params.multi_items())
+        assert params.get("max_items") == "1000"

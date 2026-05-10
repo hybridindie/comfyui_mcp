@@ -33,6 +33,21 @@ Tools expose Pydantic `Field` constraints on input parameters (ranges, lengths, 
 - **Output schemas**: 26 tools return structured data with auto-generated `outputSchema`, enabling clients to parse responses without guessing the shape
 - **Streamable HTTP transport**: Optional remote transport via `transport.remote.enabled` using the MCP spec's recommended Streamable HTTP protocol
 
+## Recent Breaking Changes (2026-05)
+
+**Parameter renames** — update keyword arguments (positional calls are unaffected):
+
+- `comfyui_install_custom_node`, `comfyui_uninstall_custom_node`, `comfyui_update_custom_node`: `id` → `node_id`.
+- `comfyui_summarize_workflow`: `format` → `output_format`, restricted to `text` or `mermaid` via a Pydantic `Literal`.
+
+**Response-shape changes** — these tools now return the standard pagination envelope `{items, total, offset, limit, has_more}` instead of bare lists or raw dicts:
+
+- `comfyui_list_extensions` (was: `list[str]`)
+- `comfyui_list_model_folders` (was: `list[str]`)
+- `comfyui_list_workflows` (was: `dict[package_name, list[template]]`; now flattened to `items: [{package, templates}]`)
+
+Callers must update to read `result["items"]` instead of indexing the response directly. The new envelope also exposes `limit` and `offset` parameters for pagination.
+
 ## Quick start
 
 ### Prerequisites
@@ -219,7 +234,7 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | `comfyui_upscale_image` | Upscale an image using a model-based upscaler. Params: image (filename), upscale_model (default: RealESRGAN_x4plus.pth). |
 | `comfyui_run_workflow` | Submit arbitrary ComfyUI workflow JSON. Inspected for dangerous nodes before execution. Set `wait=True` to block until complete and return outputs. |
 | `comfyui_run_workflow_stream` | Submit workflow JSON and capture ComfyUI websocket stream events (`progress`, `executing`, `executed`, etc.) until terminal status, returning events plus final outputs/status. |
-| `comfyui_summarize_workflow` | Summarize a workflow's structure, data flow, models, and parameters. Supports `format="text"` (default) or `format="mermaid"` for diagram markup. |
+| `comfyui_summarize_workflow` | Summarize a workflow's structure, data flow, models, and parameters. Supports `output_format="text"` (default) or `output_format="mermaid"` for diagram markup. |
 | `comfyui_create_workflow` | Create a workflow from templates including txt2img/img2img/upscale/inpaint, txt2vid_animatediff/txt2vid_wan, controlnet_canny/controlnet_depth/controlnet_openpose, ip_adapter, lora_stack, face_restore, flux_txt2img, and sdxl_txt2img. |
 | `comfyui_modify_workflow` | Apply batch operations (add_node, remove_node, set_input, connect, disconnect) to a workflow. |
 | `comfyui_validate_workflow` | Validate workflow structure, server compatibility, and security. |
@@ -257,9 +272,9 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | Tool | Description |
 |------|-------------|
 | `comfyui_search_custom_nodes` | Search ComfyUI Manager registry custom node packs by name/description/author. |
-| `comfyui_install_custom_node` | Queue install for a custom node pack by `id`; optional restart and post-install security audit. |
-| `comfyui_uninstall_custom_node` | Queue uninstall for a custom node pack by `id`; optional restart. |
-| `comfyui_update_custom_node` | Queue update for a custom node pack by `id`; optional restart and post-update security audit. |
+| `comfyui_install_custom_node` | Queue install for a custom node pack by `node_id`; optional restart and post-install security audit. |
+| `comfyui_uninstall_custom_node` | Queue uninstall for a custom node pack by `node_id`; optional restart. |
+| `comfyui_update_custom_node` | Queue update for a custom node pack by `node_id`; optional restart and post-update security audit. |
 | `comfyui_get_custom_node_status` | Get custom node queue status (pending/running/completed). |
 
 > **Requires:** ComfyUI-Manager available on the target ComfyUI server. If unavailable, node-management tools return a helpful error.

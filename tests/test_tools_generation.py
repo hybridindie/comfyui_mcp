@@ -689,7 +689,7 @@ class TestSummarizeWorkflow:
         }
         result = await tools["comfyui_summarize_workflow"](
             workflow=json.dumps(workflow),
-            format="mermaid",
+            output_format="mermaid",
         )
         assert "<script>" not in result
         assert "&lt;script&gt;" in result
@@ -741,7 +741,7 @@ class TestSummarizeWorkflow:
 
         result = await tools["comfyui_summarize_workflow"](
             workflow=json.dumps(workflow),
-            format="mermaid",
+            output_format="mermaid",
         )
 
         assert "flowchart LR" in result
@@ -765,8 +765,8 @@ class TestSummarizeWorkflow:
             sanitizer=sanitizer,
         )
 
-        with pytest.raises(ValueError, match='format must be either "text" or "mermaid"'):
-            await tools["comfyui_summarize_workflow"](workflow="{}", format="yaml")
+        with pytest.raises(ValueError, match='output_format must be either "text" or "mermaid"'):
+            await tools["comfyui_summarize_workflow"](workflow="{}", output_format="yaml")
 
 
 class TestGenerateImageWait:
