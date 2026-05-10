@@ -98,23 +98,23 @@ class TestImageGenerationFlow:
                 200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
             )
         )
-        respx.get("http://mock-comfyui:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
+        respx.get("http://mock-comfyui:8188/api/jobs/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {
-                        "outputs": {
-                            "9": {
-                                "images": [
-                                    {
-                                        "filename": "comfyui-mcp_00001_.png",
-                                        "subfolder": "",
-                                        "type": "output",
-                                    }
-                                ]
-                            }
+                    "prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                    "status": "completed",
+                    "outputs": {
+                        "9": {
+                            "images": [
+                                {
+                                    "filename": "comfyui-mcp_00001_.png",
+                                    "subfolder": "",
+                                    "type": "output",
+                                }
+                            ]
                         }
-                    }
+                    },
                 },
             )
         )
@@ -131,7 +131,8 @@ class TestImageGenerationFlow:
         job = await integration_stack["comfyui_get_job"](
             prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         )
-        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in job
+        assert job["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        assert job["status"] == "completed"
 
     @respx.mock
     async def test_run_workflow_with_dangerous_node_in_audit_mode(self, integration_stack):
