@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import Any
+from typing import Annotated, Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.node_manager import ComfyUIManagerDetector
-from comfyui_mcp.pagination import paginate
+from comfyui_mcp.pagination import OffsetField, paginate
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 
@@ -182,9 +183,25 @@ def register_node_tools(
         )
     )
     async def comfyui_search_custom_nodes(
-        query: str,
-        limit: int = 10,
-        offset: int = 0,
+        query: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=200,
+                description="Search term matched against installed node-pack name, "
+                "ID, description, and author.",
+            ),
+        ],
+        limit: Annotated[
+            int,
+            Field(
+                default=10,
+                ge=1,
+                le=25,
+                description="Maximum number of matches to return (1-25).",
+            ),
+        ] = 10,
+        offset: OffsetField = 0,
     ) -> dict[str, Any]:
         """Search installed custom node packs by name, description, or author.
 
@@ -271,14 +288,31 @@ def register_node_tools(
         )
     )
     async def comfyui_install_custom_node(
-        id: str,  # noqa: A002
-        version: str = "",
-        restart: bool = False,
+        node_id: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=200,
+                description="Custom-node pack ID from the ComfyUI Manager registry. "
+                "Use comfyui_search_custom_nodes to discover IDs.",
+            ),
+        ],
+        version: Annotated[
+            str,
+            Field(default="", description="Specific version to install. Empty string = latest."),
+        ] = "",
+        restart: Annotated[
+            bool,
+            Field(
+                default=False,
+                description="If True, restart ComfyUI after install and run a security audit.",
+            ),
+        ] = False,
     ) -> str:
         """Install a custom node pack from the ComfyUI Manager registry.
 
         Args:
-            id: Node pack ID from the registry (use search_custom_nodes to find IDs).
+            node_id: Node pack ID from the registry (use search_custom_nodes to find IDs).
             version: Specific version to install (empty string = latest).
             restart: If True, restart ComfyUI after install and run a security audit
                      on all installed nodes. If False, manual restart is needed.
@@ -288,25 +322,25 @@ def register_node_tools(
         """
         wf_limiter.check("install_custom_node")
         await node_manager.require_available()
-        _validate_node_id(id)
+        _validate_node_id(node_id)
 
         await audit.async_log(
             tool="install_custom_node",
             action="installing",
-            extra={"id": id, "version": version},
+            extra={"node_id": node_id, "version": version},
         )
 
         result = await _execute_node_operation(
             client=client,
             kind="install",
             params={
-                "id": id,
+                "id": node_id,
                 "version": version or "latest",
                 "selected_version": version or "latest",
                 "mode": "remote",
                 "channel": "default",
             },
-            node_id=id,
+            node_id=node_id,
             restart=restart,
             node_auditor=node_auditor,
             audit=audit,
@@ -317,7 +351,7 @@ def register_node_tools(
         await audit.async_log(
             tool="install_custom_node",
             action="completed",
-            extra={"id": id, "version": version, "restart": restart},
+            extra={"node_id": node_id, "version": version, "restart": restart},
         )
 
         return result
@@ -333,13 +367,23 @@ def register_node_tools(
         )
     )
     async def comfyui_uninstall_custom_node(
-        id: str,  # noqa: A002
-        restart: bool = False,
+        node_id: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=200,
+                description="Custom-node pack ID to uninstall.",
+            ),
+        ],
+        restart: Annotated[
+            bool,
+            Field(default=False, description="If True, restart ComfyUI after uninstall."),
+        ] = False,
     ) -> str:
         """Uninstall a custom node pack.
 
         Args:
-            id: Node pack ID to uninstall.
+            node_id: Node pack ID to uninstall.
             restart: If True, restart ComfyUI after uninstall.
 
         Returns:
@@ -347,19 +391,19 @@ def register_node_tools(
         """
         wf_limiter.check("uninstall_custom_node")
         await node_manager.require_available()
-        _validate_node_id(id)
+        _validate_node_id(node_id)
 
         await audit.async_log(
             tool="uninstall_custom_node",
             action="uninstalling",
-            extra={"id": id},
+            extra={"node_id": node_id},
         )
 
         result = await _execute_node_operation(
             client=client,
             kind="uninstall",
-            params={"node_name": id, "is_unknown": False},
-            node_id=id,
+            params={"node_name": node_id, "is_unknown": False},
+            node_id=node_id,
             restart=restart,
             node_auditor=node_auditor,
             audit=audit,
@@ -370,7 +414,7 @@ def register_node_tools(
         await audit.async_log(
             tool="uninstall_custom_node",
             action="completed",
-            extra={"id": id, "restart": restart},
+            extra={"node_id": node_id, "restart": restart},
         )
 
         return result
@@ -386,13 +430,26 @@ def register_node_tools(
         )
     )
     async def comfyui_update_custom_node(
-        id: str,  # noqa: A002
-        restart: bool = False,
+        node_id: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=200,
+                description="Custom-node pack ID to update to the latest version.",
+            ),
+        ],
+        restart: Annotated[
+            bool,
+            Field(
+                default=False,
+                description="If True, restart ComfyUI after update and run a security audit.",
+            ),
+        ] = False,
     ) -> str:
         """Update a custom node pack to the latest version.
 
         Args:
-            id: Node pack ID to update.
+            node_id: Node pack ID to update.
             restart: If True, restart ComfyUI after update and run a security audit
                      on all installed nodes.
 
@@ -401,19 +458,19 @@ def register_node_tools(
         """
         wf_limiter.check("update_custom_node")
         await node_manager.require_available()
-        _validate_node_id(id)
+        _validate_node_id(node_id)
 
         await audit.async_log(
             tool="update_custom_node",
             action="updating",
-            extra={"id": id},
+            extra={"node_id": node_id},
         )
 
         result = await _execute_node_operation(
             client=client,
             kind="update",
-            params={"node_name": id, "node_ver": None},
-            node_id=id,
+            params={"node_name": node_id, "node_ver": None},
+            node_id=node_id,
             restart=restart,
             node_auditor=node_auditor,
             audit=audit,
@@ -424,7 +481,7 @@ def register_node_tools(
         await audit.async_log(
             tool="update_custom_node",
             action="completed",
-            extra={"id": id, "restart": restart},
+            extra={"node_id": node_id, "restart": restart},
         )
 
         return result

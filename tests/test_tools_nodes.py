@@ -202,7 +202,7 @@ class TestInstallCustomNode:
         respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         result = await registered_tools["comfyui_install_custom_node"](
-            id="comfy-pack-one", restart=False
+            node_id="comfy-pack-one", restart=False
         )
         assert "completed" in result.lower() or "operation completed" in result.lower()
         assert "Restart required" in result
@@ -214,7 +214,7 @@ class TestInstallCustomNode:
         _mock_operation_success()
         _mock_restart_success(with_audit=True)
         result = await registered_tools["comfyui_install_custom_node"](
-            id="comfy-pack-one", restart=True
+            node_id="comfy-pack-one", restart=True
         )
         assert "restarted" in result.lower()
         assert "nodes scanned" in result.lower()
@@ -226,22 +226,22 @@ class TestInstallCustomNode:
         _mock_operation_success()
         _mock_restart_busy_queue()
         result = await registered_tools["comfyui_install_custom_node"](
-            id="comfy-pack-one", restart=True
+            node_id="comfy-pack-one", restart=True
         )
         assert "deferred" in result.lower()
         assert "1 job(s) in queue" in result
 
     async def test_validates_empty_id(self, registered_tools):
         with pytest.raises(ValueError, match="must not be empty"):
-            await registered_tools["comfyui_install_custom_node"](id="")
+            await registered_tools["comfyui_install_custom_node"](node_id="")
 
     async def test_validates_control_chars(self, registered_tools):
         with pytest.raises(ValueError, match="invalid characters"):
-            await registered_tools["comfyui_install_custom_node"](id="bad\x00id")
+            await registered_tools["comfyui_install_custom_node"](node_id="bad\x00id")
 
     async def test_validates_too_long_id(self, registered_tools):
         with pytest.raises(ValueError, match="must not exceed 200"):
-            await registered_tools["comfyui_install_custom_node"](id="x" * 201)
+            await registered_tools["comfyui_install_custom_node"](node_id="x" * 201)
 
     @respx.mock
     @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
@@ -249,7 +249,9 @@ class TestInstallCustomNode:
         respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         # First call succeeds
-        await registered_tools["comfyui_install_custom_node"](id="comfy-pack-one", restart=False)
+        await registered_tools["comfyui_install_custom_node"](
+            node_id="comfy-pack-one", restart=False
+        )
         # Exhaust the rate limiter
         limiter = components["wf_limiter"]
         for _ in range(120):
@@ -261,7 +263,7 @@ class TestInstallCustomNode:
 
         with pytest.raises(RateLimitError):
             await registered_tools["comfyui_install_custom_node"](
-                id="comfy-pack-one", restart=False
+                node_id="comfy-pack-one", restart=False
             )
 
 
@@ -272,7 +274,7 @@ class TestUninstallCustomNode:
         respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         result = await registered_tools["comfyui_uninstall_custom_node"](
-            id="comfy-pack-one", restart=False
+            node_id="comfy-pack-one", restart=False
         )
         assert "operation completed" in result.lower()
         assert "Restart required" in result
@@ -286,7 +288,7 @@ class TestUninstallCustomNode:
         # No audit: restart without object_info mock
         _mock_restart_success(with_audit=False)
         result = await registered_tools["comfyui_uninstall_custom_node"](
-            id="comfy-pack-one", restart=True
+            node_id="comfy-pack-one", restart=True
         )
         assert "restarted successfully" in result.lower()
         # Should NOT contain audit results
@@ -300,7 +302,7 @@ class TestUpdateCustomNode:
         respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         result = await registered_tools["comfyui_update_custom_node"](
-            id="comfy-pack-one", restart=False
+            node_id="comfy-pack-one", restart=False
         )
         assert "operation completed" in result.lower()
         assert "Restart required" in result
@@ -313,7 +315,7 @@ class TestUpdateCustomNode:
         _mock_operation_success()
         _mock_restart_success(with_audit=True)
         result = await registered_tools["comfyui_update_custom_node"](
-            id="comfy-pack-one", restart=True
+            node_id="comfy-pack-one", restart=True
         )
         assert "restarted" in result.lower()
         assert "nodes scanned" in result.lower()
@@ -325,7 +327,7 @@ class TestUpdateCustomNode:
         respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
         _mock_operation_success()
         _mock_restart_success(with_audit=True)
-        await registered_tools["comfyui_update_custom_node"](id="comfy-pack-one", restart=True)
+        await registered_tools["comfyui_update_custom_node"](node_id="comfy-pack-one", restart=True)
         audit_path = components["tmp_path"] / "audit.log"
         lines = audit_path.read_text().strip().split("\n")
         actions = [json.loads(line)["action"] for line in lines]
