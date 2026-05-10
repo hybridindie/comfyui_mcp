@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
+
+from pydantic import Field
 
 
 def paginate(
@@ -35,3 +37,22 @@ def paginate(
         "limit": effective_limit,
         "has_more": (effective_offset + effective_limit) < total,
     }
+
+
+LimitField = Annotated[
+    int,
+    Field(
+        ge=1,
+        le=100,
+        description="Maximum number of results to return (1-100, default varies by tool).",
+    ),
+]
+
+
+OffsetField = Annotated[
+    int,
+    Field(
+        ge=0,
+        description="Zero-based starting index for pagination.",
+    ),
+]

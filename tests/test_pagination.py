@@ -75,3 +75,21 @@ class TestPaginate:
     def test_envelope_keys(self):
         result = paginate([1, 2, 3])
         assert set(result.keys()) == {"items", "total", "offset", "limit", "has_more"}
+
+
+def test_limit_field_and_offset_field_schema_constraints():
+    from pydantic import BaseModel
+
+    from comfyui_mcp.pagination import LimitField, OffsetField
+
+    class _Model(BaseModel):
+        limit: LimitField = 25
+        offset: OffsetField = 0
+
+    schema = _Model.model_json_schema()
+    assert schema["properties"]["limit"]["minimum"] == 1
+    assert schema["properties"]["limit"]["maximum"] == 100
+    assert schema["properties"]["offset"]["minimum"] == 0
+    # Description present
+    assert "results" in schema["properties"]["limit"]["description"].lower()
+    assert "pagination" in schema["properties"]["offset"]["description"].lower()
