@@ -54,9 +54,15 @@ def register_job_tools(
     async def comfyui_get_job(prompt_id: str) -> dict[str, Any]:
         """Look up a single job by prompt_id across queue + history.
 
-        Returns the unified job object: status (pending/in_progress/completed/failed),
-        timing, outputs, etc. Use this to check on a job that may be queued, running,
-        or already finished.
+        Returns a flat unified job object with top-level keys: prompt_id, status
+        (pending/in_progress/completed/failed), timing fields (created_at,
+        started_at, completed_at, execution_duration), outputs (when completed),
+        and error (when failed). Use this to check on a job that may be queued,
+        running, or already finished.
+
+        Note: this replaces the previous /history/{prompt_id} envelope shape
+        (`{prompt_id: {...}}`); callers should index fields directly on the
+        returned object.
         """
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_job")
