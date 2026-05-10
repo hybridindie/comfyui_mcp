@@ -114,6 +114,67 @@ class TestUploadImage:
             await tools["comfyui_upload_image"](filename="malicious.py", image_data=image_b64)
 
 
+class TestUploadImageDestination:
+    @respx.mock
+    async def test_upload_to_output_dir(self, components):
+        client, audit, limiter, sanitizer = components
+        route = respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(
+                200, json={"name": "x.png", "subfolder": "", "type": "output"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        result = await tools["comfyui_upload_image"](
+            filename="x.png",
+            image_data="ZGF0YQ==",  # base64 "data"
+            destination="output",
+        )
+        body = route.calls.last.request.content
+        assert b'name="type"' in body
+        assert b"output" in body
+        assert "Uploaded" in result
+
+    @respx.mock
+    async def test_upload_with_overwrite(self, components):
+        client, audit, limiter, sanitizer = components
+        route = respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(
+                200, json={"name": "x.png", "subfolder": "", "type": "input"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        await tools["comfyui_upload_image"](
+            filename="x.png",
+            image_data="ZGF0YQ==",
+            overwrite=True,
+        )
+        body = route.calls.last.request.content
+        assert b'name="overwrite"' in body
+        assert b"true" in body
+
+    @respx.mock
+    async def test_upload_default_unchanged(self, components):
+        # Verify existing default-call behavior is byte-identical to before:
+        # no 'type' or 'overwrite' fields in the multipart body.
+        client, audit, limiter, sanitizer = components
+        route = respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(
+                200, json={"name": "x.png", "subfolder": "", "type": "input"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        await tools["comfyui_upload_image"](
+            filename="x.png",
+            image_data="ZGF0YQ==",
+        )
+        body = route.calls.last.request.content
+        assert b'name="type"' not in body
+        assert b'name="overwrite"' not in body
+
+
 class TestGetImage:
     @respx.mock
     async def test_get_image_returns_base64(self, components):

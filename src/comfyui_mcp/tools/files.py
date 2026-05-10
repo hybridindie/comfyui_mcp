@@ -109,13 +109,41 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_upload_image(filename: str, image_data: str, subfolder: str = "") -> str:
-        """Upload an image to ComfyUI's input directory.
+    async def comfyui_upload_image(
+        filename: Annotated[
+            str,
+            Field(description="Name for the uploaded file (e.g. 'reference.png')"),
+        ],
+        image_data: Annotated[
+            str,
+            Field(description="Base64-encoded image data"),
+        ],
+        subfolder: Annotated[
+            str,
+            Field(default="", description="Optional subfolder within the destination directory"),
+        ] = "",
+        destination: Annotated[
+            Literal["input", "output", "temp"],
+            Field(
+                default="input",
+                description="Destination directory. 'input' (default) is where workflows "
+                "read user-supplied images from; 'output' and 'temp' are usually only "
+                "useful for testing or scripted setups.",
+            ),
+        ] = "input",
+        overwrite: Annotated[
+            bool,
+            Field(
+                default=False,
+                description="If True, replace any existing file with the same name. If False "
+                "(default), ComfyUI auto-renames by suffixing ' (N)'.",
+            ),
+        ] = False,
+    ) -> str:
+        """Upload an image to ComfyUI.
 
-        Args:
-            filename: Name for the uploaded file (e.g. 'reference.png')
-            image_data: Base64-encoded image data
-            subfolder: Optional subfolder within ComfyUI's input directory
+        Defaults to ComfyUI's input directory (the destination workflows read from).
+        Set destination='output' or 'temp' only if you have a specific reason.
         """
         limiter.check("upload_image")
         clean_name = sanitizer.validate_filename(filename)
@@ -125,11 +153,22 @@ def register_file_tools(
         await audit.async_log(
             tool="upload_image",
             action="uploading",
-            extra={"filename": clean_name, "size_bytes": len(raw)},
+            extra={
+                "filename": clean_name,
+                "size_bytes": len(raw),
+                "destination": destination,
+                "overwrite": overwrite,
+            },
         )
-        result = await client.upload_image(raw, clean_name, clean_subfolder)
+        result = await client.upload_image(
+            raw,
+            clean_name,
+            clean_subfolder,
+            destination=destination,
+            overwrite=overwrite,
+        )
         await audit.async_log(tool="upload_image", action="uploaded", extra={"result": result})
-        return f"Uploaded {result.get('name', clean_name)} to ComfyUI input directory"
+        return f"Uploaded {result.get('name', clean_name)} to ComfyUI {destination} directory"
 
     tool_fns["comfyui_upload_image"] = comfyui_upload_image
 
