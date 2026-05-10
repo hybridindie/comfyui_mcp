@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -77,7 +78,7 @@ WORKFLOW_SUBMITTING_TOOLS: frozenset[str] = frozenset(
 
 
 @pytest.fixture
-def all_tools(tmp_path: Any) -> Iterator[dict[str, Any]]:
+def all_tools(tmp_path: Path) -> Iterator[dict[str, Any]]:
     """Build every tool from every register_*_tools() with real wiring.
 
     Mirrors server.py:_build_server() but skips FastMCP transport setup.
