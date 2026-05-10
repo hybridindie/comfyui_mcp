@@ -181,7 +181,7 @@ def register_workflow_tools(
             workflow: JSON string of the workflow to validate.
 
         Returns:
-            JSON string with: valid (bool), errors (list), warnings (list),
+            Dict with keys: valid (bool), errors (list), warnings (list),
             node_count (int), pipeline (str).
         """
         limiter.check("validate_workflow")
