@@ -131,9 +131,11 @@ class TestComfyUIClient:
         with pytest.raises(ValueError, match="sort_order"):
             await client.get_jobs(sort_order="sideways")
 
-    async def test_get_jobs_rejects_negative_limit(self, client):
+    async def test_get_jobs_rejects_non_positive_limit(self, client):
         with pytest.raises(ValueError, match="limit"):
             await client.get_jobs(limit=0)
+        with pytest.raises(ValueError, match="limit"):
+            await client.get_jobs(limit=-1)
 
     async def test_get_jobs_rejects_negative_offset(self, client):
         with pytest.raises(ValueError, match="offset"):

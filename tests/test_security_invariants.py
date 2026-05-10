@@ -13,6 +13,7 @@ closure cannot call it, transitively or otherwise.
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Iterator
 from typing import Any
@@ -76,7 +77,7 @@ WORKFLOW_SUBMITTING_TOOLS: frozenset[str] = frozenset(
 
 
 @pytest.fixture
-def all_tools(tmp_path: Any) -> dict[str, Any]:
+def all_tools(tmp_path: Any) -> Iterator[dict[str, Any]]:
     """Build every tool from every register_*_tools() with real wiring.
 
     Mirrors server.py:_build_server() but skips FastMCP transport setup.
@@ -152,7 +153,13 @@ def all_tools(tmp_path: Any) -> dict[str, Any]:
             node_auditor=node_auditor,
         )
     )
-    return tools
+    try:
+        yield tools
+    finally:
+        # search_http is captured in closures but never invoked here
+        # (we only inspect closures). Close it anyway to avoid unclosed-client
+        # ResourceWarnings during the test run.
+        asyncio.run(search_http.aclose())
 
 
 def _closure_values(fn: Any) -> Iterator[Any]:
