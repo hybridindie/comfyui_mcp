@@ -69,18 +69,24 @@ class TestInterrupt:
 
 class TestGetJob:
     @respx.mock
-    async def test_get_job_returns_history_item(self, components):
+    async def test_get_job_returns_unified_job_object(self, components):
         client, audit, limiter = components
-        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
             return_value=httpx.Response(
                 200,
-                json={"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {"outputs": {"9": {"images": []}}}},
+                json={
+                    "prompt_id": prompt_id,
+                    "status": "in_progress",
+                    "outputs": {},
+                },
             )
         )
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        result = await tools["comfyui_get_job"](prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
+        result = await tools["comfyui_get_job"](prompt_id=prompt_id)
+        assert result["prompt_id"] == prompt_id
+        assert result["status"] == "in_progress"
 
 
 class TestGetQueueStatus:

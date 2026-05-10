@@ -51,11 +51,16 @@ def register_job_tools(
         )
     )
     async def comfyui_get_job(prompt_id: str) -> dict[str, Any]:
-        """Check the status of a specific job by its prompt_id."""
+        """Look up a single job by prompt_id across queue + history.
+
+        Returns the unified job object: status (pending/in_progress/completed/failed),
+        timing, outputs, etc. Use this to check on a job that may be queued, running,
+        or already finished.
+        """
         rl = read_limiter if read_limiter is not None else limiter
         rl.check("get_job")
         await audit.async_log(tool="get_job", action="called", extra={"prompt_id": prompt_id})
-        return await client.get_history_item(prompt_id)
+        return await client.get_job(prompt_id)
 
     tool_fns["comfyui_get_job"] = comfyui_get_job
 
