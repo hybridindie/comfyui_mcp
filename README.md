@@ -33,6 +33,21 @@ Tools expose Pydantic `Field` constraints on input parameters (ranges, lengths, 
 - **Output schemas**: 26 tools return structured data with auto-generated `outputSchema`, enabling clients to parse responses without guessing the shape
 - **Streamable HTTP transport**: Optional remote transport via `transport.remote.enabled` using the MCP spec's recommended Streamable HTTP protocol
 
+## Recent Breaking Changes (2026-05)
+
+**Parameter renames** — update keyword arguments (positional calls are unaffected):
+
+- `comfyui_install_custom_node`, `comfyui_uninstall_custom_node`, `comfyui_update_custom_node`: `id` → `node_id`.
+- `comfyui_summarize_workflow`: `format` → `output_format`, restricted to `text` or `mermaid` via a Pydantic `Literal`.
+
+**Response-shape changes** — these tools now return the standard pagination envelope `{items, total, offset, limit, has_more}` instead of bare lists or raw dicts:
+
+- `comfyui_list_extensions` (was: `list[str]`)
+- `comfyui_list_model_folders` (was: `list[str]`)
+- `comfyui_list_workflows` (was: `dict[package_name, list[template]]`; now flattened to `items: [{package, templates}]`)
+
+Callers must update to read `result["items"]` instead of indexing the response directly. The new envelope also exposes `limit` and `offset` parameters for pagination.
+
 ## Quick start
 
 ### Prerequisites
