@@ -237,11 +237,42 @@ class ComfyUIClient:
         _validate_prompt_id(prompt_id)
         await self._request("post", "/queue", json={"delete": [prompt_id]})
 
-    async def upload_image(self, data: bytes, filename: str, subfolder: str = "") -> dict:
+    async def upload_image(
+        self,
+        data: bytes,
+        filename: str,
+        subfolder: str = "",
+        *,
+        destination: str = "input",
+        overwrite: bool = False,
+    ) -> dict:
+        """POST /upload/image — upload an image to ComfyUI.
+
+        Args:
+            data: Raw image bytes.
+            filename: Target filename in ComfyUI's storage.
+            subfolder: Optional subfolder within the destination.
+            destination: Destination type. One of "input" (default), "output", "temp".
+                The wire field name is ``type`` — renamed here to avoid shadowing the
+                Python builtin.
+            overwrite: If True, replace an existing file with the same name. If False
+                (default), ComfyUI auto-renames by suffixing ``(N)`` when a duplicate
+                exists.
+        """
+        if destination not in {"input", "output", "temp"}:
+            raise ValueError(
+                f"destination must be one of 'input', 'output', 'temp'; got {destination!r}"
+            )
         files = {"image": (filename, data, "image/png")}
         form_data: dict[str, str] = {}
         if subfolder:
             form_data["subfolder"] = subfolder
+        # Only include 'type'/'overwrite' when the caller deviates from defaults —
+        # keeps the request body identical to historical behavior in the common case.
+        if destination != "input":
+            form_data["type"] = destination
+        if overwrite:
+            form_data["overwrite"] = "true"
         r = await self._request("post", "/upload/image", files=files, data=form_data)
         return r.json()
 
