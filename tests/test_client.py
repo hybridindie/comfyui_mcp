@@ -155,6 +155,31 @@ class TestComfyUIClient:
         await client.interrupt()
 
     @respx.mock
+    async def test_interrupt_with_prompt_id_sends_body(self, client):
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        route = respx.post("http://test-comfyui:8188/interrupt").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        await client.interrupt(prompt_id=prompt_id)
+        request = route.calls.last.request
+        body = json.loads(request.content)
+        assert body == {"prompt_id": prompt_id}
+
+    @respx.mock
+    async def test_interrupt_without_prompt_id_sends_no_body(self, client):
+        route = respx.post("http://test-comfyui:8188/interrupt").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        await client.interrupt()
+        request = route.calls.last.request
+        # Either no body or empty body — definitely no prompt_id
+        assert request.content in (b"", b"{}", None)
+
+    async def test_interrupt_rejects_non_uuid_prompt_id(self, client):
+        with pytest.raises(ValueError, match="Invalid prompt_id"):
+            await client.interrupt(prompt_id="not-a-uuid")
+
+    @respx.mock
     async def test_upload_image(self, client):
         respx.post("http://test-comfyui:8188/upload/image").mock(
             return_value=httpx.Response(

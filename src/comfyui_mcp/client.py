@@ -220,8 +220,18 @@ class ComfyUIClient:
         r = await self._request("get", "/api/jobs", params=params)
         return r.json()
 
-    async def interrupt(self) -> None:
-        await self._request("post", "/interrupt")
+    async def interrupt(self, prompt_id: str | None = None) -> None:
+        """POST /interrupt — global interrupt, or targeted if prompt_id is given.
+
+        Without prompt_id, interrupts whatever is currently executing.
+        With prompt_id, ComfyUI only interrupts if that prompt is the running one;
+        otherwise the call is a no-op (server returns 200 either way).
+        """
+        if prompt_id is not None:
+            _validate_prompt_id(prompt_id)
+            await self._request("post", "/interrupt", json={"prompt_id": prompt_id})
+        else:
+            await self._request("post", "/interrupt")
 
     async def delete_queue_item(self, prompt_id: str) -> None:
         _validate_prompt_id(prompt_id)
