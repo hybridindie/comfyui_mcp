@@ -56,6 +56,27 @@ class TestComfyUIClient:
         assert "abc" in result
 
     @respx.mock
+    async def test_get_job_returns_job_object(self, client):
+        job_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        respx.get(f"http://test-comfyui:8188/api/jobs/{job_id}").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "prompt_id": job_id,
+                    "status": "in_progress",
+                    "outputs": {},
+                },
+            )
+        )
+        result = await client.get_job(job_id)
+        assert result["prompt_id"] == job_id
+        assert result["status"] == "in_progress"
+
+    async def test_get_job_rejects_non_uuid(self, client):
+        with pytest.raises(ValueError, match="Invalid prompt_id"):
+            await client.get_job("not-a-uuid")
+
+    @respx.mock
     async def test_get_object_info(self, client):
         respx.get("http://test-comfyui:8188/object_info").mock(
             return_value=httpx.Response(200, json={"KSampler": {"input": {}}})
