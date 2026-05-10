@@ -89,6 +89,54 @@ class TestGetJob:
         assert result["status"] == "in_progress"
 
 
+class TestListJobs:
+    @respx.mock
+    async def test_list_jobs_default(self, components):
+        client, audit, limiter = components
+        respx.get("http://test:8188/api/jobs").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "jobs": [{"prompt_id": "abc", "status": "completed"}],
+                    "pagination": {"offset": 0, "limit": None, "total": 1, "has_more": False},
+                },
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_job_tools(mcp, client, audit, limiter)
+        result = await tools["comfyui_list_jobs"]()
+        assert "jobs" in result
+        assert "pagination" in result
+        assert result["jobs"][0]["status"] == "completed"
+
+    @respx.mock
+    async def test_list_jobs_passes_filters(self, components):
+        client, audit, limiter = components
+        route = respx.get("http://test:8188/api/jobs").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "jobs": [],
+                    "pagination": {"offset": 0, "limit": 5, "total": 0, "has_more": False},
+                },
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_job_tools(mcp, client, audit, limiter)
+        await tools["comfyui_list_jobs"](
+            status=["pending", "in_progress"],
+            sort_by="execution_duration",
+            sort_order="asc",
+            limit=5,
+            offset=0,
+        )
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["status"] == "pending,in_progress"
+        assert params["sort_by"] == "execution_duration"
+        assert params["sort_order"] == "asc"
+        assert params["limit"] == "5"
+
+
 class TestGetQueueStatus:
     @respx.mock
     async def test_get_queue_status_returns_exec_info(self, components):

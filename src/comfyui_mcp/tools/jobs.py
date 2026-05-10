@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
+from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -63,6 +64,74 @@ def register_job_tools(
         return await client.get_job(prompt_id)
 
     tool_fns["comfyui_get_job"] = comfyui_get_job
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
+    async def comfyui_list_jobs(
+        status: Annotated[
+            list[Literal["pending", "in_progress", "completed", "failed"]] | None,
+            Field(
+                default=None,
+                description="Filter by job status (any combination).",
+            ),
+        ] = None,
+        workflow_id: Annotated[
+            str | None,
+            Field(default=None, description="Filter by workflow ID set in extra_data."),
+        ] = None,
+        sort_by: Annotated[
+            Literal["created_at", "execution_duration"],
+            Field(default="created_at", description="Sort field."),
+        ] = "created_at",
+        sort_order: Annotated[
+            Literal["asc", "desc"],
+            Field(default="desc", description="Sort direction."),
+        ] = "desc",
+        limit: Annotated[
+            int | None,
+            Field(default=None, ge=1, le=1000, description="Max jobs to return."),
+        ] = None,
+        offset: Annotated[
+            int,
+            Field(default=0, ge=0, description="Jobs to skip for pagination."),
+        ] = 0,
+    ) -> dict[str, Any]:
+        """List jobs across queue and history with filtering, sorting, and pagination.
+
+        Returns {"jobs": [...], "pagination": {"offset", "limit", "total", "has_more"}}.
+        Each job includes prompt_id, status (pending/in_progress/completed/failed),
+        timing, and outputs (when completed).
+        """
+        rl = read_limiter if read_limiter is not None else limiter
+        rl.check("list_jobs")
+        await audit.async_log(
+            tool="list_jobs",
+            action="called",
+            extra={
+                "status": status,
+                "workflow_id": workflow_id,
+                "sort_by": sort_by,
+                "sort_order": sort_order,
+                "limit": limit,
+                "offset": offset,
+            },
+        )
+        return await client.get_jobs(
+            status=list(status) if status is not None else None,
+            workflow_id=workflow_id,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            limit=limit,
+            offset=offset,
+        )
+
+    tool_fns["comfyui_list_jobs"] = comfyui_list_jobs
 
     @mcp.tool(
         annotations=ToolAnnotations(
