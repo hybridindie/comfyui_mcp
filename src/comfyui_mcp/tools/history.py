@@ -9,7 +9,7 @@ from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
-from comfyui_mcp.pagination import paginate
+from comfyui_mcp.pagination import LimitField, OffsetField, paginate
 from comfyui_mcp.security.rate_limit import RateLimiter
 
 
@@ -30,7 +30,10 @@ def register_history_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_get_history(limit: int = 25, offset: int = 0) -> dict[str, Any]:
+    async def comfyui_get_history(
+        limit: LimitField = 25,
+        offset: OffsetField = 0,
+    ) -> dict[str, Any]:
         """Browse ComfyUI execution history (read-only).
 
         Covers up to the 1000 most recent history entries — older entries are

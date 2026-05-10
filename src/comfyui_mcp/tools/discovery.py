@@ -10,7 +10,7 @@ from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
-from comfyui_mcp.pagination import paginate
+from comfyui_mcp.pagination import LimitField, OffsetField, paginate
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
@@ -167,8 +167,8 @@ def register_discovery_tools(
     )
     async def comfyui_list_models(
         folder: str = "checkpoints",
-        limit: int = 25,
-        offset: int = 0,
+        limit: LimitField = 25,
+        offset: OffsetField = 0,
     ) -> dict[str, Any]:
         """List available models in a folder (checkpoints, loras, vae, etc.).
 
@@ -193,7 +193,10 @@ def register_discovery_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_list_nodes(limit: int = 25, offset: int = 0) -> dict[str, Any]:
+    async def comfyui_list_nodes(
+        limit: LimitField = 25,
+        offset: OffsetField = 0,
+    ) -> dict[str, Any]:
         """List all available ComfyUI node types.
 
         Args:
