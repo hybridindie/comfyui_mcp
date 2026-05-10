@@ -103,7 +103,34 @@ class TestListExtensions:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_list_extensions"]()
-        assert len(result) == 2
+        assert result["items"] == ["ext1", "ext2"]
+        assert result["total"] == 2
+        assert result["offset"] == 0
+        assert result["has_more"] is False
+
+
+class TestListWorkflows:
+    @respx.mock
+    async def test_list_workflows_paginates(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/workflow_templates").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "ComfyUI-Manager": ["templ_a", "templ_b"],
+                    "ComfyUI-Frontend": ["templ_c"],
+                },
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+
+        result = await tools["comfyui_list_workflows"]()
+        assert "items" in result
+        assert result["total"] == 2  # two packages, not three templates
+        assert result["has_more"] is False
+        package_names = {entry["package"] for entry in result["items"]}
+        assert package_names == {"ComfyUI-Manager", "ComfyUI-Frontend"}
 
 
 class TestGetServerFeatures:
@@ -131,8 +158,10 @@ class TestListModelFolders:
         tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
 
         result = await tools["comfyui_list_model_folders"]()
-        assert "checkpoints" in result
-        assert "loras" in result
+        assert "checkpoints" in result["items"]
+        assert "loras" in result["items"]
+        assert result["total"] == 3
+        assert result["has_more"] is False
 
 
 class TestGetModelMetadata:
