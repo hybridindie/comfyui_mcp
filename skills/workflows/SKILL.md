@@ -65,7 +65,7 @@ ComfyUI workflows use a JSON format where each node is a key-value pair:
 
 ## Using the Workflow Tools
 
-1. **`comfyui_create_workflow`** — Start from a template. Available templates can be listed with `comfyui_list_workflows`.
+1. **`comfyui_create_workflow`** — Start from a built-in template. The accepted template names are listed in the tool's docstring: `txt2img`, `img2img`, `upscale`, `inpaint`, `txt2vid_animatediff`, `txt2vid_wan`, `controlnet_canny`, `controlnet_depth`, `controlnet_openpose`, `ip_adapter`, `lora_stack`, `face_restore`, `flux_txt2img`, `sdxl_txt2img`. (Note: `comfyui_list_workflows` returns server-side `/workflow_templates` from front-end packages — a different set, not these MCP-built-in templates.)
 2. **`comfyui_modify_workflow`** — Add/remove nodes, change connections, update parameters on an existing workflow.
 3. **`comfyui_validate_workflow`** — Check for missing connections, unknown node types, and potential issues.
 4. **`comfyui_summarize_workflow`** — Get a human-readable description of what a workflow does.
