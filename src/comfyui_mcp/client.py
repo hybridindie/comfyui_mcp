@@ -155,12 +155,29 @@ class ComfyUIClient:
         self._object_info_ts = now
         return data
 
-    async def get_history(self, max_items: int | None = None) -> dict:
+    async def get_history(
+        self,
+        max_items: int | None = None,
+        *,
+        offset: int | None = None,
+    ) -> dict:
+        """GET /history — fetch execution history with optional pagination.
+
+        Args:
+            max_items: Maximum number of history entries to return. Capped at 1000
+                server-side regardless of the value passed.
+            offset: Zero-based starting index. None (default) sends no offset, which
+                ComfyUI treats as "no offset" (newest entries first).
+        """
         params: dict[str, int] = {}
         if max_items is not None:
             if max_items <= 0:
                 raise ValueError("max_items must be a positive integer")
             params["max_items"] = min(max_items, 1000)
+        if offset is not None:
+            if offset < 0:
+                raise ValueError("offset must be >= 0")
+            params["offset"] = offset
         r = await self._request("get", "/history", params=params or None)
         return r.json()
 

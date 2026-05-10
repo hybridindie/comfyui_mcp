@@ -461,6 +461,29 @@ class TestComfyUIClient:
         assert request.url.params["max_items"] == "50"
 
     @respx.mock
+    async def test_get_history_with_offset(self, client):
+        route = respx.get("http://test-comfyui:8188/history").mock(
+            return_value=httpx.Response(200, json={"abc": {"outputs": {}}})
+        )
+        await client.get_history(max_items=100, offset=50)
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["offset"] == "50"
+        assert params["max_items"] == "100"
+
+    @respx.mock
+    async def test_get_history_without_offset_omits_param(self, client):
+        route = respx.get("http://test-comfyui:8188/history").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        await client.get_history(max_items=100)
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert "offset" not in params
+
+    async def test_get_history_rejects_negative_offset(self, client):
+        with pytest.raises(ValueError, match="offset"):
+            await client.get_history(max_items=100, offset=-1)
+
+    @respx.mock
     async def test_get_object_info_cache_returns_cached(self, client):
         route = respx.get("http://test-comfyui:8188/object_info").mock(
             return_value=httpx.Response(200, json={"KSampler": {"input": {}}})
