@@ -56,15 +56,36 @@ class TestCancelJob:
 
 class TestInterrupt:
     @respx.mock
-    async def test_interrupt_posts(self, components):
+    async def test_interrupt_global(self, components):
         client, audit, limiter = components
         route = respx.post("http://test:8188/interrupt").mock(
             return_value=httpx.Response(200, json={})
         )
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
-        await tools["comfyui_interrupt"]()
+        result = await tools["comfyui_interrupt"]()
         assert route.called
+        body = route.calls.last.request.content
+        # No prompt_id sent → no body, or empty
+        assert body in (b"", b"{}", None)
+        assert "current" in result.lower() or "global" in result.lower()
+
+    @respx.mock
+    async def test_interrupt_targeted(self, components):
+        import json as _json
+
+        client, audit, limiter = components
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        route = respx.post("http://test:8188/interrupt").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        mcp = FastMCP("test")
+        tools = register_job_tools(mcp, client, audit, limiter)
+        result = await tools["comfyui_interrupt"](prompt_id=prompt_id)
+        assert route.called
+        body = _json.loads(route.calls.last.request.content)
+        assert body == {"prompt_id": prompt_id}
+        assert prompt_id in result
 
 
 class TestGetJob:

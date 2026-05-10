@@ -158,12 +158,20 @@ def register_job_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_interrupt() -> str:
-        """Interrupt the currently executing workflow."""
+    async def comfyui_interrupt(prompt_id: str | None = None) -> str:
+        """Interrupt the currently executing workflow.
+
+        Without prompt_id: global interrupt — stops whatever is running now.
+        With prompt_id: targeted — only interrupts if that prompt is the
+        running one. ComfyUI silently no-ops if prompt_id is queued but
+        not yet running.
+        """
         limiter.check("interrupt")
-        await audit.async_log(tool="interrupt", action="called")
-        await client.interrupt()
-        return "Interrupted current execution"
+        await audit.async_log(tool="interrupt", action="called", extra={"prompt_id": prompt_id})
+        await client.interrupt(prompt_id=prompt_id)
+        if prompt_id is None:
+            return "Interrupted current execution (global)"
+        return f"Requested interrupt for prompt {prompt_id} (no-op if not running)"
 
     tool_fns["comfyui_interrupt"] = comfyui_interrupt
 
