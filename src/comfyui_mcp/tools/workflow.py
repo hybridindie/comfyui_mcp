@@ -133,16 +133,34 @@ def register_workflow_tools(
     async def comfyui_modify_workflow(workflow: str, operations: str) -> dict[str, Any]:
         """Apply batch operations to a ComfyUI workflow.
 
-        Operations: add_node, remove_node, set_input, connect, disconnect.
-        Operations execute sequentially. If any fails, the workflow is unchanged.
+        Operations execute sequentially in array order. If any operation fails,
+        the workflow is returned unchanged (transactional).
 
         Args:
-            workflow: JSON string of the workflow to modify.
-            operations: JSON string of an array of operation objects.
-                        Each has an 'op' field and operation-specific fields.
-                        Example: [{"op": "add_node", "class_type": "LoraLoader"},
-                                  {"op": "connect", "from_node": "1", "from_output": 0,
-                                   "to_node": "3", "to_input": "model"}]
+            workflow (required): JSON string of the workflow to modify.
+            operations (required): JSON string of an array of operation objects.
+
+        Operation reference:
+
+        - ``add_node`` — append a new node. Fields:
+          ``{"op": "add_node", "class_type": "<NodeType>",
+             "node_id": "<id>" (optional, auto-assigned if omitted),
+             "inputs": {...} (optional default inputs)}``
+        - ``remove_node`` — drop a node. Fields:
+          ``{"op": "remove_node", "node_id": "<id>"}``
+        - ``set_input`` — set or replace a single input value. Fields:
+          ``{"op": "set_input", "node_id": "<id>",
+             "input_name": "<key>", "value": <any>}``
+        - ``connect`` — wire one node's output into another's input. Fields:
+          ``{"op": "connect", "from_node": "<id>", "from_output": <int>,
+             "to_node": "<id>", "to_input": "<key>"}``
+        - ``disconnect`` — clear an existing input connection. Fields:
+          ``{"op": "disconnect", "node_id": "<id>", "input_name": "<key>"}``
+
+        Example:
+            ``operations='[{"op": "set_input", "node_id": "3",
+            "input_name": "steps", "value": 50},
+            {"op": "add_node", "class_type": "LoraLoader"}]'``
         """
         limiter.check("modify_workflow")
         if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
@@ -266,11 +284,24 @@ def register_workflow_tools(
         available models, dangerous nodes, and suspicious inputs.
 
         Args:
-            workflow: JSON string of the workflow to validate.
+            workflow (required): JSON string of the workflow to validate.
 
         Returns:
-            Dict with keys: valid (bool), errors (list), warnings (list),
-            node_count (int), pipeline (str).
+            Dict with keys:
+
+            - ``valid`` (bool): True only if there are zero entries in ``errors``.
+            - ``errors`` (list[str]): blocking issues — invalid structure,
+              connections that reference nonexistent nodes, missing required
+              inputs, etc. Each entry is a human-readable string identifying
+              the offending node id and what's wrong.
+            - ``warnings`` (list[str]): non-blocking concerns — unknown
+              ``class_type`` not advertised by the connected server,
+              missing model files, dangerous node names, suspicious input
+              patterns (e.g. ``__import__``).
+            - ``node_count`` (int): number of nodes in the workflow.
+            - ``pipeline`` (str): coarse type — ``txt2img``, ``img2img``,
+              ``upscale``, ``img2img -> upscale``, or ``unknown``. (For the
+              full structural breakdown, use ``comfyui_analyze_workflow``.)
         """
         limiter.check("validate_workflow")
         if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
