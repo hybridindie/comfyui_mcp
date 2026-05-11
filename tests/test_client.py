@@ -123,6 +123,39 @@ class TestComfyUIClient:
         with pytest.raises(ValueError, match="Invalid status"):
             await client.get_jobs(status=["bogus"])
 
+    @respx.mock
+    async def test_get_jobs_accepts_cancelled_status(self, client):
+        """ComfyUI's upstream JobStatus enum includes 'cancelled'; the client must too."""
+        route = respx.get("http://test-comfyui:8188/api/jobs").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "jobs": [],
+                    "pagination": {"offset": 0, "limit": None, "total": 0, "has_more": False},
+                },
+            )
+        )
+        await client.get_jobs(status=["cancelled"])
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["status"] == "cancelled"
+
+    @respx.mock
+    async def test_get_jobs_accepts_all_upstream_statuses(self, client):
+        """The client allowlist must stay in sync with ComfyUI's JobStatus.ALL."""
+        route = respx.get("http://test-comfyui:8188/api/jobs").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "jobs": [],
+                    "pagination": {"offset": 0, "limit": None, "total": 0, "has_more": False},
+                },
+            )
+        )
+        all_statuses = ["pending", "in_progress", "completed", "failed", "cancelled"]
+        await client.get_jobs(status=all_statuses)
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["status"] == ",".join(all_statuses)
+
     async def test_get_jobs_rejects_invalid_sort_by(self, client):
         with pytest.raises(ValueError, match="sort_by"):
             await client.get_jobs(sort_by="random")

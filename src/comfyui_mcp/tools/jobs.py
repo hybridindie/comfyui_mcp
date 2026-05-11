@@ -55,7 +55,7 @@ def register_job_tools(
         """Look up a single job by prompt_id across queue + history.
 
         Returns a flat unified job object with top-level keys: prompt_id, status
-        (pending/in_progress/completed/failed), timing fields (created_at,
+        (pending/in_progress/completed/failed/cancelled), timing fields (created_at,
         started_at, completed_at, execution_duration), outputs (when completed),
         and error (when failed). Use this to check on a job that may be queued,
         running, or already finished.
@@ -81,7 +81,7 @@ def register_job_tools(
     )
     async def comfyui_list_jobs(
         status: Annotated[
-            list[Literal["pending", "in_progress", "completed", "failed"]] | None,
+            list[Literal["pending", "in_progress", "completed", "failed", "cancelled"]] | None,
             Field(
                 default=None,
                 description="Filter by job status (any combination).",
@@ -111,7 +111,7 @@ def register_job_tools(
         """List jobs across queue and history with filtering, sorting, and pagination.
 
         Returns {"jobs": [...], "pagination": {"offset", "limit", "total", "has_more"}}.
-        Each job includes prompt_id, status (pending/in_progress/completed/failed),
+        Each job includes prompt_id, status (pending/in_progress/completed/failed/cancelled),
         timing, and outputs (when completed).
         """
         rl = read_limiter if read_limiter is not None else limiter
