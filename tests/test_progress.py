@@ -421,10 +421,10 @@ class TestWebSocketProgress:
         assert state.status == "unknown"
 
     @respx.mock
-    async def test_preflight_history_check_avoids_hanging_on_fast_jobs(self, monkeypatch):
+    async def test_preflight_terminal_check_avoids_hanging_on_fast_jobs(self, monkeypatch):
         """Jobs that complete before the WS connects must be caught by the pre-flight
-        history check so _wait_internal returns immediately instead of hanging until
-        the 300 s timeout (the race condition observed on the k3s cluster)."""
+        check against /api/jobs/{id} so _wait_internal returns immediately instead of
+        hanging until the 300 s timeout (the race condition observed on the k3s cluster)."""
         client = ComfyUIClient(base_url="http://test:8188")
         progress = WebSocketProgress(client, timeout=30.0)
         prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -454,4 +454,4 @@ class TestWebSocketProgress:
         assert state.status == "completed"
         assert state.outputs[0]["filename"] == "fast.png"
         # Pre-flight path emits a marker event so callers know how it resolved
-        assert any(e["type"] == "preflight_history" for e in events)
+        assert any(e["type"] == "preflight_terminal" for e in events)
