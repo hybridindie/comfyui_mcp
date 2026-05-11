@@ -12,9 +12,7 @@ return shapes across workflow-submitting tools, and tightens parameter naming. T
 **breaking** entries below require call-site updates for MCP clients that consumed
 this server's tools as strings or that passed the renamed parameters by keyword.
 
-Covers every change since the previous published release ([1.0.0]). The version on
-PyPI between 1.0.0 and 2.0.0 (the `1.0.1` development bump) was never tagged or
-published.
+Covers every change since the previous published release ([1.0.1]).
 
 ### Added
 
@@ -133,8 +131,6 @@ published.
   broke on `completed`/`error`. A cancelled job during WS-fallback polling would
   loop until timeout and surface as `status='timeout'` instead of `'interrupted'`.
   Now includes `interrupted` in the terminal set (#76).
-- **`comfyui_upload_mask` field name and missing `original_ref`** — fixed in a
-  small follow-up to the 1.0.0 release; rolled into 2.0.0 (d78391e).
 - **PR review-comment fixes** along the way — `tmp_path: Any` → `tmp_path: Path`
   in `test_security_invariants.py`'s `all_tools` fixture; `httpx.AsyncClient`
   cleanup in the same fixture; misnamed `test_get_jobs_rejects_negative_limit`
@@ -161,10 +157,19 @@ published.
   nudge + last-line fallback extractor).
 - Plan archive at `docs/superpowers/plans/` for the major refactor PRs.
 
+## [1.0.1] — 2026-04-03
+
+### Fixed
+
+- **`comfyui_upload_mask`** — used the wrong multipart field name and was
+  missing the `original_ref` payload that ComfyUI's `/upload/mask` requires,
+  causing uploads to fail.
+
 ## [1.0.0] — 2026-04-02
 
-Last published release prior to 2.0.0. See git history (`git log v1.0.0`) for
-changes leading up to this tag.
+Last 1.x line release prior to the 2.0.0 cut. See git history (`git log v1.0.0`)
+for changes leading up to this tag.
 
 [2.0.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v2.0.0
+[1.0.1]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v1.0.1
 [1.0.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v1.0.0
