@@ -392,11 +392,39 @@ class ComfyUIClient:
         filename: str,
         original_ref: dict[str, str],
         subfolder: str = "",
+        *,
+        destination: str = "input",
+        overwrite: bool = False,
     ) -> dict:
+        """POST /upload/mask — upload a mask image to ComfyUI.
+
+        Args:
+            data: Raw mask image bytes.
+            filename: Target filename in ComfyUI's storage.
+            original_ref: Dict identifying the original image whose alpha channel
+                this mask updates. Must include ``filename`` and ``type`` keys;
+                may include ``subfolder``.
+            subfolder: Optional subfolder within the destination.
+            destination: Destination type. One of "input" (default), "output", "temp".
+                The wire field name is ``type`` — renamed here to avoid shadowing
+                the Python builtin.
+            overwrite: If True, replace an existing file with the same name. If False
+                (default), ComfyUI auto-renames by suffixing ``(N)``.
+        """
+        if destination not in {"input", "output", "temp"}:
+            raise ValueError(
+                f"destination must be one of 'input', 'output', 'temp'; got {destination!r}"
+            )
         files = {"image": (filename, data, "image/png")}
         form_data: dict[str, str] = {"original_ref": json.dumps(original_ref)}
         if subfolder:
             form_data["subfolder"] = subfolder
+        # Only include 'type'/'overwrite' when the caller deviates from defaults —
+        # keeps the request body identical to historical behavior in the common case.
+        if destination != "input":
+            form_data["type"] = destination
+        if overwrite:
+            form_data["overwrite"] = "true"
         r = await self._request("post", "/upload/mask", files=files, data=form_data)
         return r.json()
 
