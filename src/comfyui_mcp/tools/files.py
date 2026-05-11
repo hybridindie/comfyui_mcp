@@ -109,13 +109,41 @@ def register_file_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_upload_image(filename: str, image_data: str, subfolder: str = "") -> str:
-        """Upload an image to ComfyUI's input directory.
+    async def comfyui_upload_image(
+        filename: Annotated[
+            str,
+            Field(description="Name for the uploaded file (e.g. 'reference.png')"),
+        ],
+        image_data: Annotated[
+            str,
+            Field(description="Base64-encoded image data"),
+        ],
+        subfolder: Annotated[
+            str,
+            Field(default="", description="Optional subfolder within the destination directory"),
+        ] = "",
+        destination: Annotated[
+            Literal["input", "output", "temp"],
+            Field(
+                default="input",
+                description="Destination directory. 'input' (default) is where workflows "
+                "read user-supplied images from; 'output' and 'temp' are usually only "
+                "useful for testing or scripted setups.",
+            ),
+        ] = "input",
+        overwrite: Annotated[
+            bool,
+            Field(
+                default=False,
+                description="If True, replace any existing file with the same name. If False "
+                "(default), ComfyUI auto-renames by suffixing ' (N)'.",
+            ),
+        ] = False,
+    ) -> str:
+        """Upload an image to ComfyUI.
 
-        Args:
-            filename: Name for the uploaded file (e.g. 'reference.png')
-            image_data: Base64-encoded image data
-            subfolder: Optional subfolder within ComfyUI's input directory
+        Defaults to ComfyUI's input directory (the destination workflows read from).
+        Set destination='output' or 'temp' only if you have a specific reason.
         """
         limiter.check("upload_image")
         clean_name = sanitizer.validate_filename(filename)
@@ -125,11 +153,22 @@ def register_file_tools(
         await audit.async_log(
             tool="upload_image",
             action="uploading",
-            extra={"filename": clean_name, "size_bytes": len(raw)},
+            extra={
+                "filename": clean_name,
+                "size_bytes": len(raw),
+                "destination": destination,
+                "overwrite": overwrite,
+            },
         )
-        result = await client.upload_image(raw, clean_name, clean_subfolder)
+        result = await client.upload_image(
+            raw,
+            clean_name,
+            clean_subfolder,
+            destination=destination,
+            overwrite=overwrite,
+        )
         await audit.async_log(tool="upload_image", action="uploaded", extra={"result": result})
-        return f"Uploaded {result.get('name', clean_name)} to ComfyUI input directory"
+        return f"Uploaded {result.get('name', clean_name)} to ComfyUI {destination} directory"
 
     tool_fns["comfyui_upload_image"] = comfyui_upload_image
 
@@ -160,24 +199,55 @@ def register_file_tools(
                 description="Optional override for URL responses; falls back to configured base URL"
             ),
         ] = None,
+        preview_format: Annotated[
+            Literal["webp", "jpeg"] | None,
+            Field(
+                default=None,
+                description="If set with response_format='data_uri', request a server-rendered "
+                "thumbnail in this format instead of the original (smaller payload, lossy).",
+            ),
+        ] = None,
+        preview_quality: Annotated[
+            int | None,
+            Field(
+                default=None,
+                ge=1,
+                le=100,
+                description="Encoder quality (1-100) for preview_format. Default: 90 when "
+                "preview_format is set.",
+            ),
+        ] = None,
     ) -> str:
         """Download a generated image from ComfyUI or return a direct view URL.
 
         Returns:
-            Base64-encoded image data with content type prefix, or a direct image URL
+            Base64-encoded image data with content type prefix, or a direct image URL.
+            When response_format='data_uri' and preview_format is set, ComfyUI re-encodes
+            the image server-side as a smaller webp or jpeg thumbnail.
         """
         limiter.check("get_image")
+
+        if preview_quality is not None and preview_format is None:
+            raise ValueError("preview_quality is only meaningful when preview_format is also set")
+
         clean_name = sanitizer.validate_filename(filename)
         clean_subfolder = sanitizer.validate_subfolder(subfolder)
         await audit.async_log(
             tool="get_image",
             action="downloading",
-            extra={"filename": clean_name, "response_format": response_format},
+            extra={
+                "filename": clean_name,
+                "response_format": response_format,
+                "preview_format": preview_format,
+            },
         )
 
         resolved_base_url = base_url_override or image_view_base_url
 
         if response_format == "url":
+            # Preview params don't apply to URL responses — the returned URL
+            # is a direct /view link; callers wanting a thumbnail should
+            # request response_format='data_uri'.
             return client.build_image_url(
                 clean_name,
                 clean_subfolder,
@@ -187,9 +257,15 @@ def register_file_tools(
         if response_format != "data_uri":
             raise ValueError("response_format must be 'data_uri' or 'url'")
 
+        preview_spec: str | None = None
+        if preview_format is not None:
+            quality = preview_quality if preview_quality is not None else 90
+            preview_spec = f"{preview_format};{quality}"
+
         data, content_type = await client.get_image(
             clean_name,
             clean_subfolder,
+            preview=preview_spec,
         )
         b64 = base64.b64encode(data).decode()
         return f"data:{content_type};base64,{b64}"

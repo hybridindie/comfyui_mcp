@@ -192,6 +192,43 @@ class TestComfyUIClient:
         assert result["name"] == "uploaded.png"
 
     @respx.mock
+    async def test_upload_image_default_type(self, client):
+        # Default behavior: form does not include 'type' or 'overwrite' fields
+        route = respx.post("http://test-comfyui:8188/upload/image").mock(
+            return_value=httpx.Response(
+                200, json={"name": "x.png", "subfolder": "", "type": "input"}
+            )
+        )
+        await client.upload_image(b"data", "x.png")
+        body = route.calls.last.request.content
+        # multipart form encoded — check that type/overwrite are NOT present
+        assert b'name="type"' not in body
+        assert b'name="overwrite"' not in body
+
+    @respx.mock
+    async def test_upload_image_with_type_and_overwrite(self, client):
+        route = respx.post("http://test-comfyui:8188/upload/image").mock(
+            return_value=httpx.Response(
+                200, json={"name": "x.png", "subfolder": "", "type": "output"}
+            )
+        )
+        await client.upload_image(
+            b"data",
+            "x.png",
+            destination="output",
+            overwrite=True,
+        )
+        body = route.calls.last.request.content
+        assert b'name="type"' in body
+        assert b"output" in body
+        assert b'name="overwrite"' in body
+        assert b"true" in body
+
+    async def test_upload_image_rejects_invalid_destination(self, client):
+        with pytest.raises(ValueError, match="destination"):
+            await client.upload_image(b"data", "x.png", destination="garbage")
+
+    @respx.mock
     async def test_get_image(self, client):
         route = respx.get("http://test-comfyui:8188/view").mock(
             return_value=httpx.Response(
@@ -204,6 +241,49 @@ class TestComfyUIClient:
         assert route.calls
         request = route.calls[0].request
         assert request.url.params["type"] == "output"
+
+    @respx.mock
+    async def test_get_image_preview_webp(self, client):
+        route = respx.get("http://test-comfyui:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"fake-webp-bytes",
+                headers={"content-type": "image/webp"},
+            )
+        )
+        data, content_type = await client.get_image("out.png", preview="webp;90")
+        assert data == b"fake-webp-bytes"
+        assert content_type == "image/webp"
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["filename"] == "out.png"
+        assert params["preview"] == "webp;90"
+        assert params["type"] == "output"
+
+    @respx.mock
+    async def test_get_image_preview_jpeg(self, client):
+        route = respx.get("http://test-comfyui:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"fake-jpeg-bytes",
+                headers={"content-type": "image/jpeg"},
+            )
+        )
+        await client.get_image("out.png", preview="jpeg;75")
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["preview"] == "jpeg;75"
+
+    @respx.mock
+    async def test_get_image_without_preview_omits_param(self, client):
+        route = respx.get("http://test-comfyui:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"png-bytes",
+                headers={"content-type": "image/png"},
+            )
+        )
+        await client.get_image("out.png")
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert "preview" not in params
 
     @respx.mock
     async def test_delete_queue_item(self, client):
@@ -379,6 +459,29 @@ class TestComfyUIClient:
         assert "abc" in result
         request = route.calls[0].request
         assert request.url.params["max_items"] == "50"
+
+    @respx.mock
+    async def test_get_history_with_offset(self, client):
+        route = respx.get("http://test-comfyui:8188/history").mock(
+            return_value=httpx.Response(200, json={"abc": {"outputs": {}}})
+        )
+        await client.get_history(max_items=100, offset=50)
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert params["offset"] == "50"
+        assert params["max_items"] == "100"
+
+    @respx.mock
+    async def test_get_history_without_offset_omits_param(self, client):
+        route = respx.get("http://test-comfyui:8188/history").mock(
+            return_value=httpx.Response(200, json={})
+        )
+        await client.get_history(max_items=100)
+        params = dict(route.calls.last.request.url.params.multi_items())
+        assert "offset" not in params
+
+    async def test_get_history_rejects_negative_offset(self, client):
+        with pytest.raises(ValueError, match="offset"):
+            await client.get_history(max_items=100, offset=-1)
 
     @respx.mock
     async def test_get_object_info_cache_returns_cached(self, client):

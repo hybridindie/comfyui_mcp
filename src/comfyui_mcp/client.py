@@ -155,12 +155,29 @@ class ComfyUIClient:
         self._object_info_ts = now
         return data
 
-    async def get_history(self, max_items: int | None = None) -> dict:
+    async def get_history(
+        self,
+        max_items: int | None = None,
+        *,
+        offset: int | None = None,
+    ) -> dict:
+        """GET /history — fetch execution history with optional pagination.
+
+        Args:
+            max_items: Maximum number of history entries to return. Capped at 1000
+                server-side regardless of the value passed.
+            offset: Zero-based starting index. None (default) sends no offset, which
+                ComfyUI treats as "no offset" (newest entries first).
+        """
         params: dict[str, int] = {}
         if max_items is not None:
             if max_items <= 0:
                 raise ValueError("max_items must be a positive integer")
             params["max_items"] = min(max_items, 1000)
+        if offset is not None:
+            if offset < 0:
+                raise ValueError("offset must be >= 0")
+            params["offset"] = offset
         r = await self._request("get", "/history", params=params or None)
         return r.json()
 
@@ -237,11 +254,42 @@ class ComfyUIClient:
         _validate_prompt_id(prompt_id)
         await self._request("post", "/queue", json={"delete": [prompt_id]})
 
-    async def upload_image(self, data: bytes, filename: str, subfolder: str = "") -> dict:
+    async def upload_image(
+        self,
+        data: bytes,
+        filename: str,
+        subfolder: str = "",
+        *,
+        destination: str = "input",
+        overwrite: bool = False,
+    ) -> dict:
+        """POST /upload/image — upload an image to ComfyUI.
+
+        Args:
+            data: Raw image bytes.
+            filename: Target filename in ComfyUI's storage.
+            subfolder: Optional subfolder within the destination.
+            destination: Destination type. One of "input" (default), "output", "temp".
+                The wire field name is ``type`` — renamed here to avoid shadowing the
+                Python builtin.
+            overwrite: If True, replace an existing file with the same name. If False
+                (default), ComfyUI auto-renames by suffixing ``(N)`` when a duplicate
+                exists.
+        """
+        if destination not in {"input", "output", "temp"}:
+            raise ValueError(
+                f"destination must be one of 'input', 'output', 'temp'; got {destination!r}"
+            )
         files = {"image": (filename, data, "image/png")}
         form_data: dict[str, str] = {}
         if subfolder:
             form_data["subfolder"] = subfolder
+        # Only include 'type'/'overwrite' when the caller deviates from defaults —
+        # keeps the request body identical to historical behavior in the common case.
+        if destination != "input":
+            form_data["type"] = destination
+        if overwrite:
+            form_data["overwrite"] = "true"
         r = await self._request("post", "/upload/image", files=files, data=form_data)
         return r.json()
 
@@ -249,13 +297,26 @@ class ComfyUIClient:
         self,
         filename: str,
         subfolder: str = "",
+        *,
+        preview: str | None = None,
     ) -> tuple[bytes, str]:
-        """GET /view — download an output image by filename and subfolder."""
-        r = await self._request(
-            "get",
-            "/view",
-            params={"filename": filename, "subfolder": subfolder, "type": "output"},
-        )
+        """GET /view — download an output image by filename and subfolder.
+
+        Args:
+            filename: Image filename in ComfyUI's output dir.
+            subfolder: Subfolder within ComfyUI's output dir.
+            preview: Optional thumbnail spec passed to ComfyUI as ``preview=<spec>``.
+                Format ``<format>;<quality>`` where format is ``webp`` or ``jpeg``
+                and quality is 1-100. ComfyUI re-encodes the image server-side.
+        """
+        params: dict[str, str] = {
+            "filename": filename,
+            "subfolder": subfolder,
+            "type": "output",
+        }
+        if preview is not None:
+            params["preview"] = preview
+        r = await self._request("get", "/view", params=params)
         content_type = r.headers.get("content-type", "image/png")
         return r.content, content_type
 
