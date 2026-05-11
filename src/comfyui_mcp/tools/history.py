@@ -48,11 +48,18 @@ def register_history_tools(
             Envelope with keys ``items``, ``count`` (items in this page),
             ``offset``, ``limit``, ``has_more``, and ``total``.
 
-            ``total`` is set only when we know the true count — i.e., on the
-            last page (when fewer than ``limit + 1`` entries came back). On
-            non-last pages ``total`` is ``None`` because the upstream endpoint
-            does not return a count separately and computing it would require
-            fetching every entry.
+            ``total`` is set only when we can prove the true count:
+
+            - ``offset + count`` on the last page when ``count > 0``
+              (the upstream returned at most ``limit`` entries, so we've seen
+              everything from ``offset`` onward).
+            - ``0`` when ``offset == 0`` and the upstream returned nothing
+              (history is genuinely empty).
+            - ``None`` otherwise (``has_more`` is True, OR we paged past the
+              end and got back an empty result — in the latter case the true
+              count is somewhere in ``[0, offset]`` and we can't tell which).
+
+            ``has_more`` is the canonical end-of-history signal.
         """
         limiter.check("get_history")
         await audit.async_log(
@@ -73,9 +80,19 @@ def register_history_tools(
         has_more = len(entries) > limit
         page = entries[:limit]
         count = len(page)
-        # On the last page (no extra entry came back) the true total is the
-        # number we've seen so far; otherwise we can't know it cheaply.
-        total: int | None = (offset + count) if not has_more else None
+        # ``total`` is the true count when we can prove it. Three branches:
+        #   - has_more=True: we don't know the upper end. total = None.
+        #   - count > 0 and not has_more: this is the last page with data;
+        #     true total is offset + count.
+        #   - count == 0 with offset > 0: we paged past the end. True total
+        #     is unknown (the upstream just returns empty; it could be
+        #     anywhere from 0 to offset). total = None.
+        #   - count == 0 with offset == 0: history is genuinely empty.
+        total: int | None
+        if has_more or (count == 0 and offset > 0):  # noqa: SIM108
+            total = None
+        else:
+            total = offset + count
 
         return {
             "items": page,

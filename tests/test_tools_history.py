@@ -120,6 +120,34 @@ class TestGetHistory:
         assert prompt_ids == ["abc", "bad"]
 
     @respx.mock
+    async def test_empty_page_past_end_reports_unknown_total(self, components):
+        """Paging past the end (offset>0, empty result): total is unknown, not offset.
+
+        Regression for: if we just used `offset + count` we'd claim total=offset
+        even though the true count is somewhere in [0, offset] — we can't tell.
+        """
+        client, audit, limiter = components
+        respx.get("http://test:8188/history").mock(return_value=httpx.Response(200, json={}))
+        mcp = FastMCP("test")
+        tools = register_history_tools(mcp, client, audit, limiter)
+        result = await tools["comfyui_get_history"](limit=10, offset=5000)
+        assert result["count"] == 0
+        assert result["has_more"] is False
+        assert result["total"] is None
+
+    @respx.mock
+    async def test_empty_history_at_offset_zero_reports_total_zero(self, components):
+        """offset=0 with empty result means history is genuinely empty: total=0."""
+        client, audit, limiter = components
+        respx.get("http://test:8188/history").mock(return_value=httpx.Response(200, json={}))
+        mcp = FastMCP("test")
+        tools = register_history_tools(mcp, client, audit, limiter)
+        result = await tools["comfyui_get_history"](limit=10, offset=0)
+        assert result["count"] == 0
+        assert result["has_more"] is False
+        assert result["total"] == 0
+
+    @respx.mock
     async def test_deep_offset_supported(self, components):
         """Server-side offset means you can page past the previous 1000-item ceiling."""
         client, audit, limiter = components
