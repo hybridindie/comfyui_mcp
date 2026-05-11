@@ -65,7 +65,7 @@ def comfyui_mcp_phase4() -> Task:
         ),
         solver=react(
             prompt=_SYSTEM_PROMPT,
-            tools=mcp_tools(server),
+            tools=[mcp_tools(server)],
         ),
         scorer=match(location="end", ignore_case=True, numeric=True),
         message_limit=30,
