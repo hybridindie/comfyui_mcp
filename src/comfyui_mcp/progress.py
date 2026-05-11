@@ -10,7 +10,7 @@ import ssl
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import urlparse
 
 import httpx
@@ -133,12 +133,28 @@ class WebSocketProgress:
 
         return False
 
-    def _state_from_history(self, entry: dict[str, Any], prompt_id: str) -> ProgressState:
-        """Build a completed ProgressState from a /history/{prompt_id} entry."""
-        state = ProgressState(prompt_id=prompt_id, status="completed")
-        outputs = entry.get("outputs", {})
-        for node_id, node_output in outputs.items():
-            state.outputs.extend(self._extract_outputs(node_id, node_output))
+    # Map ComfyUI's /api/jobs status enum to our internal ProgressState.status names.
+    # Upstream uses "in_progress" / "pending" / "completed" / "failed" / "cancelled".
+    _STATUS_MAP: ClassVar[dict[str, str]] = {
+        "completed": "completed",
+        "failed": "error",
+        "cancelled": "interrupted",
+        "in_progress": "running",
+        "pending": "queued",
+    }
+
+    def _state_from_job(self, job: dict[str, Any], prompt_id: str) -> ProgressState:
+        """Build a ProgressState from a /api/jobs/{id} response."""
+        upstream_status = job.get("status", "")
+        state = ProgressState(
+            prompt_id=prompt_id,
+            status=self._STATUS_MAP.get(upstream_status, "unknown"),
+        )
+        outputs = job.get("outputs") or {}
+        if isinstance(outputs, dict):
+            for node_id, node_output in outputs.items():
+                if isinstance(node_output, dict):
+                    state.outputs.extend(self._extract_outputs(node_id, node_output))
         return state
 
     async def _wait_internal(
@@ -165,12 +181,13 @@ class WebSocketProgress:
             async with asyncio.timeout(self._timeout):
                 async with websockets.connect(ws_url, **ws_kwargs) as ws:
                     # Pre-flight: if the job finished before this WS connection was
-                    # established, ComfyUI will not replay terminal events. Check
-                    # history immediately to avoid hanging until timeout.
+                    # established, ComfyUI will not replay terminal events. Hit the
+                    # unified /api/jobs/{id} endpoint immediately to avoid hanging
+                    # until timeout.
                     with contextlib.suppress(httpx.HTTPError, OSError):
-                        history = await self._client.get_history_item(prompt_id)
-                        if prompt_id in history:
-                            state = self._state_from_history(history[prompt_id], prompt_id)
+                        job = await self._client.get_job(prompt_id)
+                        if job and job.get("status") in {"completed", "failed", "cancelled"}:
+                            state = self._state_from_job(job, prompt_id)
                             if collect_events:
                                 events.append(
                                     {"type": "preflight_history", "data": {"prompt_id": prompt_id}}
@@ -238,6 +255,11 @@ class WebSocketProgress:
             collect_events=True,
         )
 
+    # ProgressState.status values that end the HTTP-polling fallback loop.
+    # Must mirror every terminal status _STATUS_MAP can produce — otherwise a
+    # job in a terminal state would keep polling until timeout.
+    _TERMINAL_STATUSES: ClassVar[frozenset[str]] = frozenset({"completed", "error", "interrupted"})
+
     async def _poll_until_complete(self, prompt_id: str, start_time: float) -> ProgressState:
         """Poll HTTP endpoints until completion or timeout."""
         interval = 1.0
@@ -248,39 +270,34 @@ class WebSocketProgress:
                 state.elapsed_seconds = round(elapsed, 2)
                 return state
             state = await self.get_state(prompt_id)
-            if state.status in ("completed", "error"):
+            if state.status in self._TERMINAL_STATUSES:
                 state.elapsed_seconds = round(time.monotonic() - start_time, 2)
                 return state
             await asyncio.sleep(interval)
             interval = min(interval * 1.5, 10.0)
 
     async def get_state(self, prompt_id: str) -> ProgressState:
-        """Get current state via HTTP fallback (queue + history)."""
-        state = ProgressState(prompt_id=prompt_id)
+        """Get current state via the unified /api/jobs/{id} endpoint.
 
-        # Check history first (completed jobs)
+        For pending jobs we additionally consult /queue (best-effort) to derive
+        ``queue_position`` — the unified job response does not expose it.
+        """
+        job: dict[str, Any] | None = None
         with contextlib.suppress(httpx.HTTPError, OSError):
-            history = await self._client.get_history_item(prompt_id)
-            if prompt_id in history:
-                state.status = "completed"
-                entry = history[prompt_id]
-                outputs = entry.get("outputs", {})
-                for _node_id, node_output in outputs.items():
-                    state.outputs.extend(self._extract_outputs(_node_id, node_output))
-                return state
+            job = await self._client.get_job(prompt_id)
 
-        # Check queue (running/pending)
-        with contextlib.suppress(httpx.HTTPError, OSError):
-            queue = await self._client.get_queue()
-            for item in queue.get("queue_running", []):
-                if len(item) >= 2 and item[1] == prompt_id:
-                    state.status = "running"
-                    return state
-            pending = queue.get("queue_pending", [])
-            for i, item in enumerate(pending):
-                if len(item) >= 2 and item[1] == prompt_id:
-                    state.status = "queued"
-                    state.queue_position = i + 1
-                    return state
+        if job is None:
+            return ProgressState(prompt_id=prompt_id)
+
+        state = self._state_from_job(job, prompt_id)
+
+        if state.status == "queued":
+            with contextlib.suppress(httpx.HTTPError, OSError):
+                queue = await self._client.get_queue()
+                pending = queue.get("queue_pending", [])
+                for i, item in enumerate(pending):
+                    if len(item) >= 2 and item[1] == prompt_id:
+                        state.queue_position = i + 1
+                        break
 
         return state

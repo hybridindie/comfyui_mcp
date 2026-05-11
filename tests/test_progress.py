@@ -255,37 +255,25 @@ class TestWebSocketProgress:
 
         monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fail_connect)
 
-        # Simulate: first poll returns "running", second returns "completed"
+        # Simulate: first poll returns "in_progress", second returns "completed"
         prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-        history_call_count = 0
+        job_call_count = 0
 
-        def history_side_effect(request):
-            nonlocal history_call_count
-            history_call_count += 1
-            if history_call_count >= 2:
+        def job_side_effect(request):
+            nonlocal job_call_count
+            job_call_count += 1
+            if job_call_count >= 2:
                 return httpx.Response(
                     200,
                     json={
-                        prompt_id: {
-                            "outputs": {
-                                "9": {"images": [{"filename": "out.png", "subfolder": ""}]}
-                            },
-                            "status": {"completed": True},
-                        }
+                        "id": prompt_id,
+                        "status": "completed",
+                        "outputs": {"9": {"images": [{"filename": "out.png", "subfolder": ""}]}},
                     },
                 )
-            return httpx.Response(200, json={})
+            return httpx.Response(200, json={"id": prompt_id, "status": "in_progress"})
 
-        respx.get(f"http://test:8188/history/{prompt_id}").mock(side_effect=history_side_effect)
-        respx.get("http://test:8188/queue").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "queue_running": [["0", prompt_id, {}, {}]],
-                    "queue_pending": [],
-                },
-            )
-        )
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(side_effect=job_side_effect)
 
         # Patch sleep to avoid real delays in tests
         monkeypatch.setattr("comfyui_mcp.progress.asyncio.sleep", AsyncMock())
@@ -295,34 +283,48 @@ class TestWebSocketProgress:
         assert state.elapsed_seconds is not None
 
     @respx.mock
-    async def test_get_state_http_fallback_completed(self):
+    async def test_ws_failure_polling_terminates_on_cancelled(self, monkeypatch):
+        """Regression: HTTP-polling fallback must treat 'interrupted' as terminal.
+
+        Before the fix, _poll_until_complete only broke on 'completed'/'error',
+        so a job that ended up cancelled would keep polling and return 'timeout'
+        instead of 'interrupted'.
+        """
         client = ComfyUIClient(base_url="http://test:8188")
         progress = WebSocketProgress(client, timeout=10.0)
 
-        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {
-                        "outputs": {
-                            "9": {"images": [{"filename": "img.png", "subfolder": "output"}]}
-                        },
-                        "status": {"completed": True},
-                    }
-                },
-            )
+        def fail_connect(url, **kwargs):
+            raise OSError("Connection refused")
+
+        monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fail_connect)
+
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
+            return_value=httpx.Response(200, json={"id": prompt_id, "status": "cancelled"})
         )
-        respx.get("http://test:8188/queue").mock(
+        monkeypatch.setattr("comfyui_mcp.progress.asyncio.sleep", AsyncMock())
+
+        state = await progress.wait_for_completion(prompt_id)
+        assert state.status == "interrupted"
+
+    @respx.mock
+    async def test_get_state_http_fallback_completed(self):
+        client = ComfyUIClient(base_url="http://test:8188")
+        progress = WebSocketProgress(client, timeout=10.0)
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "queue_running": [],
-                    "queue_pending": [],
+                    "id": prompt_id,
+                    "status": "completed",
+                    "outputs": {"9": {"images": [{"filename": "img.png", "subfolder": "output"}]}},
                 },
             )
         )
 
-        state = await progress.get_state("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        state = await progress.get_state(prompt_id)
         assert state.status == "completed"
         assert len(state.outputs) == 1
         assert state.outputs[0]["filename"] == "img.png"
@@ -331,10 +333,15 @@ class TestWebSocketProgress:
     async def test_get_state_http_fallback_queued(self):
         client = ComfyUIClient(base_url="http://test:8188")
         progress = WebSocketProgress(client, timeout=10.0)
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
-            return_value=httpx.Response(200, json={})
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
+            return_value=httpx.Response(
+                200,
+                json={"id": prompt_id, "status": "pending"},
+            )
         )
+        # Queue is checked best-effort to derive a queue_position for pending jobs.
         respx.get("http://test:8188/queue").mock(
             return_value=httpx.Response(
                 200,
@@ -342,13 +349,13 @@ class TestWebSocketProgress:
                     "queue_running": [],
                     "queue_pending": [
                         [0, "other-id", {}, {}],
-                        [1, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {}, {}],
+                        [1, prompt_id, {}, {}],
                     ],
                 },
             )
         )
 
-        state = await progress.get_state("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        state = await progress.get_state(prompt_id)
         assert state.status == "queued"
         assert state.queue_position == 2
 
@@ -356,22 +363,62 @@ class TestWebSocketProgress:
     async def test_get_state_http_fallback_running(self):
         client = ComfyUIClient(base_url="http://test:8188")
         progress = WebSocketProgress(client, timeout=10.0)
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
-            return_value=httpx.Response(200, json={})
-        )
-        respx.get("http://test:8188/queue").mock(
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
             return_value=httpx.Response(
                 200,
-                json={
-                    "queue_running": [[0, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", {}, {}]],
-                    "queue_pending": [],
-                },
+                json={"id": prompt_id, "status": "in_progress"},
             )
         )
 
-        state = await progress.get_state("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        state = await progress.get_state(prompt_id)
         assert state.status == "running"
+
+    @respx.mock
+    async def test_get_state_maps_failed_to_error(self):
+        client = ComfyUIClient(base_url="http://test:8188")
+        progress = WebSocketProgress(client, timeout=10.0)
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
+            return_value=httpx.Response(
+                200,
+                json={"id": prompt_id, "status": "failed"},
+            )
+        )
+
+        state = await progress.get_state(prompt_id)
+        assert state.status == "error"
+
+    @respx.mock
+    async def test_get_state_maps_cancelled_to_interrupted(self):
+        client = ComfyUIClient(base_url="http://test:8188")
+        progress = WebSocketProgress(client, timeout=10.0)
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
+            return_value=httpx.Response(
+                200,
+                json={"id": prompt_id, "status": "cancelled"},
+            )
+        )
+
+        state = await progress.get_state(prompt_id)
+        assert state.status == "interrupted"
+
+    @respx.mock
+    async def test_get_state_returns_unknown_on_404(self):
+        client = ComfyUIClient(base_url="http://test:8188")
+        progress = WebSocketProgress(client, timeout=10.0)
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
+            return_value=httpx.Response(404, json={"error": "Job not found"})
+        )
+
+        state = await progress.get_state(prompt_id)
+        assert state.status == "unknown"
 
     @respx.mock
     async def test_preflight_history_check_avoids_hanging_on_fast_jobs(self, monkeypatch):
@@ -390,17 +437,14 @@ class TestWebSocketProgress:
 
         monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fake_connect)
 
-        # History endpoint immediately returns a completed entry
-        respx.get(f"http://test:8188/history/{prompt_id}").mock(
+        # /api/jobs/{id} immediately reports the job as completed
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    prompt_id: {
-                        "outputs": {
-                            "9": {"images": [{"filename": "fast.png", "subfolder": "output"}]}
-                        },
-                        "status": {"completed": True},
-                    }
+                    "id": prompt_id,
+                    "status": "completed",
+                    "outputs": {"9": {"images": [{"filename": "fast.png", "subfolder": "output"}]}},
                 },
             )
         )

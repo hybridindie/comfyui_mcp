@@ -57,19 +57,22 @@ class TestComfyUIClient:
 
     @respx.mock
     async def test_get_job_returns_job_object(self, client):
+        # Upstream ComfyUI returns the prompt id under the key "id" (see
+        # comfy_execution/jobs.py:normalize_history_item / normalize_queue_item).
+        # Fixtures across the suite mirror that contract.
         job_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         respx.get(f"http://test-comfyui:8188/api/jobs/{job_id}").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "prompt_id": job_id,
+                    "id": job_id,
                     "status": "in_progress",
                     "outputs": {},
                 },
             )
         )
         result = await client.get_job(job_id)
-        assert result["prompt_id"] == job_id
+        assert result["id"] == job_id
         assert result["status"] == "in_progress"
 
     async def test_get_job_rejects_non_uuid(self, client):
@@ -289,16 +292,6 @@ class TestComfyUIClient:
     async def test_delete_queue_item(self, client):
         respx.post("http://test-comfyui:8188/queue").mock(return_value=httpx.Response(200, json={}))
         await client.delete_queue_item("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-
-    @respx.mock
-    async def test_get_history_item(self, client):
-        respx.get("http://test-comfyui:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
-            return_value=httpx.Response(
-                200, json={"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {"outputs": {}}}
-            )
-        )
-        result = await client.get_history_item("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
 
     @respx.mock
     async def test_get_embeddings(self, client):
@@ -610,18 +603,6 @@ class TestModelManagerClient:
 class TestPathInjectionValidation:
     """Verify that prompt_id and path segment validators block injection attempts."""
 
-    async def test_get_history_item_rejects_path_traversal(self, client):
-        with pytest.raises(ValueError, match="Invalid prompt_id"):
-            await client.get_history_item("../../../free")
-
-    async def test_get_history_item_rejects_empty(self, client):
-        with pytest.raises(ValueError, match="Invalid prompt_id"):
-            await client.get_history_item("")
-
-    async def test_get_history_item_rejects_non_uuid(self, client):
-        with pytest.raises(ValueError, match="Invalid prompt_id"):
-            await client.get_history_item("not-a-valid-uuid-format")
-
     async def test_delete_queue_item_rejects_path_traversal(self, client):
         with pytest.raises(ValueError, match="Invalid prompt_id"):
             await client.delete_queue_item("../../userdata")
@@ -649,10 +630,10 @@ class TestPathInjectionValidation:
     @respx.mock
     async def test_valid_uuid_passes_through(self, client):
         """Sanity check: valid UUID is accepted."""
-        respx.get("http://test-comfyui:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
-            return_value=httpx.Response(200, json={})
+        respx.get("http://test-comfyui:8188/api/jobs/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
+            return_value=httpx.Response(200, json={"id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"})
         )
-        result = await client.get_history_item("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        result = await client.get_job("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
         assert isinstance(result, dict)
 
     @respx.mock
