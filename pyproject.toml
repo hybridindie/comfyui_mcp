@@ -51,6 +51,7 @@ dev = [
     "pytest-cov>=7.0.0",
     "respx>=0.22.0",
     "ruff>=0.8.0",
+    "inspect-ai>=0.3.200",
     "mypy>=1.13.0",
     "types-PyYAML>=6.0.0",
     "pre-commit>=4.0.0",
