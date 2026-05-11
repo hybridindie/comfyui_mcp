@@ -88,7 +88,8 @@ class TestRunWorkflow:
         )
         workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
         result = await tools["comfyui_run_workflow"](workflow=json.dumps(workflow))
-        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
+        assert result["status"] == "submitted"
+        assert result["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
     @respx.mock
     async def test_audit_mode_logs_dangerous_nodes(self, components):
@@ -104,8 +105,10 @@ class TestRunWorkflow:
         )
         workflow = {"1": {"class_type": "EvalNode", "inputs": {}}}
         result = await tools["comfyui_run_workflow"](workflow=json.dumps(workflow))
-        assert "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" in result
-        assert "EvalNode" in result
+        assert result["status"] == "submitted"
+        assert result["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        # Inspector warning about EvalNode is now in result["warnings"]:
+        assert any("EvalNode" in w for w in result.get("warnings", []))
 
     async def test_enforce_mode_blocks_unapproved(self, enforce_components):
         client, audit, limiter, inspector, sanitizer = enforce_components
@@ -159,7 +162,7 @@ class TestRunWorkflow:
 
         workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
         result = await tools["comfyui_run_workflow_stream"](workflow=json.dumps(workflow))
-        parsed = json.loads(result)
+        parsed = result  # already a dict — no json.loads needed
         assert parsed["status"] == "completed"
         assert parsed["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         assert parsed["events"][0]["type"] == "progress"
@@ -180,7 +183,8 @@ class TestGenerateImage:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         result = await tools["comfyui_generate_image"](prompt="a beautiful sunset over mountains")
-        assert "img-001" in result
+        assert result["status"] == "submitted"
+        assert result["prompt_id"] == "img-001"
 
     async def test_rejects_invalid_width(self, components):
         client, audit, limiter, inspector, sanitizer = components
@@ -827,13 +831,13 @@ class TestGenerateImageWait:
             sanitizer=sanitizer,
         )
         result = await tools["comfyui_generate_image"](prompt="a cat", wait=True)
-        data = json.loads(result)
-        assert data["prompt_id"] == "img-wait-1"
-        assert data["status"] == "completed"
-        assert len(data["outputs"]) == 1
+        # result is already a dict — no json.loads needed.
+        assert result["prompt_id"] == "img-wait-1"
+        assert result["status"] == "completed"
+        assert len(result["outputs"]) == 1
 
     @respx.mock
-    async def test_wait_false_returns_prompt_id_string(self, progress_components):
+    async def test_wait_false_returns_submitted_envelope(self, progress_components):
         client, audit, limiter, inspector, sanitizer, progress, _ = progress_components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(200, json={"prompt_id": "img-nowait"})
@@ -849,8 +853,8 @@ class TestGenerateImageWait:
             sanitizer=sanitizer,
         )
         result = await tools["comfyui_generate_image"](prompt="a dog", wait=False)
-        assert "img-nowait" in result
-        assert not result.startswith("{")
+        assert result["status"] == "submitted"
+        assert result["prompt_id"] == "img-nowait"
 
 
 class TestRunWorkflowWait:
@@ -887,14 +891,14 @@ class TestRunWorkflowWait:
             workflow=json.dumps({"1": {"class_type": "KSampler", "inputs": {}}}),
             wait=True,
         )
-        data = json.loads(result)
-        assert data["prompt_id"] == "wait-123"
-        assert data["status"] == "completed"
-        assert data["elapsed_seconds"] == 5.2
-        assert len(data["outputs"]) == 1
+        # result is already a dict — no json.loads needed.
+        assert result["prompt_id"] == "wait-123"
+        assert result["status"] == "completed"
+        assert result["elapsed_seconds"] == 5.2
+        assert len(result["outputs"]) == 1
 
     @respx.mock
-    async def test_wait_false_returns_prompt_id_string(self, progress_components):
+    async def test_wait_false_returns_submitted_envelope(self, progress_components):
         client, audit, limiter, inspector, sanitizer, progress, _ = progress_components
         respx.post("http://test:8188/prompt").mock(
             return_value=httpx.Response(200, json={"prompt_id": "nowait-456"})
@@ -913,9 +917,8 @@ class TestRunWorkflowWait:
             workflow=json.dumps({"1": {"class_type": "KSampler", "inputs": {}}}),
             wait=False,
         )
-        assert "nowait-456" in result
-        # Should be plain string, not JSON
-        assert not result.startswith("{")
+        assert result["status"] == "submitted"
+        assert result["prompt_id"] == "nowait-456"
 
 
 class TestModelCheckIntegration:
@@ -954,9 +957,10 @@ class TestModelCheckIntegration:
             }
         )
         result = await tools["comfyui_run_workflow"](workflow=workflow)
-        assert "Missing model" in result
-        assert "missing_model.safetensors" in result
-        assert "comfyui_search_models" in result
+        warnings = result.get("warnings", [])
+        assert any("Missing model" in w for w in warnings)
+        assert any("missing_model.safetensors" in w for w in warnings)
+        assert any("comfyui_search_models" in w for w in warnings)
 
     @respx.mock
     async def test_run_workflow_no_warning_when_model_present(self, components):
@@ -987,8 +991,9 @@ class TestModelCheckIntegration:
             }
         )
         result = await tools["comfyui_run_workflow"](workflow=workflow)
-        assert "abc-456" in result
-        assert "Missing model" not in result
+        assert result["prompt_id"] == "abc-456"
+        warnings = result.get("warnings", [])
+        assert not any("Missing model" in w for w in warnings)
 
     @respx.mock
     async def test_generate_image_warns_missing_model(self, components):
@@ -1013,8 +1018,9 @@ class TestModelCheckIntegration:
         result = await tools["comfyui_generate_image"](
             prompt="a cat", model="missing_model.safetensors"
         )
-        assert "Missing model" in result
-        assert "missing_model.safetensors" in result
+        warnings = result.get("warnings", [])
+        assert any("Missing model" in w for w in warnings)
+        assert any("missing_model.safetensors" in w for w in warnings)
 
     async def test_run_workflow_enforce_mode_blocks_missing_model(self, tmp_path):
         client = ComfyUIClient(base_url="http://test:8188")
@@ -1082,8 +1088,9 @@ class TestModelCheckIntegration:
             }
         )
         result = await tools["comfyui_run_workflow"](workflow=workflow)
-        assert "pass-123" in result
-        assert "Missing model" not in result
+        assert result["prompt_id"] == "pass-123"
+        warnings = result.get("warnings", [])
+        assert not any("Missing model" in w for w in warnings)
 
 
 class TestConvenienceTools:
@@ -1113,7 +1120,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         result = await tools["comfyui_transform_image"](image="input.png", prompt="a cat in a hat")
-        assert "t2i-001" in result
+        assert result["prompt_id"] == "t2i-001"
 
     @respx.mock
     async def test_transform_image_puts_prompt_in_workflow(self, gen_components):
@@ -1190,7 +1197,7 @@ class TestConvenienceTools:
         result = await tools["comfyui_inpaint_image"](
             image="scene.png", mask="mask.png", prompt="a blue sky"
         )
-        assert "inp-001" in result
+        assert result["prompt_id"] == "inp-001"
 
     @respx.mock
     async def test_inpaint_image_uses_both_filenames(self, gen_components):
@@ -1251,7 +1258,7 @@ class TestConvenienceTools:
             mcp, client, audit, limiter, inspector, sanitizer=sanitizer
         )
         result = await tools["comfyui_upscale_image"](image="small.png")
-        assert "up-001" in result
+        assert result["prompt_id"] == "up-001"
 
     @respx.mock
     async def test_upscale_image_uses_custom_model(self, gen_components):
@@ -1314,10 +1321,9 @@ class TestConvenienceTools:
         with unittest.mock.patch.object(progress, "wait_for_completion", side_effect=fake_wait):
             result = await tools["comfyui_upscale_image"](image="small.png", wait=True)
 
-        data = json.loads(result)
-        assert data["prompt_id"] == "up-wait-1"
-        assert data["status"] == "completed"
-        assert len(data["outputs"]) == 1
+        assert result["prompt_id"] == "up-wait-1"
+        assert result["status"] == "completed"
+        assert len(result["outputs"]) == 1
 
     @respx.mock
     async def test_transform_image_wait_returns_structured_result(self, tmp_path):
@@ -1349,11 +1355,10 @@ class TestConvenienceTools:
                 image="input.png", prompt="a watercolor painting", wait=True
             )
 
-        data = json.loads(result)
-        assert data["prompt_id"] == "tf-wait-1"
-        assert data["status"] == "completed"
-        assert data["elapsed_seconds"] == 8.5
-        assert len(data["outputs"]) == 1
+        assert result["prompt_id"] == "tf-wait-1"
+        assert result["status"] == "completed"
+        assert result["elapsed_seconds"] == 8.5
+        assert len(result["outputs"]) == 1
 
     @respx.mock
     async def test_inpaint_image_wait_returns_structured_result(self, tmp_path):
@@ -1385,11 +1390,10 @@ class TestConvenienceTools:
                 image="scene.png", mask="mask.png", prompt="a blue sky", wait=True
             )
 
-        data = json.loads(result)
-        assert data["prompt_id"] == "inp-wait-1"
-        assert data["status"] == "completed"
-        assert data["elapsed_seconds"] == 15.0
-        assert len(data["outputs"]) == 1
+        assert result["prompt_id"] == "inp-wait-1"
+        assert result["status"] == "completed"
+        assert result["elapsed_seconds"] == 15.0
+        assert len(result["outputs"]) == 1
 
     # --- _validate_image_filename (sanitizer required) ---
 
