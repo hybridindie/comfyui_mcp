@@ -1,10 +1,12 @@
-"""Workflow composition tools: create_workflow, modify_workflow, validate_workflow."""
+"""Workflow composition tools: create, modify, validate, analyze."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import Any
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
@@ -15,6 +17,7 @@ from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer, PathValidationError
 from comfyui_mcp.workflow.operations import apply_operations
 from comfyui_mcp.workflow.templates import create_from_template
+from comfyui_mcp.workflow.validation import analyze_workflow as _analyze_workflow
 from comfyui_mcp.workflow.validation import validate_workflow as _validate_workflow
 
 _MAX_WORKFLOW_JSON_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -162,6 +165,78 @@ def register_workflow_tools(
         return result
 
     tool_fns["comfyui_modify_workflow"] = comfyui_modify_workflow
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=True,
+            destructiveHint=False,
+            idempotentHint=True,
+            openWorldHint=True,
+        )
+    )
+    async def comfyui_analyze_workflow(workflow: str) -> dict[str, Any]:
+        """Analyze a ComfyUI workflow and return its structured shape.
+
+        Unlike ``comfyui_summarize_workflow`` (which formats a human-readable
+        text or Mermaid summary), this tool returns the raw analysis as a dict
+        so callers can read individual fields directly without parsing prose.
+
+        Args:
+            workflow (required): JSON string of the workflow to analyze. The
+                workflow JSON is a dict keyed by node ID; each value has
+                ``class_type`` and ``inputs``.
+
+        Returns:
+            Dict with keys:
+
+            - ``node_count`` (int): number of nodes in the workflow.
+            - ``class_types`` (list[str]): every ``class_type`` in topological
+              order.
+            - ``flow`` (list[dict]): per-node info — ``node_id``, ``class_type``,
+              ``display_name``, ``inputs`` — in topological order.
+            - ``models`` (list[dict]): single-field loader values, e.g.
+              ``[{"name": "v1-5-pruned.safetensors", "type": "checkpoints"}]``.
+            - ``parameters`` (dict): flat key/value of common sampler/latent
+              parameters extracted from the graph (``steps``, ``cfg``, ``width``,
+              ``height``, etc.).
+            - ``pipeline`` (str): coarse type — ``txt2img``, ``img2img``,
+              ``upscale``, ``img2img -> upscale``, or ``unknown``.
+            - ``prompt_nodes`` (list[str]): ids of ``CLIPTextEncode`` nodes
+              wired into the sampler's positive input.
+            - ``negative_nodes`` (list[str]): ids of ``CLIPTextEncode`` nodes
+              wired into the sampler's negative input.
+
+        Display-name enrichment is best-effort via ComfyUI's ``/object_info``
+        endpoint; if the server is unreachable, ``display_name`` falls back to
+        the bare ``class_type``.
+        """
+        limiter.check("analyze_workflow")
+        if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
+            raise ValueError(
+                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+            )
+        try:
+            wf = json.loads(workflow)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON workflow: {e}") from e
+
+        if not isinstance(wf, dict):
+            raise ValueError("Workflow must be a JSON object keyed by node IDs")
+
+        # Best-effort enrichment from /object_info — analyzer handles None.
+        object_info: dict[str, Any] | None = None
+        with contextlib.suppress(httpx.HTTPError, OSError):
+            object_info = await client.get_object_info()
+
+        result = dict(_analyze_workflow(wf, object_info))
+        await audit.async_log(
+            tool="analyze_workflow",
+            action="analyzed",
+            extra={"node_count": result["node_count"], "pipeline": result["pipeline"]},
+        )
+        return result
+
+    tool_fns["comfyui_analyze_workflow"] = comfyui_analyze_workflow
 
     @mcp.tool(
         annotations=ToolAnnotations(

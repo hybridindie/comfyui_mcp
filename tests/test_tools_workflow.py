@@ -186,3 +186,75 @@ class TestIntegration:
         # Validate
         validated = await tools["comfyui_validate_workflow"](workflow=json.dumps(modified))
         assert validated["node_count"] == len(modified)
+
+
+class TestAnalyzeWorkflow:
+    @respx.mock
+    async def test_returns_structured_analysis(self, components):
+        client, audit, limiter, inspector, sanitizer = components
+        respx.get("http://test:8188/object_info").mock(return_value=httpx.Response(200, json={}))
+        mcp = FastMCP("test")
+        tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
+        workflow = {
+            "1": {"class_type": "EmptyLatentImage", "inputs": {"width": 768, "height": 512}},
+            "2": {"class_type": "KSampler", "inputs": {"steps": 30, "latent_image": ["1", 0]}},
+            "3": {"class_type": "SaveImage", "inputs": {"images": ["2", 0]}},
+        }
+        result = await tools["comfyui_analyze_workflow"](workflow=json.dumps(workflow))
+        assert result["node_count"] == 3
+        assert result["pipeline"] == "txt2img"
+        assert result["parameters"]["width"] == 768
+        assert result["parameters"]["height"] == 512
+        assert result["parameters"]["steps"] == 30
+        assert "EmptyLatentImage" in result["class_types"]
+        assert "KSampler" in result["class_types"]
+
+    @respx.mock
+    async def test_pipeline_field_directly_readable(self, components):
+        """Regression: qwen3-coder's eval failure on Q3 was caused by parsing the
+        Pipeline: line from comfyui_summarize_workflow's text output and only
+        catching the first segment ('img2img'). The new tool exposes pipeline
+        as a structured field so this failure mode is gone."""
+        client, audit, limiter, inspector, sanitizer = components
+        respx.get("http://test:8188/object_info").mock(return_value=httpx.Response(200, json={}))
+        mcp = FastMCP("test")
+        tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
+        workflow = {
+            "1": {"class_type": "LoadImage", "inputs": {"image": "in.png"}},
+            "2": {"class_type": "ImageUpscaleWithModel", "inputs": {"image": ["1", 0]}},
+        }
+        result = await tools["comfyui_analyze_workflow"](workflow=json.dumps(workflow))
+        assert result["pipeline"] == "img2img -> upscale"
+
+    async def test_rejects_invalid_json(self, components):
+        client, audit, limiter, inspector, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
+        with pytest.raises(ValueError, match="Invalid JSON workflow"):
+            await tools["comfyui_analyze_workflow"](workflow="not json")
+
+    async def test_rejects_non_dict(self, components):
+        client, audit, limiter, inspector, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
+        with pytest.raises(ValueError, match="must be a JSON object"):
+            await tools["comfyui_analyze_workflow"](workflow="[1, 2, 3]")
+
+    @respx.mock
+    async def test_falls_back_when_object_info_unreachable(self, components):
+        """If the server is down or returns an error, analysis still works for
+        the structural fields (just without display_name enrichment)."""
+        client, audit, limiter, inspector, sanitizer = components
+        respx.get("http://test:8188/object_info").mock(
+            return_value=httpx.Response(500, json={"error": "boom"})
+        )
+        mcp = FastMCP("test")
+        tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
+        workflow = {
+            "1": {"class_type": "EmptyLatentImage", "inputs": {"width": 512, "height": 512}},
+            "2": {"class_type": "KSampler", "inputs": {"latent_image": ["1", 0]}},
+            "3": {"class_type": "SaveImage", "inputs": {"images": ["2", 0]}},
+        }
+        result = await tools["comfyui_analyze_workflow"](workflow=json.dumps(workflow))
+        assert result["pipeline"] == "txt2img"
+        assert result["node_count"] == 3
