@@ -190,7 +190,10 @@ class WebSocketProgress:
                             state = self._state_from_job(job, prompt_id)
                             if collect_events:
                                 events.append(
-                                    {"type": "preflight_history", "data": {"prompt_id": prompt_id}}
+                                    {
+                                        "type": "preflight_terminal",
+                                        "data": {"prompt_id": prompt_id},
+                                    }
                                 )
                             state.elapsed_seconds = round(time.monotonic() - start_time, 2)
                             return state, events
