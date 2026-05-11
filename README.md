@@ -283,7 +283,7 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 
 | Tool | Description |
 |------|-------------|
-| `comfyui_get_history` | Browse execution history (read-only). |
+| `comfyui_get_history` | Browse execution history (read-only). Server-side paging via `limit` (1-100, default 25) and `offset` (no upper bound). Returns `{items, count, offset, limit, has_more, total}`; `total` is only set on the last page (the upstream endpoint does not expose a count). |
 
 ### Model Search & Download
 
