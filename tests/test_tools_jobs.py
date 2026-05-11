@@ -187,25 +187,14 @@ class TestGetProgress:
     @respx.mock
     async def test_returns_completed_state(self, progress_components):
         client, audit, limiter, read_limiter, progress = progress_components
-        respx.get("http://test:8188/history/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").mock(
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {
-                        "outputs": {
-                            "9": {"images": [{"filename": "out.png", "subfolder": "output"}]}
-                        },
-                        "status": {"completed": True},
-                    }
-                },
-            )
-        )
-        respx.get("http://test:8188/queue").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "queue_running": [],
-                    "queue_pending": [],
+                    "id": prompt_id,
+                    "status": "completed",
+                    "outputs": {"9": {"images": [{"filename": "out.png", "subfolder": "output"}]}},
                 },
             )
         )
@@ -218,28 +207,17 @@ class TestGetProgress:
             read_limiter=read_limiter,
             progress=progress,
         )
-        result = await tools["comfyui_get_progress"](
-            prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-        )
+        result = await tools["comfyui_get_progress"](prompt_id=prompt_id)
         assert result["status"] == "completed"
-        assert result["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        assert result["prompt_id"] == prompt_id
         assert len(result["outputs"]) == 1
 
     @respx.mock
     async def test_returns_unknown_when_not_found(self, progress_components):
         client, audit, limiter, read_limiter, progress = progress_components
         not_found_id = "11111111-2222-3333-4444-555555555555"
-        respx.get(f"http://test:8188/history/{not_found_id}").mock(
-            return_value=httpx.Response(200, json={})
-        )
-        respx.get("http://test:8188/queue").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "queue_running": [],
-                    "queue_pending": [],
-                },
-            )
+        respx.get(f"http://test:8188/api/jobs/{not_found_id}").mock(
+            return_value=httpx.Response(404, json={"error": "Job not found"})
         )
         mcp = FastMCP("test")
         tools = register_job_tools(
