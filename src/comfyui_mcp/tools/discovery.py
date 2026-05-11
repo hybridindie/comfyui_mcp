@@ -505,14 +505,31 @@ def register_discovery_tools(
         model_name: str | None = None,
         model_family: str | None = None,
     ) -> dict[str, Any]:
-        """Return recommended generation presets for a model family.
+        """Get recommended generation presets for a model family.
+
+        The presets are static data baked into this MCP — they reflect
+        community best-practice defaults, not anything the connected ComfyUI
+        server reports. Exactly one of ``model_name`` or ``model_family``
+        must be supplied; if both are given, ``model_family`` wins.
 
         Args:
-            model_name: Optional model filename to infer family from.
-            model_family: Optional explicit family (sd15, sdxl, flux, sd3, cascade).
+            model_name (required if ``model_family`` is omitted): Model
+                filename to auto-detect the family from (e.g.
+                ``sd_xl_base_1.0.safetensors`` → ``sdxl``). Used as a
+                fallback when ``model_family`` is empty.
+            model_family (required if ``model_name`` is omitted): Explicit
+                family identifier. Valid values: ``sd15``, ``sdxl``,
+                ``flux``, ``sd3``, ``cascade`` (aliases like ``sd1.5``,
+                ``stable-diffusion-xl``, ``flux.1``, ``sd3.5``,
+                ``stable-cascade`` are also accepted).
 
         Returns:
-            Dictionary containing normalized family and recommended settings.
+            Dict ``{"family": "<id>", "recommended": {<settings>}}`` where
+            ``recommended`` always contains the keys ``sampler`` (str),
+            ``scheduler`` (str), ``steps`` (int), ``cfg`` (float),
+            ``resolution`` (str like ``"1024x1024"``), ``clip_skip`` (int),
+            and ``notes`` (str). Callers that only need the settings can
+            read ``result["recommended"]`` directly.
         """
         limiter.check("get_model_presets")
         await audit.async_log(
@@ -551,10 +568,26 @@ def register_discovery_tools(
         )
     )
     async def comfyui_get_prompting_guide(model_family: str) -> dict[str, Any]:
-        """Return prompt-engineering guidance for a model family.
+        """Get the prompting guide for a model family.
+
+        The guide is static data baked into this MCP — it gives stylistic
+        and structural advice tuned to each family (prompt structure,
+        weighting syntax conventions, recommended quality tags, negative
+        prompt tips). It does not reflect the connected ComfyUI server's
+        installed models or state.
 
         Args:
-            model_family: Family name (sd15, sdxl, flux, sd3, cascade).
+            model_family (required): Family identifier. Valid values:
+                ``sd15``, ``sdxl``, ``flux``, ``sd3``, ``cascade`` (aliases
+                like ``sd1.5``, ``stable-diffusion-xl``, ``flux.1``,
+                ``sd3.5``, ``stable-cascade`` are also accepted).
+
+        Returns:
+            Dict ``{"family": "<id>", "guide": {<advice>}}`` where ``guide``
+            always contains the keys ``prompt_structure`` (str),
+            ``weight_syntax`` (str), ``quality_tags`` (list[str]), and
+            ``negative_prompt_tips`` (str). Callers that only need the
+            advice can read ``result["guide"]`` directly.
         """
         limiter.check("get_prompting_guide")
         normalized = _normalize_model_family(model_family)
