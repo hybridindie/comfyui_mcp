@@ -1,0 +1,42 @@
+<evaluation>
+   <qa_pair>
+      <question>Generate a workflow from the built-in flux_txt2img template using its defaults, then generate one from the txt2img template, then from the sdxl_txt2img template. Summarize each in text format. Of these three workflows, which template name has the lowest default classifier-free-guidance value reported in the summary's Parameters line? Respond with the template name exactly as it appears in the template list.</question>
+      <answer>flux_txt2img</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Build a workflow from the built-in sdxl_txt2img template using its defaults, then summarize it in text format. What integer value of the latent image width appears in the summary's Parameters line?</question>
+      <answer>1024</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Generate workflows from both the built-in upscale template and the built-in face_restore template using their defaults, then summarize each in text format. Both summaries report the same value on the "Pipeline:" line. What is that pipeline string?</question>
+      <answer>img2img -&gt; upscale</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Fetch the recommended generation presets for the Flux model family and for the Stable Diffusion 1.5 model family. Add together the recommended "steps" value from each. What is the sum?</question>
+      <answer>48</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Compare the recommended generation presets for the SD3 and SDXL model families. Which of those two families recommends the "sgm_uniform" scheduler? Answer with the family identifier exactly as the tool reports it (e.g. sd15, sdxl, flux, sd3, cascade).</question>
+      <answer>sd3</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Retrieve the prompting guide for the SDXL model family and the prompting guide for the SD3 model family. How many entries are in the "quality_tags" list of the SDXL guide?</question>
+      <answer>3</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Start from a fresh workflow built from the built-in txt2img template with default parameters. Apply a batch of modifications that (1) sets the KSampler node's steps input to 50, (2) sets the KSampler node's cfg input to 8.5, and (3) appends a new LoraLoader node (let the modifier assign its id automatically). Summarize the resulting workflow in text format. What integer node count does the summary report?</question>
+      <answer>8</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Start from the built-in txt2img template with default parameters. Modify it by setting the "samples" input of the VAEDecode node (id "6") to reference a non-existent source node with id "99". Validate the resulting workflow. Does the validator report the workflow as valid? Answer true or false.</question>
+      <answer>false</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Generate the default workflows for each of the three built-in ControlNet templates (canny, depth, openpose). Inspect the preprocessor node in each one. Which of the three templates uses the "DWPreprocessor" class_type as its preprocessor? Answer with the template name exactly as it appears in the template list.</question>
+      <answer>controlnet_openpose</answer>
+   </qa_pair>
+   <qa_pair>
+      <question>Build the default workflow from the built-in inpaint template and the default workflow from the built-in lora_stack template, then summarize each in text format. Subtract the lora_stack node count from the inpaint node count. What is the difference?</question>
+      <answer>1</answer>
+   </qa_pair>
+</evaluation>

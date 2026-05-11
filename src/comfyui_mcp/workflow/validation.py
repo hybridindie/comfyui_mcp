@@ -66,7 +66,10 @@ def analyze_workflow(
 
         display_name = class_type
         if object_info and class_type in object_info:
-            display_name = object_info[class_type].get("display_name", class_type)
+            # Use the upstream display_name only if it's truthy — ComfyUI servers
+            # occasionally return ``{"display_name": None}`` or an empty string,
+            # which would otherwise propagate downstream and break string joins.
+            display_name = object_info[class_type].get("display_name") or class_type
 
         node_info[node_id] = {
             "node_id": node_id,

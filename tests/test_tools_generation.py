@@ -318,6 +318,33 @@ class TestAnalyzeWorkflow:
         result = _analyze_workflow(workflow, object_info=object_info)
         assert result["flow"][0]["display_name"] == "Load Checkpoint"
 
+    def test_falls_back_when_display_name_is_explicit_none(self):
+        # Live ComfyUI servers occasionally return {"display_name": None}
+        # for nodes (observed on SaveAnimatedWEBP). The analyzer must
+        # fall back to class_type rather than propagate None, otherwise
+        # downstream ' -> '.join(flow_parts) crashes with
+        # "sequence item N: expected str instance, NoneType found".
+        workflow = {
+            "1": {
+                "class_type": "SaveAnimatedWEBP",
+                "inputs": {"filename_prefix": "anim"},
+            },
+        }
+        object_info = {"SaveAnimatedWEBP": {"display_name": None}}
+        result = _analyze_workflow(workflow, object_info=object_info)
+        assert result["flow"][0]["display_name"] == "SaveAnimatedWEBP"
+
+    def test_falls_back_when_display_name_is_empty_string(self):
+        workflow = {
+            "1": {
+                "class_type": "CustomNode",
+                "inputs": {},
+            },
+        }
+        object_info = {"CustomNode": {"display_name": ""}}
+        result = _analyze_workflow(workflow, object_info=object_info)
+        assert result["flow"][0]["display_name"] == "CustomNode"
+
     def test_handles_empty_workflow(self):
         result = _analyze_workflow({}, object_info=None)
         assert result["node_count"] == 0
