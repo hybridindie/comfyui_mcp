@@ -12,6 +12,10 @@ return shapes across workflow-submitting tools, and tightens parameter naming. T
 **breaking** entries below require call-site updates for MCP clients that consumed
 this server's tools as strings or that passed the renamed parameters by keyword.
 
+Covers every change since the previous published release ([1.0.0]). The version on
+PyPI between 1.0.0 and 2.0.0 (the `1.0.1` development bump) was never tagged or
+published.
+
 ### Added
 
 - **`comfyui_list_jobs`** — paginated cross-cut view of running, queued, and historical
@@ -90,9 +94,6 @@ this server's tools as strings or that passed the renamed parameters by keyword.
   for stream consumers)* — the marker event in `comfyui_run_workflow_stream`'s
   output that signals "the job was already terminal before the WebSocket attached"
   used the old endpoint name. Renamed to describe what was detected (#80).
-- **`get_history` internal cap bump 100 → 1000** — pagination's `total` now
-  reflects the actual ceiling. Earlier version capped at 100 silently and
-  reported the cap as the total (#70).
 - **`limit` parameter constraints surfaced in JSON schema** — list tools now
   advertise `ge=1, le=100` via `Annotated[..., Field(...)]`, satisfying
   CLAUDE.md rule 13 (3+ params should use Field) (#70, #74).
@@ -132,6 +133,8 @@ this server's tools as strings or that passed the renamed parameters by keyword.
   broke on `completed`/`error`. A cancelled job during WS-fallback polling would
   loop until timeout and surface as `status='timeout'` instead of `'interrupted'`.
   Now includes `interrupted` in the terminal set (#76).
+- **`comfyui_upload_mask` field name and missing `original_ref`** — fixed in a
+  small follow-up to the 1.0.0 release; rolled into 2.0.0 (d78391e).
 - **PR review-comment fixes** along the way — `tmp_path: Any` → `tmp_path: Path`
   in `test_security_invariants.py`'s `all_tools` fixture; `httpx.AsyncClient`
   cleanup in the same fixture; misnamed `test_get_jobs_rejects_negative_limit`
@@ -158,6 +161,10 @@ this server's tools as strings or that passed the renamed parameters by keyword.
   nudge + last-line fallback extractor).
 - Plan archive at `docs/superpowers/plans/` for the major refactor PRs.
 
-## [1.0.1] — 2025
+## [1.0.0] — 2026-04-02
 
-Initial public release on PyPI. See git history prior to v2.0.0 for changes.
+Last published release prior to 2.0.0. See git history (`git log v1.0.0`) for
+changes leading up to this tag.
+
+[2.0.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v2.0.0
+[1.0.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v1.0.0
