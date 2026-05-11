@@ -697,3 +697,67 @@ class TestUploadMask:
         )
         content = audit._audit_file.read_text()
         assert "upload_mask" in content
+
+
+class TestUploadMaskDestination:
+    @respx.mock
+    async def test_upload_to_output_dir(self, components):
+        client, audit, limiter, sanitizer = components
+        route = respx.post("http://test:8188/upload/mask").mock(
+            return_value=httpx.Response(
+                200, json={"name": "mask.png", "subfolder": "", "type": "output"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        mask_b64 = base64.b64encode(b"data").decode()
+        result = await tools["comfyui_upload_mask"](
+            filename="mask.png",
+            mask_data=mask_b64,
+            original_image="photo.png",
+            destination="output",
+        )
+        body = route.calls.last.request.content
+        assert b'name="type"' in body
+        assert b"output" in body
+        assert "output" in result.lower()
+
+    @respx.mock
+    async def test_upload_with_overwrite(self, components):
+        client, audit, limiter, sanitizer = components
+        route = respx.post("http://test:8188/upload/mask").mock(
+            return_value=httpx.Response(
+                200, json={"name": "mask.png", "subfolder": "", "type": "input"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        mask_b64 = base64.b64encode(b"data").decode()
+        await tools["comfyui_upload_mask"](
+            filename="mask.png",
+            mask_data=mask_b64,
+            original_image="photo.png",
+            overwrite=True,
+        )
+        body = route.calls.last.request.content
+        assert b'name="overwrite"' in body
+        assert b"true" in body
+
+    @respx.mock
+    async def test_upload_default_unchanged(self, components):
+        # Verify byte-identical default-call behavior: no type or overwrite fields
+        client, audit, limiter, sanitizer = components
+        route = respx.post("http://test:8188/upload/mask").mock(
+            return_value=httpx.Response(
+                200, json={"name": "mask.png", "subfolder": "", "type": "input"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        mask_b64 = base64.b64encode(b"data").decode()
+        await tools["comfyui_upload_mask"](
+            filename="mask.png", mask_data=mask_b64, original_image="photo.png"
+        )
+        body = route.calls.last.request.content
+        assert b'name="type"' not in body
+        assert b'name="overwrite"' not in body
