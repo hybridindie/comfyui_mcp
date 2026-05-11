@@ -399,6 +399,52 @@ class TestComfyUIClient:
         assert result["name"] == "mask.png"
 
     @respx.mock
+    async def test_upload_mask_default_type(self, client):
+        # Default behavior: form does not include 'type' or 'overwrite' fields
+        route = respx.post("http://test-comfyui:8188/upload/mask").mock(
+            return_value=httpx.Response(
+                200, json={"name": "mask.png", "subfolder": "", "type": "input"}
+            )
+        )
+        await client.upload_mask(
+            b"data",
+            "mask.png",
+            {"filename": "original.png", "type": "input"},
+        )
+        body = route.calls.last.request.content
+        assert b'name="type"' not in body
+        assert b'name="overwrite"' not in body
+
+    @respx.mock
+    async def test_upload_mask_with_type_and_overwrite(self, client):
+        route = respx.post("http://test-comfyui:8188/upload/mask").mock(
+            return_value=httpx.Response(
+                200, json={"name": "mask.png", "subfolder": "", "type": "output"}
+            )
+        )
+        await client.upload_mask(
+            b"data",
+            "mask.png",
+            {"filename": "original.png", "type": "input"},
+            destination="output",
+            overwrite=True,
+        )
+        body = route.calls.last.request.content
+        assert b'name="type"' in body
+        assert b"output" in body
+        assert b'name="overwrite"' in body
+        assert b"true" in body
+
+    async def test_upload_mask_rejects_invalid_destination(self, client):
+        with pytest.raises(ValueError, match="destination"):
+            await client.upload_mask(
+                b"data",
+                "mask.png",
+                {"filename": "original.png", "type": "input"},
+                destination="garbage",
+            )
+
+    @respx.mock
     async def test_retry_on_connection_error(self, client):
         route = respx.get("http://test-comfyui:8188/queue")
         route.side_effect = [

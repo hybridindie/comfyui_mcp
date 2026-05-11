@@ -325,24 +325,50 @@ def register_file_tools(
         )
     )
     async def comfyui_upload_mask(
-        filename: str,
-        mask_data: str,
-        original_image: str,
-        subfolder: str = "",
-        original_subfolder: str = "",
+        filename: Annotated[
+            str,
+            Field(description="Name for the uploaded mask file (e.g. 'mask.png')"),
+        ],
+        mask_data: Annotated[
+            str,
+            Field(description="Base64-encoded mask image data"),
+        ],
+        original_image: Annotated[
+            str,
+            Field(
+                description="Filename of the original image the mask applies to "
+                "(must already exist in ComfyUI's input directory)"
+            ),
+        ],
+        subfolder: Annotated[
+            str,
+            Field(description="Optional subfolder for the mask file"),
+        ] = "",
+        original_subfolder: Annotated[
+            str,
+            Field(description="Optional subfolder of the original image"),
+        ] = "",
+        destination: Annotated[
+            Literal["input", "output", "temp"],
+            Field(
+                description="Destination directory. 'input' (default) is where "
+                "workflows read user-supplied masks from; 'output' and 'temp' "
+                "are usually only useful for testing or scripted setups."
+            ),
+        ] = "input",
+        overwrite: Annotated[
+            bool,
+            Field(
+                description="If True, replace any existing file with the same name. "
+                "If False (default), ComfyUI auto-renames by suffixing ' (N)'."
+            ),
+        ] = False,
     ) -> str:
-        """Upload a mask image to ComfyUI's input directory.
+        """Upload a mask image to ComfyUI.
 
         The mask's alpha channel is merged into the original image's alpha channel
         by the ComfyUI server. The original image must already exist in ComfyUI.
-
-        Args:
-            filename: Name for the uploaded mask file (e.g. 'mask.png')
-            mask_data: Base64-encoded mask image data
-            original_image: Filename of the original image the mask applies to
-                (must already exist in ComfyUI's input directory)
-            subfolder: Optional subfolder for the mask file
-            original_subfolder: Optional subfolder of the original image
+        Defaults to ComfyUI's input directory.
         """
         limiter.check("upload_mask")
         clean_name = sanitizer.validate_filename(filename)
@@ -364,11 +390,20 @@ def register_file_tools(
                 "filename": clean_name,
                 "original_image": clean_original,
                 "size_bytes": len(raw),
+                "destination": destination,
+                "overwrite": overwrite,
             },
         )
-        result = await client.upload_mask(raw, clean_name, original_ref, clean_subfolder)
+        result = await client.upload_mask(
+            raw,
+            clean_name,
+            original_ref,
+            clean_subfolder,
+            destination=destination,
+            overwrite=overwrite,
+        )
         await audit.async_log(tool="upload_mask", action="uploaded", extra={"result": result})
-        return f"Uploaded mask {result.get('name', clean_name)} to ComfyUI input directory"
+        return f"Uploaded mask {result.get('name', clean_name)} to ComfyUI {destination} directory"
 
     tool_fns["comfyui_upload_mask"] = comfyui_upload_mask
 
