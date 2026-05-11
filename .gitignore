@@ -18,4 +18,6 @@ htmlcov/
 
 # Review artifacts
 .full-review/
-.full-review/
+
+# Skill output (graphify knowledge graph artifacts)
+graphify-out/
