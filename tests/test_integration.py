@@ -102,7 +102,7 @@ class TestImageGenerationFlow:
             return_value=httpx.Response(
                 200,
                 json={
-                    "prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                    "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
                     "status": "completed",
                     "outputs": {
                         "9": {
@@ -131,7 +131,7 @@ class TestImageGenerationFlow:
         job = await integration_stack["comfyui_get_job"](
             prompt_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         )
-        assert job["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        assert job["id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         assert job["status"] == "completed"
 
     @respx.mock

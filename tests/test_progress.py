@@ -283,6 +283,31 @@ class TestWebSocketProgress:
         assert state.elapsed_seconds is not None
 
     @respx.mock
+    async def test_ws_failure_polling_terminates_on_cancelled(self, monkeypatch):
+        """Regression: HTTP-polling fallback must treat 'interrupted' as terminal.
+
+        Before the fix, _poll_until_complete only broke on 'completed'/'error',
+        so a job that ended up cancelled would keep polling and return 'timeout'
+        instead of 'interrupted'.
+        """
+        client = ComfyUIClient(base_url="http://test:8188")
+        progress = WebSocketProgress(client, timeout=10.0)
+
+        def fail_connect(url, **kwargs):
+            raise OSError("Connection refused")
+
+        monkeypatch.setattr("comfyui_mcp.progress.websockets.connect", fail_connect)
+
+        prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
+            return_value=httpx.Response(200, json={"id": prompt_id, "status": "cancelled"})
+        )
+        monkeypatch.setattr("comfyui_mcp.progress.asyncio.sleep", AsyncMock())
+
+        state = await progress.wait_for_completion(prompt_id)
+        assert state.status == "interrupted"
+
+    @respx.mock
     async def test_get_state_http_fallback_completed(self):
         client = ComfyUIClient(base_url="http://test:8188")
         progress = WebSocketProgress(client, timeout=10.0)

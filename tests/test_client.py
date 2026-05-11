@@ -57,19 +57,22 @@ class TestComfyUIClient:
 
     @respx.mock
     async def test_get_job_returns_job_object(self, client):
+        # Upstream ComfyUI returns the prompt id under the key "id" (see
+        # comfy_execution/jobs.py:normalize_history_item / normalize_queue_item).
+        # Fixtures across the suite mirror that contract.
         job_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         respx.get(f"http://test-comfyui:8188/api/jobs/{job_id}").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "prompt_id": job_id,
+                    "id": job_id,
                     "status": "in_progress",
                     "outputs": {},
                 },
             )
         )
         result = await client.get_job(job_id)
-        assert result["prompt_id"] == job_id
+        assert result["id"] == job_id
         assert result["status"] == "in_progress"
 
     async def test_get_job_rejects_non_uuid(self, client):

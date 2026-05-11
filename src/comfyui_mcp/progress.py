@@ -255,6 +255,11 @@ class WebSocketProgress:
             collect_events=True,
         )
 
+    # ProgressState.status values that end the HTTP-polling fallback loop.
+    # Must mirror every terminal status _STATUS_MAP can produce — otherwise a
+    # job in a terminal state would keep polling until timeout.
+    _TERMINAL_STATUSES: ClassVar[frozenset[str]] = frozenset({"completed", "error", "interrupted"})
+
     async def _poll_until_complete(self, prompt_id: str, start_time: float) -> ProgressState:
         """Poll HTTP endpoints until completion or timeout."""
         interval = 1.0
@@ -265,7 +270,7 @@ class WebSocketProgress:
                 state.elapsed_seconds = round(elapsed, 2)
                 return state
             state = await self.get_state(prompt_id)
-            if state.status in ("completed", "error"):
+            if state.status in self._TERMINAL_STATUSES:
                 state.elapsed_seconds = round(time.monotonic() - start_time, 2)
                 return state
             await asyncio.sleep(interval)

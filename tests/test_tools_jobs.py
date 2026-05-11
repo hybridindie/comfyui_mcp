@@ -91,13 +91,14 @@ class TestInterrupt:
 class TestGetJob:
     @respx.mock
     async def test_get_job_returns_unified_job_object(self, components):
+        # Upstream returns the prompt id as "id" — see comfy_execution/jobs.py.
         client, audit, limiter = components
         prompt_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         respx.get(f"http://test:8188/api/jobs/{prompt_id}").mock(
             return_value=httpx.Response(
                 200,
                 json={
-                    "prompt_id": prompt_id,
+                    "id": prompt_id,
                     "status": "in_progress",
                     "outputs": {},
                 },
@@ -106,7 +107,7 @@ class TestGetJob:
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
         result = await tools["comfyui_get_job"](prompt_id=prompt_id)
-        assert result["prompt_id"] == prompt_id
+        assert result["id"] == prompt_id
         assert result["status"] == "in_progress"
 
 
@@ -118,7 +119,7 @@ class TestListJobs:
             return_value=httpx.Response(
                 200,
                 json={
-                    "jobs": [{"prompt_id": "abc", "status": "completed"}],
+                    "jobs": [{"id": "abc", "status": "completed"}],
                     "pagination": {"offset": 0, "limit": None, "total": 1, "has_more": False},
                 },
             )
