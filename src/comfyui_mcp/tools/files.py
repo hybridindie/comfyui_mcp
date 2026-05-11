@@ -225,10 +225,11 @@ def register_file_tools(
             When response_format='data_uri' and preview_format is set, ComfyUI re-encodes
             the image server-side as a smaller webp or jpeg thumbnail.
         """
+        limiter.check("get_image")
+
         if preview_quality is not None and preview_format is None:
             raise ValueError("preview_quality is only meaningful when preview_format is also set")
 
-        limiter.check("get_image")
         clean_name = sanitizer.validate_filename(filename)
         clean_subfolder = sanitizer.validate_subfolder(subfolder)
         await audit.async_log(
