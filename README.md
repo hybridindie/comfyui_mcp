@@ -48,6 +48,24 @@ Tools expose Pydantic `Field` constraints on input parameters (ranges, lengths, 
 
 Callers must update to read `result["items"]` instead of indexing the response directly. The new envelope also exposes `limit` and `offset` parameters for pagination.
 
+**Unified return envelope for workflow-submitting tools** — `comfyui_run_workflow`, `comfyui_run_workflow_stream`, `comfyui_generate_image`, `comfyui_transform_image`, `comfyui_inpaint_image`, `comfyui_upscale_image` now all return a uniform `dict[str, Any]` regardless of `wait`/`stream` mode:
+
+```
+{
+  "status": "submitted" | "completed" | "interrupted" | "error" | "timeout",
+  "prompt_id": "<uuid>",
+  "warnings": [...]             # only when the workflow inspector produced warnings
+  # When wait=True or stream:
+  "outputs": [...],
+  "elapsed_seconds": float,
+  "step" / "total_steps" / "current_node" / "queue_position": ...,
+  # When stream:
+  "events": [...]
+}
+```
+
+Previously these tools returned either a free-form sentence (`wait=False`) or a JSON-serialized string (`wait=True`/stream), forcing callers to try both shapes. Callers that previously parsed the response as text — or via `json.loads()` for `wait=True` — must update to read fields directly off the dict.
+
 ## Quick start
 
 ### Prerequisites

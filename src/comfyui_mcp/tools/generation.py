@@ -102,13 +102,6 @@ def _validate_image_filename(filename: str, sanitizer: PathSanitizer) -> str:
     return sanitizer.validate_filename(filename)
 
 
-def _format_warnings(warnings: list[str]) -> str:
-    """Format warnings for user display."""
-    if not warnings:
-        return ""
-    return "\n⚠️ Warnings detected:\n" + "\n".join(f"  - {w}" for w in warnings)
-
-
 async def _submit_workflow(
     *,
     wf: dict[str, Any],
@@ -122,11 +115,24 @@ async def _submit_workflow(
     stream_events: bool = False,
     model_checker: ModelChecker | None = None,
     inspect_extra: dict[str, Any] | None = None,
-) -> str:
+) -> dict[str, Any]:
     """Inspect, submit, and optionally wait for a workflow.
 
-    Encapsulates the inspect -> audit -> submit -> wait pattern shared
-    by all generation tools.
+    Returns a unified envelope regardless of wait/stream mode:
+
+        {
+            "status": "submitted" | "completed" | "interrupted" | "error" | "timeout",
+            "prompt_id": "<uuid>",
+            "warnings": [...]              # only when inspector produced warnings
+            # The following appear only when wait=True or stream_events=True:
+            "outputs": [...],
+            "elapsed_seconds": float,
+            "step" / "total_steps" / ...   # from ProgressState.to_dict() when set
+            "events": [...]                # only stream_events=True
+        }
+
+    ``success_message`` is preserved in the audit log but no longer surfaces in
+    the return value — callers consume structured fields.
     """
     inspection = inspector.inspect(wf)
     if model_checker is not None:
@@ -148,17 +154,43 @@ async def _submit_workflow(
         log_kwargs["status"] = "allowed"
     await audit.async_log(**log_kwargs)
 
-    warning_msg = _format_warnings(inspection.warnings)
+    # Fail fast if the caller asked us to wait but no progress tracker is
+    # wired in — otherwise we'd silently return a submitted envelope and the
+    # `wait` parameter would be a lie.
+    if (wait or stream_events) and progress is None:
+        raise RuntimeError("Progress tracking is not configured")
 
     should_use_ws = wait or stream_events
     ws_client_id = progress.new_client_id() if should_use_ws and progress is not None else None
     response = await client.post_prompt(wf, client_id=ws_client_id)
-    prompt_id = response.get("prompt_id", "unknown")
-    await audit.async_log(tool=tool_name, action="submitted", prompt_id=prompt_id)
+    prompt_id_raw = response.get("prompt_id")
+    if not isinstance(prompt_id_raw, str) or not prompt_id_raw:
+        # An empty / missing / non-string prompt_id means the upstream POST
+        # didn't actually queue the job — surfacing a fabricated "unknown"
+        # would create an envelope that looks successful but can't be tracked.
+        await audit.async_log(
+            tool=tool_name,
+            action="missing_prompt_id",
+            extra={"response": response},
+        )
+        raise RuntimeError(f"ComfyUI /prompt response did not include a prompt_id: {response!r}")
+    prompt_id = prompt_id_raw
+    await audit.async_log(
+        tool=tool_name,
+        action="submitted",
+        prompt_id=prompt_id,
+        extra={"success_message": success_message},
+    )
+
+    def _attach_warnings(envelope: dict[str, Any]) -> dict[str, Any]:
+        if inspection.warnings:
+            envelope["warnings"] = list(inspection.warnings)
+        return envelope
 
     if stream_events:
-        if progress is None:
-            raise RuntimeError("Progress tracking is not configured")
+        # progress is guaranteed non-None by the early check above; the assert
+        # lets mypy narrow the Optional type.
+        assert progress is not None
         state, events = await progress.wait_for_completion_with_events(
             prompt_id,
             client_id=ws_client_id,
@@ -169,13 +201,12 @@ async def _submit_workflow(
             prompt_id=prompt_id,
             extra={"status": state.status, "elapsed": state.elapsed_seconds, "events": len(events)},
         )
-        result_dict = state.to_dict()
-        result_dict["events"] = events
-        if inspection.warnings:
-            result_dict["warnings"] = inspection.warnings
-        return json.dumps(result_dict)
+        envelope = state.to_dict()
+        envelope["events"] = events
+        return _attach_warnings(envelope)
 
-    if wait and progress is not None:
+    if wait:
+        assert progress is not None
         state = await progress.wait_for_completion(prompt_id, client_id=ws_client_id)
         await audit.async_log(
             tool=tool_name,
@@ -183,12 +214,10 @@ async def _submit_workflow(
             prompt_id=prompt_id,
             extra={"status": state.status, "elapsed": state.elapsed_seconds},
         )
-        result_dict = state.to_dict()
-        if inspection.warnings:
-            result_dict["warnings"] = inspection.warnings
-        return json.dumps(result_dict)
+        envelope = state.to_dict()
+        return _attach_warnings(envelope)
 
-    return f"{success_message} prompt_id: {prompt_id}{warning_msg}"
+    return _attach_warnings({"status": "submitted", "prompt_id": prompt_id})
 
 
 # Default txt2img workflow — uses standard ComfyUI nodes
@@ -432,7 +461,7 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_run_workflow(workflow: str, wait: bool = False) -> str:
+    async def comfyui_run_workflow(workflow: str, wait: bool = False) -> dict[str, Any]:
         """Submit an arbitrary ComfyUI workflow for execution.
 
         See also: comfyui_run_workflow_stream for a streaming variant that emits
@@ -471,7 +500,7 @@ def register_generation_tools(
             openWorldHint=True,
         )
     )
-    async def comfyui_run_workflow_stream(workflow: str) -> str:
+    async def comfyui_run_workflow_stream(workflow: str) -> dict[str, Any]:
         """Submit a ComfyUI workflow and return websocket stream events plus final status.
 
         Uses ComfyUI's websocket stream endpoint internally to capture per-event
@@ -523,7 +552,7 @@ def register_generation_tools(
         cfg: CfgField = 7.0,
         model: ModelNameField = "",
         wait: WaitField = False,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Generate an image from a text prompt using a default txt2img workflow."""
         limiter.check("generate_image")
         if not MIN_DIMENSION <= width <= MAX_WIDTH:
@@ -637,7 +666,7 @@ def register_generation_tools(
         cfg: CfgField = 7.0,
         model: ModelNameField = "",
         wait: WaitField = False,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Transform an existing image using a text prompt (img2img).
 
         The input image must already be uploaded to ComfyUI via comfyui_upload_image.
@@ -695,7 +724,7 @@ def register_generation_tools(
         cfg: CfgField = 7.0,
         model: ModelNameField = "",
         wait: WaitField = False,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Inpaint regions of an image using a mask and text prompt.
 
         Both the input image and mask must already be uploaded via
@@ -758,7 +787,7 @@ def register_generation_tools(
             ),
         ] = "RealESRGAN_x4plus.pth",
         wait: WaitField = False,
-    ) -> str:
+    ) -> dict[str, Any]:
         """Upscale an image using a model-based upscaler.
 
         The input image must already be uploaded to ComfyUI via comfyui_upload_image.
