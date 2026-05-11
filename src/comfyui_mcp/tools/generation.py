@@ -154,10 +154,27 @@ async def _submit_workflow(
         log_kwargs["status"] = "allowed"
     await audit.async_log(**log_kwargs)
 
+    # Fail fast if the caller asked us to wait but no progress tracker is
+    # wired in — otherwise we'd silently return a submitted envelope and the
+    # `wait` parameter would be a lie.
+    if (wait or stream_events) and progress is None:
+        raise RuntimeError("Progress tracking is not configured")
+
     should_use_ws = wait or stream_events
     ws_client_id = progress.new_client_id() if should_use_ws and progress is not None else None
     response = await client.post_prompt(wf, client_id=ws_client_id)
-    prompt_id = response.get("prompt_id", "unknown")
+    prompt_id_raw = response.get("prompt_id")
+    if not isinstance(prompt_id_raw, str) or not prompt_id_raw:
+        # An empty / missing / non-string prompt_id means the upstream POST
+        # didn't actually queue the job — surfacing a fabricated "unknown"
+        # would create an envelope that looks successful but can't be tracked.
+        await audit.async_log(
+            tool=tool_name,
+            action="missing_prompt_id",
+            extra={"response": response},
+        )
+        raise RuntimeError(f"ComfyUI /prompt response did not include a prompt_id: {response!r}")
+    prompt_id = prompt_id_raw
     await audit.async_log(
         tool=tool_name,
         action="submitted",
@@ -171,8 +188,9 @@ async def _submit_workflow(
         return envelope
 
     if stream_events:
-        if progress is None:
-            raise RuntimeError("Progress tracking is not configured")
+        # progress is guaranteed non-None by the early check above; the assert
+        # lets mypy narrow the Optional type.
+        assert progress is not None
         state, events = await progress.wait_for_completion_with_events(
             prompt_id,
             client_id=ws_client_id,
@@ -187,7 +205,8 @@ async def _submit_workflow(
         envelope["events"] = events
         return _attach_warnings(envelope)
 
-    if wait and progress is not None:
+    if wait:
+        assert progress is not None
         state = await progress.wait_for_completion(prompt_id, client_id=ws_client_id)
         await audit.async_log(
             tool=tool_name,

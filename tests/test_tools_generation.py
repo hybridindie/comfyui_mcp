@@ -121,6 +121,56 @@ class TestRunWorkflow:
             await tools["comfyui_run_workflow"](workflow=json.dumps(workflow))
 
     @respx.mock
+    async def test_missing_prompt_id_raises(self, components):
+        """Upstream /prompt response without a prompt_id is a real failure, not
+        something we silently paper over with a fabricated 'unknown' id."""
+        client, audit, limiter, inspector, sanitizer = components
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(200, json={"node_errors": {"1": "bad"}})
+        )
+        mcp = FastMCP("test")
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
+        workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
+        with pytest.raises(RuntimeError, match="did not include a prompt_id"):
+            await tools["comfyui_run_workflow"](workflow=json.dumps(workflow))
+
+    @respx.mock
+    async def test_empty_prompt_id_raises(self, components):
+        """An empty-string prompt_id is also a failure."""
+        client, audit, limiter, inspector, sanitizer = components
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(200, json={"prompt_id": ""})
+        )
+        mcp = FastMCP("test")
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
+        workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
+        with pytest.raises(RuntimeError, match="did not include a prompt_id"):
+            await tools["comfyui_run_workflow"](workflow=json.dumps(workflow))
+
+    @respx.mock
+    async def test_wait_true_without_progress_raises(self, components):
+        """wait=True with no progress tracker configured is a contract bug —
+        we'd silently return a submitted envelope and the wait would be a lie."""
+        client, audit, limiter, inspector, sanitizer = components
+        respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
+        )
+        mcp = FastMCP("test")
+        # Note: progress is intentionally omitted.
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
+        workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
+        with pytest.raises(RuntimeError, match="Progress tracking is not configured"):
+            await tools["comfyui_run_workflow"](workflow=json.dumps(workflow), wait=True)
+
+    @respx.mock
     async def test_run_workflow_stream_returns_events(self, progress_components):
         client, audit, limiter, inspector, sanitizer, progress, monkeypatch = progress_components
         route = respx.post("http://test:8188/prompt").mock(
