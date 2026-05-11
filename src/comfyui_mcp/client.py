@@ -181,11 +181,6 @@ class ComfyUIClient:
         r = await self._request("get", "/history", params=params or None)
         return r.json()
 
-    async def get_history_item(self, prompt_id: str) -> dict:
-        _validate_prompt_id(prompt_id)
-        r = await self._request("get", f"/history/{prompt_id}")
-        return r.json()
-
     async def get_job(self, job_id: str) -> dict:
         """GET /api/jobs/{job_id} — unified job lookup across queue + history."""
         _validate_prompt_id(job_id)
