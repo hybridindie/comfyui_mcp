@@ -16,7 +16,7 @@ _IDEMPOTENT_HTTP_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE"})
 _RETRYABLE_STATUS_CODES = frozenset({502, 503, 504})
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 _SAFE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.\-]+$")
-_VALID_JOB_STATUSES = frozenset({"pending", "in_progress", "completed", "failed"})
+_VALID_JOB_STATUSES = frozenset({"pending", "in_progress", "completed", "failed", "cancelled"})
 _VALID_JOB_SORT_BY = frozenset({"created_at", "execution_duration"})
 _VALID_JOB_SORT_ORDER = frozenset({"asc", "desc"})
 
