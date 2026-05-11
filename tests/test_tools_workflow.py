@@ -258,3 +258,44 @@ class TestAnalyzeWorkflow:
         result = await tools["comfyui_analyze_workflow"](workflow=json.dumps(workflow))
         assert result["pipeline"] == "txt2img"
         assert result["node_count"] == 3
+
+
+class TestCreateWorkflowParamsDefault:
+    """The params parameter should accept an empty string as 'no overrides',
+    not just the literal '{}'. Real eval data showed agents tripped on this."""
+
+    @respx.mock
+    async def test_empty_string_means_no_overrides(self, components):
+        client, audit, limiter, inspector, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
+        result = await tools["comfyui_create_workflow"](template="txt2img", params="")
+        assert isinstance(result, dict)
+        class_types = {n["class_type"] for n in result.values() if isinstance(n, dict)}
+        assert "KSampler" in class_types
+
+    @respx.mock
+    async def test_empty_object_string_still_works(self, components):
+        """Back-compat: '{}' still means no overrides too."""
+        client, audit, limiter, inspector, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
+        result = await tools["comfyui_create_workflow"](template="txt2img", params="{}")
+        assert isinstance(result, dict)
+
+    @respx.mock
+    async def test_omitting_params_works(self, components):
+        """Calling without the params kwarg uses the default of no overrides."""
+        client, audit, limiter, inspector, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
+        result = await tools["comfyui_create_workflow"](template="txt2img")
+        assert isinstance(result, dict)
+
+    async def test_invalid_json_still_rejected(self, components):
+        """Non-empty, non-JSON inputs still raise."""
+        client, audit, limiter, inspector, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
+        with pytest.raises(ValueError, match="Invalid JSON params"):
+            await tools["comfyui_create_workflow"](template="txt2img", params="not json")

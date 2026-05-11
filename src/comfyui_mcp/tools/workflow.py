@@ -67,32 +67,45 @@ def register_workflow_tools(
             openWorldHint=False,
         )
     )
-    async def comfyui_create_workflow(template: str, params: str = "{}") -> dict[str, Any]:
+    async def comfyui_create_workflow(template: str, params: str = "") -> dict[str, Any]:
         """Create a ComfyUI workflow from a template with optional parameter overrides.
 
-        Available templates: txt2img, img2img, upscale, inpaint, txt2vid_animatediff,
-        txt2vid_wan, controlnet_canny, controlnet_depth, controlnet_openpose,
-        ip_adapter, lora_stack, face_restore, flux_txt2img, sdxl_txt2img.
+        Available templates: ``txt2img``, ``img2img``, ``upscale``, ``inpaint``,
+        ``txt2vid_animatediff``, ``txt2vid_wan``, ``controlnet_canny``,
+        ``controlnet_depth``, ``controlnet_openpose``, ``ip_adapter``,
+        ``lora_stack``, ``face_restore``, ``flux_txt2img``, ``sdxl_txt2img``.
 
         Args:
-            template: Template name (e.g. 'txt2img', 'img2img')
-            params: Optional JSON string of parameter overrides.
-                    Common params: prompt, negative_prompt, width, height,
-                    steps, cfg, model, denoise, controlnet_model,
-                    control_strength, lora_name, lora_strength.
+            template (required): Template name from the list above.
+            params (optional): JSON string of parameter overrides. Defaults to
+                an empty string, meaning "use template defaults". Pass either
+                ``""`` or ``"{}"`` for no overrides. Common keys:
+                ``prompt``, ``negative_prompt``, ``width``, ``height``,
+                ``steps``, ``cfg``, ``model``, ``denoise``, ``controlnet_model``,
+                ``control_strength``, ``lora_name``, ``lora_strength``.
+
+        Example:
+            ``comfyui_create_workflow(template="txt2img",
+            params='{"prompt": "a sunset", "width": 768, "steps": 30}')``
         """
         limiter.check("create_workflow")
         if len(params.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
                 f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
             )
-        try:
-            param_dict = json.loads(params)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON params: {e}") from e
 
-        if not isinstance(param_dict, dict):
-            raise ValueError('params must be a JSON object (e.g. {"key": "value"})')
+        # Empty string is the natural "no overrides" form. Treat it as {} so
+        # callers don't have to pass the literal '{}'.
+        if not params.strip():
+            param_dict: dict[str, Any] = {}
+        else:
+            try:
+                param_dict = json.loads(params)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON params: {e}") from e
+
+            if not isinstance(param_dict, dict):
+                raise ValueError('params must be a JSON object (e.g. {"key": "value"})')
 
         try:
             clean_params = _sanitize_template_params(param_dict, sanitizer)
