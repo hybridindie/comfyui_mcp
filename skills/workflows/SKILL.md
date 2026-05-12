@@ -1,5 +1,5 @@
 ---
-name: comfyui-workflows
+name: workflows
 description: Knowledge about ComfyUI workflow API format, node connections, and common patterns. Use when helping users build, modify, or understand workflows.
 ---
 
@@ -65,7 +65,18 @@ ComfyUI workflows use a JSON format where each node is a key-value pair:
 
 ## Using the Workflow Tools
 
-1. **`comfyui_create_workflow`** — Start from a built-in template. Accepted template names are listed in the tool's docstring: `txt2img`, `img2img`, `upscale`, `inpaint`, `txt2vid_animatediff`, `txt2vid_wan`, `controlnet_canny`, `controlnet_depth`, `controlnet_openpose`, `ip_adapter`, `lora_stack`, `face_restore`, `flux_txt2img`, `sdxl_txt2img`. The `params` argument defaults to `""` (= "use template defaults"); pass a JSON string when you want overrides. (Note: `comfyui_list_workflows` returns server-side `/workflow_templates` from front-end packages — a different set, not these MCP-built-in templates.)
+**Quick decision guide** — pick the tool by what you need to do:
+
+| Goal | Tool |
+|------|------|
+| Build a new workflow from scratch | `comfyui_create_workflow` |
+| Modify an existing workflow | `comfyui_modify_workflow` |
+| Understand a workflow (human-readable text or Mermaid) | `comfyui_summarize_workflow` |
+| Understand a workflow (machine-readable dict) | `comfyui_analyze_workflow` |
+| Check a workflow for errors before running | `comfyui_validate_workflow` |
+| Execute a workflow | `comfyui_run_workflow` |
+
+1. **`comfyui_create_workflow`** — Start from a built-in template. Accepted template names are listed in the tool's docstring: `txt2img`, `img2img`, `upscale`, `inpaint`, `txt2vid_animatediff`, `txt2vid_wan`, `controlnet_canny`, `controlnet_depth`, `controlnet_openpose`, `ip_adapter`, `lora_stack`, `face_restore`, `flux_txt2img`, `sdxl_txt2img`. The `params` argument defaults to `""`, which applies the predefined settings for the selected template (e.g., default dimensions, steps, and cfg values baked into that template); pass a JSON string when you want overrides. (Note: `comfyui_list_workflows` returns server-side `/workflow_templates` from front-end packages — a different set, not these MCP-built-in templates.)
 2. **`comfyui_modify_workflow`** — Add/remove nodes, change connections, update parameters on an existing workflow. Operations: `add_node`, `remove_node`, `set_input`, `connect`, `disconnect`. The docstring spells out each op's exact field shape. The call is atomic — if any operation fails, the call raises and the input workflow is unmodified.
 3. **`comfyui_validate_workflow`** — Returns `{valid, errors, warnings, node_count, pipeline}`. `errors` (list[str]) are blocking; `warnings` (list[str]) are non-blocking concerns like missing model files or suspicious inputs.
 4. **`comfyui_summarize_workflow`** — Human-readable overview. Pass `output_format="text"` (default) or `"mermaid"` for diagram markup.
