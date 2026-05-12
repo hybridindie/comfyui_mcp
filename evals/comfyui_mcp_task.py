@@ -66,6 +66,10 @@ def comfyui_mcp_phase4() -> Task:
         solver=react(
             prompt=_SYSTEM_PROMPT,
             tools=[mcp_tools(server)],
+            # Without submit=False, react() appends its submit() tool call to
+            # the final assistant text, which match(location="end") then sees
+            # as trailing junk after the real answer (caught by qwen3:8b on q3).
+            submit=False,
         ),
         scorer=match(location="end", ignore_case=True, numeric=True),
         message_limit=30,
