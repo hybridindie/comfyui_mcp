@@ -210,15 +210,19 @@ The MCP server communicates over stdio. Add one of the following configurations 
 
 ### Install as a Claude plugin (from this repo)
 
-This repository includes a Claude plugin manifest at `.claude-plugin/plugin.json`.
+This repository ships as a complete Claude Code plugin — manifest at `.claude-plugin/plugin.json`. Two install paths:
 
 ```bash
+# Direct from GitHub (recommended — pulls the published tag):
+claude plugin install https://github.com/hybridindie/comfyui_mcp
+
+# Or from a local clone (for development or unreleased changes):
 claude plugin install .
 ```
 
-Plugin-related files currently included in this repo:
+Plugin-related files in this repo:
 
-- `.claude-plugin/plugin.json` (plugin manifest)
+- `.claude-plugin/plugin.json` (plugin manifest — name, version, license, homepage)
 - `.mcp.json` (MCP server bootstrap config)
 - `hooks/` (security warning hook)
 - `skills/` (slash-command skills)

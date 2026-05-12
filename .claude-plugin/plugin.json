@@ -1,5 +1,8 @@
 {
   "name": "comfy",
   "description": "ComfyUI image generation via MCP with slash commands and skills",
-  "version": "2.1.0"
+  "version": "2.1.0",
+  "license": "MIT",
+  "homepage": "https://github.com/hybridindie/comfyui_mcp",
+  "repository": "https://github.com/hybridindie/comfyui_mcp"
 }
