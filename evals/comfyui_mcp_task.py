@@ -35,7 +35,8 @@ from inspect_ai.scorer import match
 from inspect_ai.tool import mcp_server_stdio, mcp_tools
 
 _THIS_DIR = Path(__file__).parent
-_DATASET = _THIS_DIR / "2026-05-11-comfyui-mcp-v1.jsonl"
+_DATASET_PHASE4 = _THIS_DIR / "2026-05-11-comfyui-mcp-v1.jsonl"
+_DATASET_PHASE5 = _THIS_DIR / "2026-05-12-comfyui-mcp-phase5.jsonl"
 
 _SYSTEM_PROMPT = """\
 You are evaluating a ComfyUI MCP server's tools. Use the tools available to
@@ -60,7 +61,7 @@ def comfyui_mcp_phase4() -> Task:
     )
     return Task(
         dataset=json_dataset(
-            str(_DATASET),
+            str(_DATASET_PHASE4),
             FieldSpec(input="input", target="target", id="id"),
         ),
         solver=react(
@@ -74,4 +75,37 @@ def comfyui_mcp_phase4() -> Task:
         scorer=match(location="end", ignore_case=True, numeric=True),
         message_limit=30,
         time_limit=10 * 60,
+    )
+
+
+@task
+def comfyui_mcp_phase5() -> Task:
+    """ComfyUI MCP Phase 5 evaluation — live-execution tool chains and recovery.
+
+    Each question requires the model to chain multiple MCP tool calls,
+    pass state (like prompt_id) between them, and recover from at least
+    one intentional failure. Targets are deterministic single strings or
+    integers so match() scoring works without an LLM judge.
+
+    Generated images and queue artifacts accumulate on the connected
+    ComfyUI server; users should clean those manually if needed.
+    """
+    server = mcp_server_stdio(
+        name="comfyui_mcp",
+        command="comfyui-mcp-secure",
+        env={"COMFYUI_URL": os.environ.get("COMFYUI_URL", "http://localhost:8188")},
+    )
+    return Task(
+        dataset=json_dataset(
+            str(_DATASET_PHASE5),
+            FieldSpec(input="input", target="target", id="id"),
+        ),
+        solver=react(
+            prompt=_SYSTEM_PROMPT,
+            tools=[mcp_tools(server)],
+            submit=False,
+        ),
+        scorer=match(location="end", ignore_case=True, numeric=True),
+        message_limit=50,
+        time_limit=15 * 60,
     )
