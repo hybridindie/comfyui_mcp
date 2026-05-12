@@ -21,3 +21,6 @@ htmlcov/
 
 # Skill output (graphify knowledge graph artifacts)
 graphify-out/
+
+# Internal planning artifacts — not part of the public repo
+docs/superpowers/
