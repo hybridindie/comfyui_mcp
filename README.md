@@ -35,6 +35,12 @@ Tools expose Pydantic `Field` constraints on input parameters (ranges, lengths, 
 
 ## Recent Breaking Changes (2026-05)
 
+> **2.1.0 (2026-05-12) is additive — no breaking changes since 2.0.0.** Adds
+> `comfyui_analyze_workflow`, replaces the bespoke Ollama eval runner with an
+> Inspect AI Task module, and introduces a Phase 5 live-execution eval. See
+> the [CHANGELOG](CHANGELOG.md) for the full per-PR breakdown. The breaking
+> changes below all shipped in 2.0.0.
+
 **Parameter renames** — update keyword arguments (positional calls are unaffected):
 
 - `comfyui_install_custom_node`, `comfyui_uninstall_custom_node`, `comfyui_update_custom_node`: `id` → `node_id`.
@@ -694,13 +700,23 @@ src/comfyui_mcp/
 │   └── validation.py      # Workflow analysis and validation
 └── tools/
     ├── generation.py      # generate_image, run_workflow, summarize_workflow
-    ├── workflow.py         # create_workflow, modify_workflow, validate_workflow
+    ├── workflow.py        # create_workflow, modify_workflow, validate_workflow, analyze_workflow
     ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
     ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
     ├── history.py         # get_history
     ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
     ├── models.py          # search_models, download_model, get_download_tasks, cancel_download
     └── nodes.py           # search/install/uninstall/update custom nodes
+
+scripts/
+├── smoke_test.py             # Operator smoke-test against a live ComfyUI instance
+├── compare_evals.py          # Diff two Inspect AI eval runs (PASS/FAIL + per-tag breakdown)
+└── run_multimodel_eval.py    # Run one Task against N models in a single invocation
+
+evals/
+├── comfyui_mcp_task.py                       # Inspect AI Task definitions (Phase 4, Phase 5)
+├── 2026-05-11-comfyui-mcp-v1.jsonl           # Phase 4 dataset (10 static questions, tagged)
+└── 2026-05-12-comfyui-mcp-phase5.jsonl       # Phase 5 dataset (5 live-execution questions, tagged)
 ```
 
 ### Run tests
@@ -709,6 +725,55 @@ src/comfyui_mcp/
 uv sync
 uv run pytest -v
 ```
+
+### Evaluation
+
+The MCP ships with an [Inspect AI](https://inspect.aisi.org.uk/)-based eval
+harness for measuring how well an LLM uses the tools end-to-end. Two task
+suites are defined:
+
+- **Phase 4** — 10 static questions exercising templates, presets, the
+  prompting guide, and the workflow validator/summarizer. ~1-6 min per run
+  for cloud-tier models.
+- **Phase 5** — 5 live-execution questions exercising multi-step tool
+  chains, state passing, recovery from intentionally broken workflows, and
+  reading structured outputs. Generation questions actually submit work to
+  the connected ComfyUI server (so you need one reachable at
+  `$COMFYUI_URL`).
+
+Every question is tagged with what it tests (e.g. `template`, `recovery`,
+`state-passing`, `output-reading`) so results can be sliced per category.
+
+Run a single model against one suite:
+
+```bash
+COMFYUI_URL=https://comfyui.example.net uv run inspect eval \
+    evals/comfyui_mcp_task.py@comfyui_mcp_phase5 \
+    --model ollama/gpt-oss:120b-cloud \
+    --log-dir ./logs/phase5
+uv run inspect view --log-dir ./logs/phase5
+```
+
+Run one suite against N models in a single invocation (wraps the
+`eval_set()` Python API because the CLI's `--model` flag is single-value
+by Click's default):
+
+```bash
+uv run python scripts/run_multimodel_eval.py \
+    evals/comfyui_mcp_task.py@comfyui_mcp_phase4 \
+    --models ollama/gpt-oss:120b-cloud,ollama/qwen3-coder:480b-cloud,anthropic/claude-sonnet-4-6 \
+    --log-dir ./logs/phase4-cross-model
+```
+
+Compare two runs (per-sample PASS/FAIL diff plus a per-tag breakdown when
+either log has tagged samples):
+
+```bash
+uv run python scripts/compare_evals.py logs/phase4-before logs/phase4-after
+```
+
+Each path can be either a specific `.eval` file or a directory (uses the
+most recent `.eval` by mtime).
 
 ### Build and publish
 
@@ -722,11 +787,12 @@ uvx twine check dist/*
 Publish a release to PyPI:
 
 ```bash
-git tag v0.1.7
-git push origin v0.1.7
+# After bumping pyproject.toml [project].version and updating CHANGELOG.md
+git tag v2.1.0
+git push origin v2.1.0
 ```
 
-The GitHub Actions workflow in `.github/workflows/pypi.yml` builds the sdist and wheel, verifies the metadata, and publishes to PyPI using GitHub Trusted Publishing. Before the first release, create the `comfyui-mcp-secure` project on PyPI, configure a trusted publisher for this repository in the PyPI project settings, and use the `pypi` GitHub environment.
+The GitHub Actions workflow in `.github/workflows/pypi.yml` builds the sdist and wheel, verifies the metadata, and publishes to PyPI using GitHub Trusted Publishing on tag push. The GitHub Release is created manually after the workflow succeeds (`gh release create v<x.y.z>`). Before the first release, create the `comfyui-mcp-secure` project on PyPI, configure a trusted publisher for this repository in the PyPI project settings, and use the `pypi` GitHub environment.
 
 ### Smoke test against a live instance
 
