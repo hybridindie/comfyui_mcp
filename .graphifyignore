@@ -3,3 +3,21 @@
 
 # Internal planning artifacts — not part of the public repo's domain content.
 docs/superpowers/
+
+# Historical eval reports — point-in-time per-model run snapshots, not domain
+# knowledge. The eval datasets (evals/*.jsonl) and the Task module
+# (evals/comfyui_mcp_task.py) ARE indexed; only the per-run reports are excluded.
+evals/*-report-*.md
+
+# Eval run outputs (.eval logs, intermediate files, large).
+logs/
+
+# Build artifacts.
+dist/
+
+# Project-internal automation and agent/runtime config — operational, not domain.
+hooks/
+.github/
+.claude/
+.claude-plugin/
+.worktrees/
