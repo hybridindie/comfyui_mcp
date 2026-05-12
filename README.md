@@ -2,6 +2,8 @@
 
 A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants like Claude to generate images, run workflows, and manage jobs through ComfyUI — with built-in security controls that existing ComfyUI MCP servers lack.
 
+> **Using Claude?** This repo also ships as a Claude Code plugin — 8 `/comfy:*` slash commands (`/comfy:gen`, `/comfy:workflow`, `/comfy:troubleshooting`, …) and a `PostToolUse` security hook, all pre-wired to the MCP server. One command to install: `claude plugin install .` See [Install as a Claude plugin](#what-the-plugin-gives-you) for the full reference + worked end-to-end example.
+
 ## Why this exists
 
 Every existing ComfyUI MCP server is a thin passthrough to ComfyUI's API with no security guardrails. They allow arbitrary workflow execution (including malicious custom nodes that run `eval`/`exec`), have no input validation, no file path sanitization, no rate limiting, and no audit trail.
@@ -81,6 +83,8 @@ Previously these tools returned either a free-form sentence (`wait=False`) or a 
 - A running ComfyUI instance (local or remote)
 
 ### Install
+
+> **Claude Code users:** the fastest path is the plugin — see [Install as a Claude plugin](#install-as-a-claude-plugin-from-this-repo) below. It wires the MCP server + slash commands + security hook in one step. The options below are for everyone else (raw MCP wiring, Docker, source installs).
 
 #### Option A: From PyPI
 
