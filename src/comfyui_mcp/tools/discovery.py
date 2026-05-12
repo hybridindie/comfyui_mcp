@@ -509,8 +509,9 @@ def register_discovery_tools(
 
         The presets are static data baked into this MCP — they reflect
         community best-practice defaults, not anything the connected ComfyUI
-        server reports. Exactly one of ``model_name`` or ``model_family``
-        must be supplied; if both are given, ``model_family`` wins.
+        server reports. At least one of ``model_name`` or ``model_family``
+        must be supplied; if both are given, ``model_family`` takes
+        precedence and ``model_name`` is ignored.
 
         Args:
             model_name (required if ``model_family`` is omitted): Model

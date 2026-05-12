@@ -90,9 +90,7 @@ def register_workflow_tools(
         """
         limiter.check("create_workflow")
         if len(params.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
-            raise ValueError(
-                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
-            )
+            raise ValueError(f"params JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)")
 
         # Empty string is the natural "no overrides" form. Treat it as {} so
         # callers don't have to pass the literal '{}'.
@@ -134,7 +132,8 @@ def register_workflow_tools(
         """Apply batch operations to a ComfyUI workflow.
 
         Operations execute sequentially in array order. If any operation fails,
-        the workflow is returned unchanged (transactional).
+        the call raises ``ValueError`` and the input workflow is left
+        unmodified (atomic — operations are applied to a deep copy).
 
         Args:
             workflow (required): JSON string of the workflow to modify.
@@ -177,7 +176,7 @@ def register_workflow_tools(
 
         if len(operations.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
-                f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
+                f"operations JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
             )
         try:
             ops = json.loads(operations)
@@ -230,12 +229,16 @@ def register_workflow_tools(
             - ``parameters`` (dict): flat key/value of common sampler/latent
               parameters extracted from the graph (``steps``, ``cfg``, ``width``,
               ``height``, etc.).
-            - ``pipeline`` (str): coarse type — ``txt2img``, ``img2img``,
-              ``upscale``, ``img2img -> upscale``, or ``unknown``.
+            - ``pipeline`` (str): coarse type — one of ``txt2img``,
+              ``img2img``, ``upscale``, ``img2img -> upscale``,
+              ``txt2img -> upscale``, or ``unknown``.
             - ``prompt_nodes`` (list[str]): ids of ``CLIPTextEncode`` nodes
-              wired into the sampler's positive input.
+              that are NOT wired into any sampler's ``negative`` input
+              (the analyzer treats every non-negative CLIPTextEncode as
+              a positive prompt — it does not separately verify that it
+              is wired into a sampler's positive input).
             - ``negative_nodes`` (list[str]): ids of ``CLIPTextEncode`` nodes
-              wired into the sampler's negative input.
+              wired into a sampler's ``negative`` input.
 
         Display-name enrichment is best-effort via ComfyUI's ``/object_info``
         endpoint; if the server is unreachable, ``display_name`` falls back to
@@ -291,17 +294,19 @@ def register_workflow_tools(
 
             - ``valid`` (bool): True only if there are zero entries in ``errors``.
             - ``errors`` (list[str]): blocking issues — invalid structure,
-              connections that reference nonexistent nodes, missing required
-              inputs, etc. Each entry is a human-readable string identifying
-              the offending node id and what's wrong.
-            - ``warnings`` (list[str]): non-blocking concerns — unknown
-              ``class_type`` not advertised by the connected server,
-              missing model files, dangerous node names, suspicious input
-              patterns (e.g. ``__import__``).
+              connections that reference nonexistent nodes, ``class_type``
+              not installed on the connected server, missing required
+              inputs, security blocks, etc. Each entry is a human-readable
+              string identifying the offending node id and what's wrong.
+            - ``warnings`` (list[str]): non-blocking concerns — missing model
+              files, dangerous node names, suspicious input patterns
+              (e.g. ``__import__``), or a server-unreachable note when the
+              installed-class_type check has to be skipped.
             - ``node_count`` (int): number of nodes in the workflow.
-            - ``pipeline`` (str): coarse type — ``txt2img``, ``img2img``,
-              ``upscale``, ``img2img -> upscale``, or ``unknown``. (For the
-              full structural breakdown, use ``comfyui_analyze_workflow``.)
+            - ``pipeline`` (str): coarse type — one of ``txt2img``,
+              ``img2img``, ``upscale``, ``img2img -> upscale``,
+              ``txt2img -> upscale``, or ``unknown``. (For the full
+              structural breakdown, use ``comfyui_analyze_workflow``.)
         """
         limiter.check("validate_workflow")
         if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
