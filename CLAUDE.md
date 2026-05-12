@@ -82,6 +82,11 @@ uv run inspect eval evals/comfyui_mcp_task.py \
     --log-dir ./logs/phase4
 uv run inspect view --log-dir ./logs/phase4        # browse traces in the UI
 
+# Run the Phase 5 live-execution eval (5 agentic questions, ~5-10 min)
+uv run inspect eval evals/comfyui_mcp_task.py@comfyui_mcp_phase5 \
+    --model ollama/gpt-oss:120b-cloud \
+    --log-dir ./logs/phase5
+
 # Run the eval across multiple models in one shot
 uv run inspect eval-set evals/comfyui_mcp_task.py \
     --model ollama/gpt-oss:120b-cloud \
