@@ -75,6 +75,19 @@ uv run pre-commit run --all-files     # Run all pre-commit hooks
 uv run python scripts/smoke_test.py                          # Full (connectivity + folders + download)
 uv run python scripts/smoke_test.py --no-download            # Connectivity + folder listing only
 uv run python scripts/smoke_test.py --url http://host:8188   # Target a specific server
+
+# Run the Phase 4 evaluation against a model
+uv run inspect eval evals/comfyui_mcp_task.py \
+    --model ollama/qwen3-coder:480b-cloud \
+    --log-dir ./logs/phase4
+uv run inspect view --log-dir ./logs/phase4        # browse traces in the UI
+
+# Run the eval across multiple models in one shot
+uv run inspect eval-set evals/comfyui_mcp_task.py \
+    --model ollama/gpt-oss:120b-cloud \
+    --model ollama/qwen3-coder:480b-cloud \
+    --model anthropic/claude-sonnet-4-6 \
+    --log-dir ./logs/phase4-cross-model
 ```
 
 ## Rules
