@@ -1,9 +1,11 @@
 ---
-name: comfyui-troubleshooting
+name: troubleshooting
 description: Troubleshooting guide for ComfyUI MCP connection issues, model errors, workflow failures, and security warnings. Use when users encounter errors or unexpected behavior.
 ---
 
 # ComfyUI Troubleshooting Guide
+
+Each section below is independent. Find the section whose symptom matches the error you are seeing and work through only those checks.
 
 ## Connection Failures
 
@@ -58,7 +60,7 @@ description: Troubleshooting guide for ComfyUI MCP connection issues, model erro
 
 **What to do:**
 1. Review the flagged nodes. The warning lists which node types were detected and why.
-2. If you trust the nodes, you can proceed (audit mode) or add them to an allowlist in config.
+2. If you have verified the node's functionality and source code to ensure it is safe to execute, you can proceed (audit mode) or add it to an allowlist in config.
 3. Use `comfyui_audit_dangerous_nodes` to scan all installed nodes proactively.
 4. Change mode in `~/.comfyui-mcp/config.yaml`: `security.mode: "audit"` or `"enforce"`.
 
