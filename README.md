@@ -236,6 +236,59 @@ If you use the included `.mcp.json`, set both internal and optional external Com
 }
 ```
 
+#### What the plugin gives you
+
+Three cooperating layers, used together:
+
+1. **MCP tool surface** — 47 tools exposing ComfyUI's workflow / generation / discovery / security API. The full table is in the [Tools](#tools) section below — these are the lowest-level primitives, available to any model connected to the server.
+2. **Slash-command skills** under `/comfy:*` — pre-authored recipes that wrap common multi-tool flows so a user doesn't have to choreograph the calls themselves. Skills load lazily; the two "knowledge" skills (`workflows`, `troubleshooting`) get auto-applied by Claude when the conversation matches their topic.
+3. **PostToolUse security hook** — fires after the MCP tools that touch dangerous surface and surfaces a one-line warning if the workflow inspector or node auditor flagged anything.
+
+#### Slash-command reference
+
+| Command | What it does |
+|---|---|
+| `/comfy:gen <prompt>` | Generate an image. Picks a model via `comfyui_list_models`, calls `comfyui_generate_image(wait=True)`, fetches the result via `comfyui_get_image`. |
+| `/comfy:workflow <description>` | Build a workflow from a built-in template, validate it, then offer to run or modify. |
+| `/comfy:workflows` | Knowledge skill — auto-applied when the conversation involves building/modifying workflows. Covers workflow JSON format, common node chains (txt2img/img2img/ControlNet/LoRA), and the key node reference. |
+| `/comfy:status` | Show queue state (running + pending jobs). |
+| `/comfy:progress <prompt_id>` | Per-job execution progress (current node, step X of Y, status). |
+| `/comfy:history` | Recent completions with prompt IDs and output filenames. |
+| `/comfy:models [folder]` | List models in a folder type (defaults to `checkpoints`). |
+| `/comfy:troubleshooting` | Knowledge skill — auto-applied when users report connection, model, workflow, or security errors. Covers connection failures, model-not-found, workflow execution failures, queue-stuck, security warnings, and the two upstream-plugin (ComfyUI-Manager, ComfyUI-Model-Manager) setup issues. |
+
+#### Security hook
+
+A single `PostToolUse` hook (`hooks/security-warning.sh`, wired via `hooks/hooks.json`) fires after these MCP tools:
+
+- `comfyui_audit_dangerous_nodes`
+- `comfyui_install_custom_node`
+- `comfyui_update_custom_node`
+- `comfyui_run_workflow`
+- `comfyui_generate_image`
+
+It scans the tool output for `WorkflowInspector` markers (`"Dangerous node type"`, `"Suspicious input"`) and `NodeAuditor` results with `dangerous.count > 0`. If anything matches, it prints a one-line warning so Claude sees it and asks the user to confirm before proceeding. The hook always exits 0 — it never blocks; it just adds a heads-up.
+
+#### End-to-end example
+
+A user types `/comfy:gen a yellow apple, photorealistic, 4k`. The layers cooperate:
+
+1. The `gen` skill parses the prompt and applies defaults (512×512, 20 steps, cfg 7.0).
+2. It calls `comfyui_list_models(folder="checkpoints")`, picks an available model from the paginated `items` list, and confirms with the user if ambiguous.
+3. It calls `comfyui_generate_image(prompt=..., model=..., wait=True)`.
+4. Server-side, the MCP tool runs `WorkflowInspector.inspect()` on the workflow before submitting it to ComfyUI. With a clean built-in workflow there are no warnings.
+5. ComfyUI executes; the tool blocks until the unified envelope comes back with `status="completed"`.
+6. The `PostToolUse` hook fires, checks the tool output for the threat patterns, finds none, and exits silently.
+7. The skill reads `result["outputs"][0]` (a `{node_id, filename, subfolder}` dict), calls `comfyui_get_image(filename=..., subfolder="output", preview_format="webp", preview_quality=80)` for a cheap thumbnail, and presents the image inline.
+
+Contrast that with running a user-supplied custom workflow that contains an `Exec`-class node: step 4's inspector emits `warnings: ["Dangerous node type: Exec..."]`, the hook detects the pattern in step 6, and surfaces:
+
+```
+SECURITY: Dangerous node patterns detected. Review the audit results above before proceeding.
+```
+
+Claude sees this in its context and asks the user to confirm before continuing — exactly the audit-mode-default behavior the project ships with.
+
 ### Verify
 
 ```bash
