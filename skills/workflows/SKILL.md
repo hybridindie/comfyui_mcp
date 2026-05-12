@@ -65,11 +65,12 @@ ComfyUI workflows use a JSON format where each node is a key-value pair:
 
 ## Using the Workflow Tools
 
-1. **`comfyui_create_workflow`** — Start from a built-in template. The accepted template names are listed in the tool's docstring: `txt2img`, `img2img`, `upscale`, `inpaint`, `txt2vid_animatediff`, `txt2vid_wan`, `controlnet_canny`, `controlnet_depth`, `controlnet_openpose`, `ip_adapter`, `lora_stack`, `face_restore`, `flux_txt2img`, `sdxl_txt2img`. (Note: `comfyui_list_workflows` returns server-side `/workflow_templates` from front-end packages — a different set, not these MCP-built-in templates.)
-2. **`comfyui_modify_workflow`** — Add/remove nodes, change connections, update parameters on an existing workflow.
-3. **`comfyui_validate_workflow`** — Check for missing connections, unknown node types, and potential issues.
-4. **`comfyui_summarize_workflow`** — Get a human-readable description of what a workflow does.
-5. **`comfyui_run_workflow`** — Submit a workflow for execution. Use `wait=True` to block until done.
+1. **`comfyui_create_workflow`** — Start from a built-in template. Accepted template names are listed in the tool's docstring: `txt2img`, `img2img`, `upscale`, `inpaint`, `txt2vid_animatediff`, `txt2vid_wan`, `controlnet_canny`, `controlnet_depth`, `controlnet_openpose`, `ip_adapter`, `lora_stack`, `face_restore`, `flux_txt2img`, `sdxl_txt2img`. The `params` argument defaults to `""` (= "use template defaults"); pass a JSON string when you want overrides. (Note: `comfyui_list_workflows` returns server-side `/workflow_templates` from front-end packages — a different set, not these MCP-built-in templates.)
+2. **`comfyui_modify_workflow`** — Add/remove nodes, change connections, update parameters on an existing workflow. Operations: `add_node`, `remove_node`, `set_input`, `connect`, `disconnect`. The docstring spells out each op's exact field shape. The call is atomic — if any operation fails, the call raises and the input workflow is unmodified.
+3. **`comfyui_validate_workflow`** — Returns `{valid, errors, warnings, node_count, pipeline}`. `errors` (list[str]) are blocking; `warnings` (list[str]) are non-blocking concerns like missing model files or suspicious inputs.
+4. **`comfyui_summarize_workflow`** — Human-readable overview. Pass `output_format="text"` (default) or `"mermaid"` for diagram markup.
+5. **`comfyui_analyze_workflow`** — Returns the analysis as a structured dict (`node_count`, `class_types`, `flow`, `models`, `parameters`, `pipeline`, `prompt_nodes`, `negative_nodes`). Use this when you want to read fields like `pipeline` programmatically; use `comfyui_summarize_workflow` for the human-readable rendering.
+6. **`comfyui_run_workflow`** — Submit a workflow for execution. Use `wait=True` to block until done. The response is always a dict envelope: `{status, prompt_id, outputs, elapsed_seconds, warnings?}` where `status` is one of `submitted` / `completed` / `interrupted` / `error` / `timeout`. With `wait=False` you get just `{status: "submitted", prompt_id, warnings?}` — poll `comfyui_get_progress` or `comfyui_get_job` to follow up.
 
 ## Tips
 

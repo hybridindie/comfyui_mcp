@@ -18,7 +18,7 @@ Generate an image using ComfyUI based on the user's prompt "$ARGUMENTS".
 
 3. **Generate the image.** Call `comfyui_generate_image` with the parsed parameters and `wait=True` so we block until completion.
 
-4. **Fetch the result.** Once generation completes, the response includes the output filename. Call `comfyui_get_image` with that filename and subfolder `"output"` to retrieve it.
+4. **Fetch the result.** The response is a dict envelope with keys `status` (expect `"completed"`), `prompt_id`, `outputs`, `elapsed_seconds`, and optionally `warnings`. `outputs` is a list of `{node_id, filename, subfolder}` entries — read the first entry's `filename` and `subfolder` and call `comfyui_get_image` with those. (Tip: pass `preview_format="webp"` and `preview_quality=80` to `comfyui_get_image` for a thumbnail instead of the full PNG — much cheaper context.)
 
 5. **Present the result.** Show the image and a summary of the generation parameters used (prompt, model, dimensions, steps, cfg).
 
