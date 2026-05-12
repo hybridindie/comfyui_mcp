@@ -88,11 +88,14 @@ uv run inspect eval evals/comfyui_mcp_task.py@comfyui_mcp_phase5 \
     --log-dir ./logs/phase5
 
 # Run the eval across multiple models in one shot
-uv run inspect eval-set evals/comfyui_mcp_task.py \
-    --model ollama/gpt-oss:120b-cloud \
-    --model ollama/qwen3-coder:480b-cloud \
-    --model anthropic/claude-sonnet-4-6 \
+# (inspect's --model flag is single-value; the wrapper calls eval_set()
+# directly with model=[...] to work around that)
+uv run python scripts/run_multimodel_eval.py evals/comfyui_mcp_task.py@comfyui_mcp_phase4 \
+    --models ollama/gpt-oss:120b-cloud,ollama/qwen3-coder:480b-cloud,anthropic/claude-sonnet-4-6 \
     --log-dir ./logs/phase4-cross-model
+
+# Compare two eval runs (or two .eval files) side-by-side
+uv run python scripts/compare_evals.py logs/phase4 logs/phase4-cross-model
 ```
 
 ## Rules
