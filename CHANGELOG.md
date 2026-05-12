@@ -5,33 +5,91 @@ All notable changes to **comfyui-mcp-secure** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.0] — 2026-05-12
+
+Additive minor release. Adds `comfyui_analyze_workflow`, replaces the bespoke
+Ollama eval runner with an Inspect AI Task module, and introduces a Phase 5
+live-execution eval. No breaking changes since 2.0.0.
 
 ### Added
 
-- **Inspect AI eval harness** — `evals/comfyui_mcp_task.py` defines the Phase 4
-  evaluation as an [Inspect AI](https://inspect.aisi.org.uk/) `Task`. Runs via
-  `uv run inspect eval evals/comfyui_mcp_task.py --model <provider>/<name>`.
-  Supports multi-model `eval-set` runs in one command and produces `.eval`
-  logs viewable in `inspect view`.
-- **`inspect-ai>=0.3.200`** + **`openai`** as dev dependencies (the latter is
-  required by Inspect AI's Ollama provider, which uses the OpenAI SDK against
-  Ollama's OpenAI-compatible API).
-- **JSONL eval dataset** at `evals/2026-05-11-comfyui-mcp-v1.jsonl` —
-  Inspect AI `Sample` format (one `{id, input, target}` per line).
+- **`comfyui_analyze_workflow`** — new tool returning the workflow's structured
+  analysis as a dict (`node_count`, `class_types`, `flow`, `models`,
+  `parameters`, `pipeline`, `prompt_nodes`, `negative_nodes`). Use this when
+  you want to read fields like `pipeline` programmatically; use
+  `comfyui_summarize_workflow` for the human-readable text/Mermaid rendering
+  (#83).
+- **Inspect AI eval harness** — `evals/comfyui_mcp_task.py` defines the
+  Phase 4 evaluation as an [Inspect AI](https://inspect.aisi.org.uk/) `Task`.
+  Runs via `uv run inspect eval evals/comfyui_mcp_task.py --model
+  <provider>/<name>`. Supports multi-model `eval-set` runs in one command
+  and produces `.eval` logs viewable in `inspect view` (#84).
+- **`comfyui_mcp_phase5` task** — second `@task` in the same module covering
+  5 agentic questions: submission + status verification, validation
+  rejection, state passing via `prompt_id`, recovery from intentionally
+  broken workflows, and reading structured outputs. Targets verified
+  against a live ComfyUI server before commit. Smoke result against
+  `gpt-oss:120b-cloud`: 5/5 in 32 seconds with organic recovery flows
+  (#85).
+- **`inspect-ai>=0.3.200`** + **`openai`** dev dependencies (the latter is
+  required by Inspect AI's Ollama provider, which uses the OpenAI SDK
+  against Ollama's OpenAI-compatible API) (#84).
+- **JSONL eval datasets** at `evals/2026-05-11-comfyui-mcp-v1.jsonl` and
+  `evals/2026-05-12-comfyui-mcp-phase5.jsonl` — Inspect AI `Sample` format
+  (one `{id, input, target}` per line) (#84, #85).
+
+### Changed
+
+- **`comfyui_create_workflow` `params` default** *(non-breaking)* — `"{}"` →
+  `""`. The empty string is now treated as "no overrides", so callers no
+  longer have to pass the literal `"{}"` JSON string. `"{}"` continues to
+  work for back-compat. Non-empty, non-JSON inputs still raise. Flagged
+  by Phase 4 eval agents as friction (#83).
+- **Workflow-tool docstrings** — `comfyui_modify_workflow` now enumerates
+  every operation's per-op JSON shape inline (no more trial-and-error on
+  `input_name` vs `from_node` etc.). `comfyui_validate_workflow` spells
+  out the per-key shape of the result dict including which conditions
+  are blocking vs non-blocking. `comfyui_get_model_presets` and
+  `comfyui_get_prompting_guide` get required/optional markers and named
+  return-field shapes (#83).
+- **`comfyui_create_workflow` / `comfyui_modify_workflow` size-check error
+  messages** — were "Workflow JSON exceeds maximum size" when the check
+  was on the `params` (resp. `operations`) string. Now correctly say
+  "params JSON" / "operations JSON" (#83).
 
 ### Removed
 
-- **`scripts/run_eval_ollama.py`** — the bespoke Ollama eval runner shipped in
-  2.0.0 has been removed in favor of the Inspect AI Task module above. The
+- **`scripts/run_eval_ollama.py`** — the bespoke Ollama eval runner shipped
+  in 2.0.0 has been removed in favor of the Inspect AI Task module. The
   new harness replaces the custom agent loop with `react()`, the custom
   XML/last-line response extraction with the stock `match(location="end")`
-  scorer, and the markdown reports with structured `.eval` logs.
-- **`evals/2026-05-11-comfyui-mcp-v1.xml`** — replaced by the JSONL dataset.
+  scorer, and the markdown reports with structured `.eval` logs. The 2.0.0
+  CHANGELOG entry below is retained as a historical record of what shipped
+  in that release (#84).
+- **`evals/2026-05-11-comfyui-mcp-v1.xml`** — replaced by the JSONL
+  dataset (#84).
 
-Smoke-tested against `qwen3-coder:480b-cloud`: 10/10 accuracy in ~6 min
-(vs the old runner's 8/10 in ~47 min). Historical markdown reports in
-`evals/` are retained as a record of pre-port runs.
+### Internal
+
+- **Eval-driven tool description improvements** — the changes in #83 were
+  motivated by Phase 4 eval feedback from `gpt-oss:120b-cloud` and
+  `qwen3-coder:480b-cloud` flagging specific friction points around
+  required/optional markers, opaque operation schemas, and the
+  `params="{}"` default.
+- **Phase 4 eval cross-model run** — via the new harness:
+  `qwen3-coder:480b-cloud` 10/10 in ~6 min and `gpt-oss:120b-cloud` 10/10
+  in ~1 min (vs the old runner's 8/10 in ~47 min on qwen3). The accuracy
+  gap is partly the more forgiving `match(location="end", ignore_case=True,
+  numeric=True)` scorer and partly the TDI changes propagating through.
+  Phase 4 is saturated for cloud models; Phase 5 was added for that
+  reason.
+- **`react(submit=False)`** — both Phase 4 and Phase 5 tasks pass
+  `submit=False` to `react()` so the solver's `submit()` tool call
+  doesn't leak into the final assistant text, which `match(location="end")`
+  would otherwise see as trailing junk (caught by qwen3:8b on Phase 4 q3
+  during multi-model testing).
+- **Plan archive** — `docs/superpowers/plans/2026-05-11-tool-description-improvements.md`,
+  `2026-05-11-inspect-ai-eval-port.md`, `2026-05-12-phase5-live-eval.md`.
 
 ## [2.0.0] — 2026-05-11
 
@@ -198,6 +256,7 @@ Covers every change since the previous published release ([1.0.1]).
 Last 1.x line release prior to the 2.0.0 cut. See git history (`git log v1.0.0`)
 for changes leading up to this tag.
 
+[2.1.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v2.1.0
 [2.0.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v2.0.0
 [1.0.1]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v1.0.1
 [1.0.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v1.0.0
