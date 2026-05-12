@@ -5,6 +5,34 @@ All notable changes to **comfyui-mcp-secure** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Inspect AI eval harness** — `evals/comfyui_mcp_task.py` defines the Phase 4
+  evaluation as an [Inspect AI](https://inspect.aisi.org.uk/) `Task`. Runs via
+  `uv run inspect eval evals/comfyui_mcp_task.py --model <provider>/<name>`.
+  Supports multi-model `eval-set` runs in one command and produces `.eval`
+  logs viewable in `inspect view`.
+- **`inspect-ai>=0.3.200`** + **`openai`** as dev dependencies (the latter is
+  required by Inspect AI's Ollama provider, which uses the OpenAI SDK against
+  Ollama's OpenAI-compatible API).
+- **JSONL eval dataset** at `evals/2026-05-11-comfyui-mcp-v1.jsonl` —
+  Inspect AI `Sample` format (one `{id, input, target}` per line).
+
+### Removed
+
+- **`scripts/run_eval_ollama.py`** — the bespoke Ollama eval runner shipped in
+  2.0.0 has been removed in favor of the Inspect AI Task module above. The
+  new harness replaces the custom agent loop with `react()`, the custom
+  XML/last-line response extraction with the stock `match(location="end")`
+  scorer, and the markdown reports with structured `.eval` logs.
+- **`evals/2026-05-11-comfyui-mcp-v1.xml`** — replaced by the JSONL dataset.
+
+Smoke-tested against `qwen3-coder:480b-cloud`: 10/10 accuracy in ~6 min
+(vs the old runner's 8/10 in ~47 min). Historical markdown reports in
+`evals/` are retained as a record of pre-port runs.
+
 ## [2.0.0] — 2026-05-11
 
 Major release. Adopts ComfyUI's unified `/api/jobs` job-tracking endpoints, harmonizes
