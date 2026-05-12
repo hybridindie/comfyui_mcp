@@ -62,7 +62,7 @@ def comfyui_mcp_phase4() -> Task:
     return Task(
         dataset=json_dataset(
             str(_DATASET_PHASE4),
-            FieldSpec(input="input", target="target", id="id"),
+            FieldSpec(input="input", target="target", id="id", metadata=["tags"]),
         ),
         solver=react(
             prompt=_SYSTEM_PROMPT,
@@ -98,7 +98,7 @@ def comfyui_mcp_phase5() -> Task:
     return Task(
         dataset=json_dataset(
             str(_DATASET_PHASE5),
-            FieldSpec(input="input", target="target", id="id"),
+            FieldSpec(input="input", target="target", id="id", metadata=["tags"]),
         ),
         solver=react(
             prompt=_SYSTEM_PROMPT,

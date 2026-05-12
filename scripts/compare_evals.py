@@ -63,6 +63,16 @@ def _sample_scores(log: EvalLog) -> dict[str, str]:
     return out
 
 
+def _sample_tags(log: EvalLog) -> dict[str, list[str]]:
+    """Return {sample_id: list-of-tags} for every sample that has a 'tags' metadata field."""
+    out: dict[str, list[str]] = {}
+    for s in log.samples or []:
+        tags = s.metadata.get("tags") if s.metadata else None
+        if isinstance(tags, list):
+            out[str(s.id)] = [str(t) for t in tags]
+    return out
+
+
 def _sort_key(sample_id: str) -> tuple[int, str | int]:
     """Sort q1, q2, ..., q10 numerically; fall back to alphabetic for others."""
     if sample_id.startswith("q"):
@@ -123,6 +133,51 @@ def _render_diff(a_log: EvalLog, b_log: EvalLog, a_label: str, b_label: str) -> 
         lines.append(f"- Regressed (PASS -> FAIL): {', '.join(regressed)}")
     if not improved and not regressed:
         lines.append("- No PASS/FAIL changes")
+
+    by_tag = _render_by_tag(a_log, b_log, a_scores, b_scores)
+    if by_tag:
+        lines.append("")
+        lines.append(by_tag)
+    return "\n".join(lines)
+
+
+def _render_by_tag(
+    a_log: EvalLog,
+    b_log: EvalLog,
+    a_scores: dict[str, str],
+    b_scores: dict[str, str],
+) -> str:
+    """Return a per-tag PASS-rate breakdown, or empty string if no tags present."""
+    a_tags = _sample_tags(a_log)
+    b_tags = _sample_tags(b_log)
+    if not a_tags and not b_tags:
+        return ""
+
+    all_tags = sorted({t for tags in (*a_tags.values(), *b_tags.values()) for t in tags})
+
+    def _bucket(
+        scores: dict[str, str], tags_map: dict[str, list[str]], tag: str
+    ) -> tuple[int, int]:
+        sids = [sid for sid, tags in tags_map.items() if tag in tags]
+        passed = sum(1 for sid in sids if scores.get(sid) == "PASS")
+        return passed, len(sids)
+
+    lines: list[str] = [
+        "## By Tag",
+        "",
+        "| Tag | A pass | B pass | A % | B % |",
+        "|-----|--------|--------|-----|-----|",
+    ]
+    for tag in all_tags:
+        ap, at = _bucket(a_scores, a_tags, tag)
+        bp, bt = _bucket(b_scores, b_tags, tag)
+        a_pct = f"{ap / at * 100:.0f}%" if at else "—"
+        b_pct = f"{bp / bt * 100:.0f}%" if bt else "—"
+        lines.append(
+            f"| {tag} | {ap}/{at} | {bp}/{bt} | {a_pct} | {b_pct} |"
+            if at or bt
+            else f"| {tag} | — | — | — | — |"
+        )
     return "\n".join(lines)
 
 
