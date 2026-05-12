@@ -1,0 +1,5 @@
+# Graphify ignore file (gitignore-style, last-match-wins).
+# Paths excluded from knowledge-graph extraction.
+
+# Internal planning artifacts — not part of the public repo's domain content.
+docs/superpowers/
