@@ -11,7 +11,7 @@ jobs:
 
   build:
     needs: [ci]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, hybridindie]
     permissions:
       contents: read
 
@@ -55,7 +55,7 @@ jobs:
 
   publish:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, hybridindie]
     environment:
       name: pypi
     permissions:
