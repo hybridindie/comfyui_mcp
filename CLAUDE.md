@@ -9,14 +9,6 @@ A secure MCP (Model Context Protocol) server for ComfyUI. Enables AI assistants 
 - Audit Logger (structured JSON logging)
 - Selective API surface (blocks dangerous endpoints)
 
-## Operational Status
-
-> **CI is down until 2026-06-01** (billing issue, not project-related). Until then:
-> - Verify the full local suite before merging: `uv run pytest -q && uv run ruff check src/ tests/ evals/ scripts/ && uv run ruff format --check src/ tests/ evals/ scripts/ && uv run mypy src/comfyui_mcp/`.
-> - Use `gh pr merge <N> --squash --admin --delete-branch` to bypass status-check gating.
-> - The PyPI publish workflow (`.github/workflows/pypi.yml`) is unaffected and still runs on tag push.
-> - Remove this banner after 2026-06-01.
-
 ## Tech Stack
 
 - **Python**: 3.12
@@ -166,7 +158,7 @@ These are non-negotiable. This is a security-focused project.
     2. Promote `CHANGELOG.md`'s `[Unreleased]` section to `[X.Y.Z] — YYYY-MM-DD` with a summary paragraph and `### Added` / `### Changed` / `### Fixed` / `### Removed` sub-sections
     3. Add the `[X.Y.Z]: https://github.com/hybridindie/comfyui_mcp/releases/tag/vX.Y.Z` link reference at the bottom
 29. **Tag → PyPI → GitHub Release.** The PyPI workflow auto-publishes on `git push origin vX.Y.Z`, but the GitHub Release is NOT auto-created — run `gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."` manually after the PyPI publish succeeds (we hit this gotcha for 2.0.0 and 2.1.0).
-30. **No force-push to `main`.** Even during the CI-down window, never force-push to `main`. Use `--force-with-lease` on feature branches only.
+30. **No force-push to `main`.** Never force-push to `main`. Use `--force-with-lease` on feature branches only.
 
 ### Adding a new tool (checklist)
 
