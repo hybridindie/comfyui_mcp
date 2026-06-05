@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-runner
+  namespace: ci
+  labels:
+    app: github-runner
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: github-runner
+  template:
+    metadata:
+      labels:
+        app: github-runner
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        # Docker-in-Docker sidecar: provides the daemon the buildx/QEMU steps need.
+        - name: dind
+          image: docker:27-dind
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR    # disable TLS -> daemon listens on plain tcp 2375
+              value: ""
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "4"
+              memory: "6Gi"
+          volumeMounts:
+            - name: docker-data
+              mountPath: /var/lib/docker
+        # GitHub Actions runner: registers with the repo, runs jobs, talks to the dind sidecar.
+        - name: runner
+          image: myoung34/github-runner:2.334.0-ubuntu-noble
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DOCKER_HOST
+              value: "tcp://localhost:2375"
+            - name: REPO_URL
+              value: "https://github.com/hybridindie/comfyui_mcp"
+            - name: RUNNER_SCOPE
+              value: "repo"
+            - name: LABELS
+              value: "hybridindie"        # self-hosted + Linux/X64 are added automatically
+            - name: RUNNER_NAME_PREFIX
+              value: "k3s"
+            # NOTE: do NOT set EPHEMERAL — myoung34 treats any non-empty value
+            # (even "false") as enabled. Omitting it => persistent runner.
+            # ACCESS_TOKEN is a PAT (repo scope); the image mints fresh
+            # registration tokens on every start, so the runner survives restarts.
+            - name: ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-actions-runner
+                  key: ACCESS_TOKEN
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          volumeMounts:
+            - name: work
+              mountPath: /runner/_work
+      volumes:
+        - name: docker-data
+          emptyDir: {}
+        - name: work
+          emptyDir: {}
