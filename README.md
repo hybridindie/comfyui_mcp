@@ -666,6 +666,19 @@ Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are
 
 For production, run behind a reverse proxy (nginx, Traefik) to add TLS termination, authentication, and CSP headers. No PII is collected. No external telemetry.
 
+### Background tasks (optional, Phase 6)
+
+Long-running workflows (`comfyui_run_workflow(wait=True)`, image generation) can run as background tasks instead of holding the MCP request open. Disabled by default — most useful for the HTTP/remote transport where a long generation can return a task handle immediately and the client polls for progress.
+
+```yaml
+tasks:
+  enabled: true
+  backend_url: "memory://"   # in-memory (default, single-process)
+  # backend_url: "redis://localhost:6379/0"  # persistent, horizontally scalable
+```
+
+Env overrides: `COMFYUI_TASKS_ENABLED`, `COMFYUI_TASKS_BACKEND_URL`. When enabled, the server registers `TasksExtension` (backed by [Docket](https://github.com/chrisguidry/docket)) and async tools become task-capable — a client that opts in to the tasks capability gets a handle and polls; a client that does not gets synchronous execution as before. Use the Redis backend for deployments where tasks must survive restarts or run across workers. `ctx.elicit()` is not supported inside a background task — use the guard pattern (`InputRequiredResult`) for mid-task user input when serving 2026-07-28 connections.
+
 ## Architecture
 
 ```mermaid

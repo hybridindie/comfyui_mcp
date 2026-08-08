@@ -18,3 +18,13 @@ security:
 
 logging:
   audit_file: "~/.comfyui-mcp/audit.log"
+
+# Phase 6 (optional): background tasks for long-running workflows.
+# Disabled by default — most useful for the HTTP/remote transport where a
+# long generation can return a task handle instead of holding the request.
+# Env overrides: COMFYUI_TASKS_ENABLED, COMFYUI_TASKS_BACKEND_URL
+tasks:
+  enabled: false
+  # "memory://" (default, ephemeral, single-process) or
+  # "redis://host:port/db" (persistent, horizontally scalable).
+  backend_url: "memory://"

@@ -145,6 +145,20 @@ class TransportSettings(BaseModel):
     remote: RemoteTransportSettings = RemoteTransportSettings()
 
 
+class TasksSettings(BaseModel):
+    """Background task settings (Phase 6). Opt-in — disabled by default.
+
+    Background tasks are most valuable for the HTTP/remote transport where
+    long-running workflows can return a task handle immediately instead of
+    holding the request open. stdio single-user mode gains little.
+    """
+
+    enabled: bool = False
+    # Backend URL: "memory://" (default, ephemeral, single-process) or
+    # "redis://host:port/db" (persistent, horizontally scalable).
+    backend_url: str = "memory://"
+
+
 class Settings(BaseModel):
     comfyui: ComfyUISettings = ComfyUISettings()
     security: SecuritySettings = SecuritySettings()
@@ -152,6 +166,7 @@ class Settings(BaseModel):
     logging: LoggingSettings = LoggingSettings()
     transport: TransportSettings = TransportSettings()
     model_search: ModelSearchSettings = ModelSearchSettings()
+    tasks: TasksSettings = TasksSettings()
 
 
 def _apply_env_overrides(data: dict) -> dict:
@@ -168,6 +183,8 @@ def _apply_env_overrides(data: dict) -> dict:
         "COMFYUI_CIVITAI_API_KEY": ("model_search", "civitai_api_key"),
         "COMFYUI_MAX_SEARCH_RESULTS": ("model_search", "max_search_results"),
         "COMFYUI_ALLOWED_DOWNLOAD_DOMAINS": ("security", "allowed_download_domains"),
+        "COMFYUI_TASKS_ENABLED": ("tasks", "enabled"),
+        "COMFYUI_TASKS_BACKEND_URL": ("tasks", "backend_url"),
     }
     for env_var, path in env_map.items():
         value = os.environ.get(env_var)
@@ -177,7 +194,7 @@ def _apply_env_overrides(data: dict) -> dict:
                 data[section] = {}
             if key in ("timeout_connect", "timeout_read", "max_search_results"):
                 data[section][key] = int(value)
-            elif key == "tls_verify":
+            elif key in ("tls_verify", "enabled"):
                 data[section][key] = value.lower() in ("true", "1", "yes")
             elif key == "allowed_download_domains":
                 data[section][key] = [d.strip() for d in value.split(",") if d.strip()]
