@@ -249,6 +249,26 @@ class ComfyUIClient:
         _validate_prompt_id(prompt_id)
         await self._request("post", "/queue", json={"delete": [prompt_id]})
 
+    async def cancel_job_native(self, prompt_id: str) -> bool:
+        """POST /api/jobs/{id}/cancel — native state-agnostic single-job
+        cancel (#141). Returns True on success, False on 404 (older ComfyUI
+        builds that lack the jobs API — caller should fall back to the
+        legacy /queue delete). Raises on other errors.
+        """
+        _validate_prompt_id(prompt_id)
+        try:
+            await self._request("post", f"/api/jobs/{prompt_id}/cancel")
+            return True
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return False
+            raise
+
+    async def cancel_jobs_batch(self, job_ids: list[str]) -> dict:
+        """POST /api/jobs/cancel — batch cancel by job_ids (#141)."""
+        r = await self._request("post", "/api/jobs/cancel", json={"job_ids": job_ids})
+        return r.json()
+
     async def upload_image(
         self,
         data: bytes,
