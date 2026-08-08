@@ -8,7 +8,7 @@ import struct
 import zlib
 from typing import Annotated, Any, Literal
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -103,10 +103,10 @@ def register_file_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=False,
-            destructiveHint=False,
-            idempotentHint=False,
-            openWorldHint=True,
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
         )
     )
     async def comfyui_upload_image(
@@ -174,10 +174,10 @@ def register_file_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )
     async def comfyui_get_image(
@@ -274,10 +274,10 @@ def register_file_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )
     async def comfyui_list_outputs(
@@ -318,10 +318,10 @@ def register_file_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=False,
-            destructiveHint=False,
-            idempotentHint=False,
-            openWorldHint=True,
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
         )
     )
     async def comfyui_upload_mask(
@@ -409,10 +409,10 @@ def register_file_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )
     async def comfyui_get_workflow_from_image(filename: str, subfolder: str = "") -> dict[str, Any]:

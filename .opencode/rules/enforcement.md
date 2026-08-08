@@ -17,7 +17,7 @@ not "done."
 | Type check | New `mypy` / type errors in changed Python |
 | Lint | `ruff check` errors |
 | Format | `ruff format --check` drift |
-| Security ([[security]]) | A blocked endpoint proxied, a file tool skipping the sanitizer, a tool skipping the limiter/audit, a workflow submit skipping the inspector |
+| Security ([[security]]) | A blocked endpoint proxied, a file tool skipping the sanitizer, a tool skipping the limiter/audit (both in-tool AND middleware), a workflow submit skipping the inspector |
 
 ## Lint and format rules
 
@@ -36,7 +36,8 @@ not "done."
 - [ ] **Workflow**: issue referenced (`closes #N`); test was red before the
       fix; preflight clean; comments resolved
 - [ ] **Security** ([[security]]): no blocked endpoints; file tools sanitized;
-      every tool limiter+audit; workflow submits inspected
+      every tool rate-limited (in-tool OR middleware) and audit-logged
+      (in-tool OR middleware); workflow submits inspected
 - [ ] **Tools** ([[tools]]): typed I/O, `dict[str, Any]` for structured
       returns, `Field` annotations on 3+ params
 - [ ] **Tests** ([[testing]]): `respx` mocks, no `@pytest.mark.asyncio`, unique

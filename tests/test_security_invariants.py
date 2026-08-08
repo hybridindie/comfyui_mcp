@@ -1,4 +1,4 @@
-"""Static invariants for CLAUDE.md security rules 2-5.
+"""Static invariants for security rules 2-5.
 
 Verifies every registered MCP tool has access to the required security
 primitives via its closure. This converts the per-call conventions for rate
@@ -21,7 +21,7 @@ from typing import Any
 
 import httpx
 import pytest
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -64,7 +64,7 @@ FILE_HANDLING_TOOLS: frozenset[str] = frozenset(
 )
 
 # Tools that submit a workflow via client.post_prompt() — must go through the
-# WorkflowInspector per CLAUDE.md rule 5.
+# WorkflowInspector per security rule 5.
 WORKFLOW_SUBMITTING_TOOLS: frozenset[str] = frozenset(
     {
         "comfyui_run_workflow",
@@ -174,29 +174,29 @@ def _has_instance_of(fn: Any, cls: type) -> bool:
 
 
 class TestRateLimiterInvariant:
-    """CLAUDE.md rule 3: All tools must go through the rate limiter."""
+    """Security rule 3: All tools must go through the rate limiter."""
 
     def test_every_tool_has_a_rate_limiter_in_closure(self, all_tools: dict[str, Any]) -> None:
         missing = [name for name, fn in all_tools.items() if not _has_instance_of(fn, RateLimiter)]
         assert not missing, (
             f"{len(missing)} tool(s) have no RateLimiter in closure — "
-            f"cannot enforce CLAUDE.md rule 3: {sorted(missing)}"
+            f"cannot enforce security rule 3: {sorted(missing)}"
         )
 
 
 class TestAuditInvariant:
-    """CLAUDE.md rule 4: All tools must audit log."""
+    """Security rule 4: All tools must audit log."""
 
     def test_every_tool_has_an_audit_logger_in_closure(self, all_tools: dict[str, Any]) -> None:
         missing = [name for name, fn in all_tools.items() if not _has_instance_of(fn, AuditLogger)]
         assert not missing, (
             f"{len(missing)} tool(s) have no AuditLogger in closure — "
-            f"cannot enforce CLAUDE.md rule 4: {sorted(missing)}"
+            f"cannot enforce security rule 4: {sorted(missing)}"
         )
 
 
 class TestSanitizerInvariant:
-    """CLAUDE.md rule 2: All file-handling tools must use PathSanitizer."""
+    """Security rule 2: All file-handling tools must use PathSanitizer."""
 
     def test_file_handling_tools_have_sanitizer_in_closure(self, all_tools: dict[str, Any]) -> None:
         unknown = FILE_HANDLING_TOOLS - all_tools.keys()
@@ -211,12 +211,12 @@ class TestSanitizerInvariant:
         ]
         assert not missing, (
             f"{len(missing)} file-handling tool(s) have no PathSanitizer in closure — "
-            f"cannot enforce CLAUDE.md rule 2: {sorted(missing)}"
+            f"cannot enforce security rule 2: {sorted(missing)}"
         )
 
 
 class TestInspectorInvariant:
-    """CLAUDE.md rule 5: Workflow execution must go through the inspector."""
+    """Security rule 5: Workflow execution must go through the inspector."""
 
     def test_workflow_submitting_tools_have_inspector_in_closure(
         self, all_tools: dict[str, Any]
@@ -233,5 +233,5 @@ class TestInspectorInvariant:
         ]
         assert not missing, (
             f"{len(missing)} workflow-submitting tool(s) have no WorkflowInspector in closure — "
-            f"cannot enforce CLAUDE.md rule 5: {sorted(missing)}"
+            f"cannot enforce security rule 5: {sorted(missing)}"
         )

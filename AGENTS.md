@@ -13,11 +13,9 @@ It has **no dependency on any specific consumer.** The server is the product;
 the `/comfy:*` skills shipped in this repo are convenience recipes that wrap
 multi-tool flows — they are not coupled to any one harness.
 
-The full project context and the grounding-rule index are in
-[`CLAUDE.md`](./CLAUDE.md) — read it first. The constitutional rules themselves
-live in [`.opencode/rules/`](./.opencode/rules/), loaded as `instructions` in
-[`opencode.json`](./.opencode/opencode.json), and are the source of truth for
-how to build here:
+The constitutional rules themselves live in [`.opencode/rules/`](./.opencode/rules/),
+loaded as `instructions` in [`opencode.json`](./.opencode/opencode.json), and
+are the source of truth for how to build here:
 
 - `security.md` — blocked endpoints, PathSanitizer, rate limiter, audit log,
   workflow inspector (the non-negotiable security invariants)
@@ -33,6 +31,186 @@ how to build here:
 
 These rules are path-scoped; apply the one(s) matching the files you touch.
 When a rule and this file disagree, the rule wins.
+
+## Project Overview
+
+A secure MCP (Model Context Protocol) server for ComfyUI. Enables AI assistants
+to generate images, run workflows, and manage jobs through ComfyUI with built-in
+security controls:
+- Workflow Inspector (detects dangerous nodes like `eval`, `exec`)
+- Path Sanitizer (blocks path traversal attacks)
+- Rate Limiter (token-bucket per tool category)
+- Audit Logger (structured JSON logging)
+- Selective API surface (blocks dangerous endpoints)
+
+## Tech Stack
+
+- **Python**: 3.12
+- **Package Manager**: uv
+- **MCP Framework**: fastmcp[tasks] 4.0.0b1 (standalone FastMCP 4 beta)
+- **HTTP Client**: httpx (async)
+- **Validation**: pydantic
+- **Config**: pyyaml
+
+## Project Structure
+
+```
+src/comfyui_mcp/
+├── server.py              # MCP server entry, wires all components
+├── config.py              # Pydantic settings, YAML loading, env overrides
+├── client.py              # Async HTTP client for ComfyUI API
+├── audit.py               # Structured JSON audit logger
+├── model_manager.py       # Lazy Model Manager detection and folder caching
+├── model_registry.py      # Canonical model loader field registry
+├── node_manager.py        # ComfyUI Manager detector
+├── progress.py            # WebSocket progress tracking with HTTP polling fallback
+├── pagination.py          # Offset-based pagination helper for list tools
+├── security/
+│   ├── inspector.py       # Workflow node inspection (audit/enforce)
+│   ├── node_auditor.py    # Scans installed nodes for dangerous patterns
+│   ├── sanitizer.py       # File path validation
+│   ├── rate_limit.py      # Token-bucket rate limiter
+│   ├── download_validator.py  # URL domain/path and extension validation
+│   └── model_checker.py   # Proactive model availability checking
+├── workflow/
+│   ├── templates.py       # Built-in workflow templates (txt2img, img2img, etc.)
+│   ├── operations.py      # Workflow graph operations (add/remove nodes, connect)
+│   └── validation.py      # Workflow analysis and validation
+└── tools/
+    ├── generation.py      # generate_image, run_workflow, summarize_workflow
+    ├── workflow.py        # create_workflow, modify_workflow, validate_workflow
+    ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
+    ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
+    ├── history.py         # get_history
+    ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
+    ├── models.py          # search_models, download_model, get_download_tasks, cancel_download
+    └── nodes.py           # search/install/uninstall/update custom nodes
+
+scripts/
+├── smoke_test.py          # Operator smoke-test against a live ComfyUI instance
+├── compare_evals.py       # Diff two Inspect AI eval runs (PASS/FAIL + per-tag breakdown)
+├── run_multimodel_eval.py # Run one Task against N models in a single invocation
+├── graphify.sh            # graphify wrapper — sources .env, picks pinned interpreter
+└── hooks/                 # graphify git hooks (post-commit/post-merge auto-refresh)
+
+tests/                     # pytest with asyncio_mode = auto
+pyproject.toml            # Project config (hatchling build)
+```
+
+## Development Commands
+
+```bash
+uv sync                    # Install dependencies
+uv run pytest -v           # Run tests
+uv run pytest --cov=src/comfyui_mcp --cov-report=term-missing  # Coverage
+uv run ruff check src/ tests/         # Lint
+uv run ruff format src/ tests/        # Format (in-place)
+uv run ruff format --check src/ tests/  # Format check (CI)
+uv run mypy src/comfyui_mcp/          # Type check
+uv run pre-commit run --all-files     # Run all pre-commit hooks
+
+# Preflight gate (workflow step 4 before a PR): zero-skip + ruff + format + mypy + pytest
+./.opencode/hooks/check-no-skipped-tests.sh   # zero-skip scan
+
+# graphify (knowledge graph) — always via the wrapper so .env is observed
+scripts/graphify.sh update .          # AST-only structure refresh (no LLM)
+scripts/graphify.sh label .           # regenerate community names via the gateway
+scripts/graphify.sh query "..."       # scoped subgraph for a question
+scripts/hooks/install.sh              # activate graphify git hooks (once per clone)
+
+# Smoke-test against a live ComfyUI instance
+uv run python scripts/smoke_test.py                          # Full (connectivity + folders + download)
+uv run python scripts/smoke_test.py --no-download            # Connectivity + folder listing only
+uv run python scripts/smoke_test.py --url http://host:8188   # Target a specific server
+
+# Run the Phase 4 evaluation against a model
+uv run inspect eval evals/comfyui_mcp_task.py \
+    --model ollama/qwen3-coder:480b-cloud \
+    --log-dir ./logs/phase4
+uv run inspect view --log-dir ./logs/phase4        # browse traces in the UI
+
+# Run the Phase 5 live-execution eval (5 agentic questions, ~5-10 min)
+uv run inspect eval evals/comfyui_mcp_task.py@comfyui_mcp_phase5 \
+    --model ollama/gpt-oss:120b-cloud \
+    --log-dir ./logs/phase5
+
+# Run the eval across multiple models in one shot
+# (inspect's --model flag is single-value; the wrapper calls eval_set()
+# directly with model=[...] to work around that)
+uv run python scripts/run_multimodel_eval.py evals/comfyui_mcp_task.py@comfyui_mcp_phase4 \
+    --models ollama/gpt-oss:120b-cloud,ollama/qwen3-coder:480b-cloud,anthropic/claude-sonnet-4-6 \
+    --log-dir ./logs/phase4-cross-model
+
+# Compare two eval runs (or two .eval files) side-by-side
+uv run python scripts/compare_evals.py logs/phase4 logs/phase4-cross-model
+```
+
+## Configuration
+
+Config file: `~/.comfyui-mcp/config.yaml`
+
+Key settings:
+- `comfyui.url` — ComfyUI server URL
+- `security.mode` — "audit" (log only) or "enforce" (block unapproved nodes)
+- `security.dangerous_nodes` — List of node types to flag/warn
+- `rate_limits.*` — Requests per minute per category
+
+Environment variables override config: `COMFYUI_URL`, `COMFYUI_SECURITY_MODE`, etc.
+
+## Testing Notes
+
+- Uses `pytest-asyncio` with `asyncio_mode = auto`
+- Mock ComfyUI API responses with `respx`
+- Tests mirror `src/comfyui_mcp/` structure
+
+## ComfyUI-Model-Manager API notes
+
+The [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager)
+plugin wraps all its responses in a `{"success": bool, "data": <payload>}` envelope. The MCP client normalizes this in `_unwrap_model_manager_response()` before returning data to callers. All `respx` mocks for Model Manager endpoints must use this shape.
+
+Two known quirks discovered against the live API:
+
+1. **`previewFile` is always required** — `POST /model-manager/model` calls `save_model_preview()` server-side regardless. Omitting the field causes the task to be silently deleted with a misleading "Task not found" error. The client always sends `previewFile` (empty string is fine).
+2. **Completed tasks stay as `pause`** — After a download finishes, the task remains in the list with `status: "pause"` and `progress: 100`. This is upstream behavior. Use `cancel_download` (which calls `DELETE /model-manager/download/{task_id}`) to remove it.
+
+## Adding a new tool (checklist)
+
+1. Add the tool function in the appropriate `tools/*.py`
+2. Use `@mcp.tool()` decorator with a clear docstring
+3. Call `limiter.check("tool_name")` first (or rely on `RateLimitingMiddleware`)
+4. Call `audit.log(tool="tool_name", action="...")` (or rely on `AuditMiddleware`)
+5. If it handles files: validate through `sanitizer`
+6. If it submits workflows: inspect through `inspector`
+7. Use `Annotated[type, Field(...)]` for parameters with constraints (3+ params)
+8. Return `dict[str, Any]` if all code paths return structured data; use `-> str` only for mixed return paths
+9. Add the function to the `tool_fns` dict and return it (or define as a module-level decorated function with `Depends()`)
+10. Wire it in `server.py` `_register_all_tools()` if it needs new dependencies
+11. Add tests in `tests/test_tools_*.py` that call the function directly
+12. Update the Tools table in `README.md`
+
+## Adding a new client method (checklist)
+
+1. Verify the ComfyUI endpoint is not on the blocked list (see rule 1)
+2. Add the method to `ComfyUIClient` in `client.py`
+3. Use `self._request(method, path, ...)` — this handles retries on connection errors
+4. Add a test in `test_client.py` with `@respx.mock`
+
+## Adding a new security check (checklist)
+
+1. Add to the appropriate module in `security/`
+2. Wire it in `server.py` `_build_server()` and pass to tool registration
+3. Add config fields to `config.py` if needed — every field must be read somewhere
+4. Add tests in `tests/test_*.py`
+
+## Maintaining the dangerous nodes list
+
+The `_DEFAULT_DANGEROUS_NODES` list in `config.py` contains real ComfyUI custom node `class_type` values grouped by threat category (code execution, network access, filesystem access). To audit a new custom node package:
+
+1. Check the package source for calls to `exec`, `eval`, `subprocess`, `os.system`, `open()`, `requests`, `urllib`, or `httpx`
+2. Look for nodes that accept arbitrary file paths, URLs, or code as input
+3. Add confirmed dangerous nodes to the appropriate category in `_DEFAULT_DANGEROUS_NODES` with a comment noting the source package and reason
+4. If the node follows a naming pattern not yet covered, add a regex to `_DANGEROUS_NAME_PATTERNS` in `node_auditor.py`
+5. Add tests for any new patterns
 
 ## OpenCode tooling (opt-in)
 

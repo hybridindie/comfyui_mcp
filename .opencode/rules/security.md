@@ -35,14 +35,18 @@ to prevent folder/filename injection.
 
 ## 3. All tools must go through the rate limiter
 
-Every tool function must call `limiter.check("tool_name")` before doing any
-work.
+Every tool function must be rate-limited. This may be enforced either by
+calling `limiter.check("tool_name")` inside the tool body, *or* by
+`RateLimitingMiddleware` (built-in, token-bucket) configured at the server
+level. One of the two must be in effect for every tool call.
 
 ## 4. All tools must audit log
 
-Every tool function must call `audit.log(tool="...", action="...")` with
-structured data. Sensitive fields are auto-redacted but never log raw user
-secrets intentionally.
+Every tool function must emit a structured audit record. This may be enforced
+either by calling `audit.async_log(tool="...", action="...")` inside the tool
+body, *or* by a custom `AuditMiddleware` using the `on_call_tool` hook that
+emits one structured record per call (with sensitive arguments redacted). One
+of the two must be in effect for every tool call.
 
 ## 5. Workflow execution must go through the inspector
 
@@ -60,6 +64,9 @@ not add speculative or "might need later" dependencies.
   POST delete.
 - A file-handling tool that passes a raw filename/subfolder straight to the
   client without sanitization.
-- A tool that skips `limiter.check()` or `audit.log()`.
+- A tool that skips both `limiter.check()` AND `RateLimitingMiddleware`
+  (neither enforcement path in effect).
+- A tool that skips both `audit.async_log()` AND `AuditMiddleware`
+  (neither enforcement path in effect).
 - A workflow-submitting tool that calls `client.post_prompt()` without first
   running `inspector.inspect()`.

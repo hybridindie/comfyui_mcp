@@ -8,7 +8,7 @@ from typing import Annotated, Any, Literal
 from urllib.parse import urlparse
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -161,10 +161,10 @@ def register_model_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )
     async def comfyui_search_models(
@@ -252,10 +252,10 @@ def register_model_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=False,
-            destructiveHint=False,
-            idempotentHint=False,
-            openWorldHint=True,
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
         )
     )
     async def comfyui_download_model(
@@ -333,10 +333,10 @@ def register_model_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )
     async def comfyui_get_download_tasks() -> dict[str, Any]:
@@ -364,10 +364,10 @@ def register_model_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=False,
-            destructiveHint=True,
-            idempotentHint=False,
-            openWorldHint=True,
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=False,
+            open_world_hint=True,
         )
     )
     async def comfyui_cancel_download(task_id: str) -> dict[str, Any]:

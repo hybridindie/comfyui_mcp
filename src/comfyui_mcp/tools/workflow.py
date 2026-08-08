@@ -7,7 +7,7 @@ import json
 from typing import Any
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
 from comfyui_mcp.audit import AuditLogger
@@ -61,10 +61,10 @@ def register_workflow_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=False,
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
         )
     )
     async def comfyui_create_workflow(template: str, params: str = "") -> dict[str, Any]:
@@ -122,10 +122,10 @@ def register_workflow_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=False,
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
         )
     )
     async def comfyui_modify_workflow(workflow: str, operations: str) -> dict[str, Any]:
@@ -198,10 +198,10 @@ def register_workflow_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )
     async def comfyui_analyze_workflow(workflow: str) -> dict[str, Any]:
@@ -274,10 +274,10 @@ def register_workflow_tools(
 
     @mcp.tool(
         annotations=ToolAnnotations(
-            readOnlyHint=True,
-            destructiveHint=False,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )
     async def comfyui_validate_workflow(workflow: str) -> dict[str, Any]:

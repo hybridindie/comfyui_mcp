@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
@@ -203,10 +203,8 @@ def _build_server(
         "lifespan": _lifespan,
     }
 
-    if settings.transport.remote.enabled:
-        server_kwargs["host"] = settings.transport.remote.host
-        server_kwargs["port"] = settings.transport.remote.port
-
+    # FastMCP 4 moved host/port off the FastMCP() constructor to run()/http_app(),
+    # so they no longer belong in server_kwargs. main() passes them to mcp.run().
     server = FastMCP(**server_kwargs)
 
     progress = WebSocketProgress(
@@ -255,7 +253,13 @@ mcp, _settings, _client, _search_http = _build_server()
 def main() -> None:
     """Run the MCP server."""
     if _settings.transport.remote.enabled:
-        mcp.run(transport="streamable-http")
+        # FastMCP 4 calls the streamable-HTTP transport "http" (not
+        # "streamable-http"), and host/port now live on run() not the constructor.
+        mcp.run(
+            transport="http",
+            host=_settings.transport.remote.host,
+            port=_settings.transport.remote.port,
+        )
     else:
         mcp.run()
 
