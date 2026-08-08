@@ -7,28 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- **Migrated to FastMCP 4 beta** (`fastmcp[tasks]==4.0.0b1`, built on MCP SDK
-  v2). The server now imports `FastMCP` from `fastmcp` instead of the
-  `mcp.server.fastmcp` bundle bundled in `mcp` v1. `ToolAnnotations` field
-  arguments converted from camelCase to snake_case (`readOnlyHint` →
-  `read_only_hint`, etc.). `host`/`port` transport settings moved from the
-  `FastMCP()` constructor to `mcp.run()`; the streamable-HTTP transport is
-  now named `"http"` internally (#123, #129).
-- **Consolidated `CLAUDE.md` into `AGENTS.md`** — single harness-agnostic
-  entry point, no more Claude Code coupling. All live references in tests,
-  the review subagent, and rules updated (#123, #129).
-- **Updated `.opencode/rules/`** to permit the cleaner architecture the
-  migration unlocks: security rules 3/4 accept middleware enforcement as
-  an alternative to in-tool calls; architecture rule 11 accepts
-  module-level `Depends()`-decorated functions alongside the
-  `register_*_tools()` factory; tools.md checklist rewritten for dual
-  enforcement paths and DI; testing rule 19 covers both enforcement paths
-  (#123, #129).
-
 ### Added
 
+- **Built-in FastMCP 4 middleware wired** alongside `SecurityMiddleware` —
+  `ResponseCachingMiddleware` (caches read-only tools + the 4 `comfyui://`
+  resources, 30s TTL), `ResponseLimitingMiddleware` (caps
+  `list_nodes`/`list_models`/`get_history` payloads at 500KB),
+  `PingMiddleware` (keeps long-lived HTTP connections alive),
+  `StructuredLoggingMiddleware` (ops/observability, `include_payloads=False`)
+  (#139).
+- **`SecurityMiddleware` covers resources and prompts** — added
+  `on_read_resource` and `on_get_prompt` hooks so the middleware enforces
+  rate-limit + entry-audit for all three component types, not just tools.
+  Closes the gap where resources/prompts had no middleware coverage and no
+  test guardrail (#136).
 - **Resources** (`resources.py`) — read-only ComfyUI state the LLM can
   browse by URI without a tool call: `comfyui://models/{folder}`,
   `comfyui://nodes/installed`, `comfyui://queue`, `comfyui://system`.
@@ -46,8 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependency injection** (`dependencies.py`) — `Depends()` providers
   for the `client`/`audit`/`inspector`/`limiter` singletons
   (`configure_dependencies()` at startup). `tools/history_di.py` is the
-  proof module; the remaining tools migrate incrementally. Per-file
-  `B008` ruff ignore for the `Depends()`-in-default idiom (#126, #132).
+  canonical DI module — the factory `history.py` was deleted (#126, #132,
+  #138). Per-file `B008` ruff ignore for the `Depends()`-in-default idiom.
 - **Elicitation gate** — enforce-mode workflows with dangerous-node or
   suspicious-input warnings now `ctx.elicit()` the user for confirmation
   before submission. Decline/cancel raises `WorkflowBlockedError` without
@@ -58,6 +50,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tasks.enabled` config + `COMFYUI_TASKS_ENABLED`/
   `COMFYUI_TASKS_BACKEND_URL` env overrides. In-memory (`memory://`) or
   Redis (`redis://host:port/db`) backends (#128, #134).
+
+### Changed
+
+- **Dropped redundant in-tool limiter/audit boilerplate** — 43
+  `limiter.check()` and 22 `audit.async_log(action="called")` calls removed
+  from tool bodies now that `SecurityMiddleware` enforces them. The 41
+  lifecycle audit logs (`submitted`, `completed`, `inspected`, etc.) stay.
+  Invariant tests strengthened from closure-presence to
+  middleware-invocation (prove enforcement fires, not just capture) (#137).
+- **Migrated to FastMCP 4 beta** (`fastmcp[tasks]==4.0.0b1`, built on MCP SDK
+  v2). The server now imports `FastMCP` from `fastmcp` instead of the
+  `mcp.server.fastmcp` bundle bundled in `mcp` v1. `ToolAnnotations` field
+  arguments converted from camelCase to snake_case (`readOnlyHint` →
+  `read_only_hint`, etc.). `host`/`port` transport settings moved from the
+  `FastMCP()` constructor to `mcp.run()`; the streamable-HTTP transport is
+  now named `"http"` internally (#123, #129).
+- **Consolidated `CLAUDE.md` into `AGENTS.md`** — single harness-agnostic
+  entry point, no more Claude Code coupling. All live references in tests,
+  the review subagent, and rules updated (#123, #129).
+- **Updated `.opencode/rules/`** to permit the cleaner architecture the
+  migration unlocks: security rules 3/4 accept middleware enforcement as
+  an alternative to in-tool calls; architecture rule 11 accepts
+  module-level `Depends()`-decorated functions alongside the
+  `register_*_tools()` factory; tools.md checklist rewritten for dual
+  enforcement paths and DI; testing rule 19 covers both enforcement paths
+  (#123, #129).
 
 ### Removed
 
