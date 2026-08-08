@@ -8,7 +8,7 @@ import zlib
 import httpx
 import pytest
 import respx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient

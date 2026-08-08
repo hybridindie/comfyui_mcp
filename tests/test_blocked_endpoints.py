@@ -1,4 +1,4 @@
-"""Regression tests for CLAUDE.md security rule 1: blocked endpoints."""
+"""Regression tests for security rule 1: blocked endpoints."""
 
 from __future__ import annotations
 

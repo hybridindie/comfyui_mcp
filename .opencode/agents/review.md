@@ -41,21 +41,25 @@ You review diffs; you do not edit files.
 3. **Testing** (`@.opencode/rules/testing.md`) — `respx` mocks used, no
    `@pytest.mark.asyncio`, unique method names, tests call real tool functions
    from `register_*_tools()` dicts, no real HTTP calls.
-4. **Cross-cutting contracts** (`@CLAUDE.md`, `@.opencode/rules/`) — the things
+4. **Cross-cutting contracts** (`@AGENTS.md`, `@.opencode/rules/`) — the things
    easiest to get wrong:
    - **Security** (`security.md`) — no blocked endpoints proxied
      (`/userdata`, `/free`, `/users`, `/history` POST delete); file tools
-     sanitize through `PathSanitizer`; every tool calls `limiter.check()` and
-     `audit.log()`; workflow submits run `inspector.inspect()` first;
-     `/system_stats` only called by `get_system_stats()` serving
-     `get_system_info` with its whitelist.
+     sanitize through `PathSanitizer`; every tool is rate-limited
+     (`limiter.check()` OR `RateLimitingMiddleware`) and audit-logged
+     (`audit.async_log()` OR `AuditMiddleware`); workflow submits run
+     `inspector.inspect()` first; `/system_stats` only called by
+     `get_system_stats()` serving `get_system_info` with its whitelist.
    - **Tool contract** (`tools.md`) — `dict[str, Any]` returns for structured
      tools (not `json.dumps`); `Annotated[type, Field(...)]` on 3+ params;
      docstrings written for an agent; no duplicate tools (two tools calling
      the same client method is a bug).
    - **Architecture** (`architecture.md`) — `_build_server()` returns the
-     4-tuple and is built once; `main()` reuses `_settings`; tool registration
-     returns `dict[str, Any]`; HTTP access centralized in `client.py`.
+     4-tuple and is built once; `main()` reuses `_settings`; `host`/`port`
+     live on `mcp.run()`/`mcp.http_app()` not the constructor; tool
+     registration returns `dict[str, Any]` OR tools are module-level
+     decorated functions with `Depends()`; HTTP access centralized in
+     `client.py`.
 5. **Docs** — `README.md` Tools table and `CHANGELOG.md` updated when a tool or
    contract changes (required by `enforcement.md`'s PR checklist).
 6. **Downstream impact** — if a tool name, param key, or return shape changed,

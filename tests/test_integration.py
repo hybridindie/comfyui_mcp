@@ -2,7 +2,7 @@
 
 These tests wire up the full server stack (config -> security -> tools -> client)
 and exercise tools through the same code paths used in production, using the
-public register_*_tools() return dicts (CLAUDE.md rule 12).
+public register_*_tools() return dicts (architecture rule 11).
 """
 
 import json
@@ -10,7 +10,7 @@ import json
 import httpx
 import pytest
 import respx
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
