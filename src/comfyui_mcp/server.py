@@ -123,6 +123,7 @@ _TOOL_CATEGORIES: dict[str, str] = {
     "get_custom_node_status": "read",
     # job tools — mutating queue ops use workflow, reads use read
     "cancel_job": "workflow",
+    "cancel_jobs": "workflow",
     "interrupt": "workflow",
     "clear_queue": "workflow",
     "get_queue": "read",

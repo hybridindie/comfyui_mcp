@@ -128,11 +128,36 @@ def register_job_tools(
         )
     )
     async def comfyui_cancel_job(prompt_id: str) -> str:
-        """Cancel a running or queued job by its prompt_id."""
-        await client.delete_queue_item(prompt_id)
+        """Cancel a running or queued job by its prompt_id.
+
+        Uses the native /api/jobs/{id}/cancel endpoint (server classifies
+        running/pending/terminal) and falls back to the legacy /queue delete
+        on 404 (older ComfyUI builds).
+        """
+        cancelled = await client.cancel_job_native(prompt_id)
+        if not cancelled:
+            await client.delete_queue_item(prompt_id)
         return f"Cancelled job {prompt_id}"
 
     tool_fns["comfyui_cancel_job"] = comfyui_cancel_job
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
+        )
+    )
+    async def comfyui_cancel_jobs(job_ids: list[str]) -> dict[str, Any]:
+        """Batch-cancel one or more jobs by their prompt_ids via /api/jobs/cancel.
+
+        Useful for "cancel all my queued jobs" without N round-trips.
+        """
+        result = await client.cancel_jobs_batch(job_ids)
+        return {"cancelled": len(job_ids), "job_ids": job_ids, "result": result}
+
+    tool_fns["comfyui_cancel_jobs"] = comfyui_cancel_jobs
 
     @mcp.tool(
         annotations=ToolAnnotations(

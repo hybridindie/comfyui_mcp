@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Native `/api/jobs/{id}/cancel` + batch cancel** — `comfyui_cancel_job`
+  now uses the native state-agnostic jobs-cancel endpoint (server classifies
+  running/pending/terminal) and falls back to the legacy `/queue` delete on
+  404 (older ComfyUI). New `comfyui_cancel_jobs` tool batch-cancels by
+  `job_ids` via `/api/jobs/cancel` (#141).
 - **`ctx.report_progress` + `ctx.read_resource` in generation tools** —
   `run_workflow_stream` reports step/total as MCP progress notifications
   (clients get live updates instead of polling `get_progress`); `generate_image`

@@ -47,6 +47,10 @@ class TestCancelJob:
     @respx.mock
     async def test_cancel_job_sends_delete(self, components):
         client, audit, limiter = components
+        # Native /api/jobs/{id}/cancel 404s (older ComfyUI) → fall back to /queue delete
+        respx.post("http://test:8188/api/jobs/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/cancel").mock(
+            return_value=httpx.Response(404, json={"error": "not found"})
+        )
         route = respx.post("http://test:8188/queue").mock(return_value=httpx.Response(200, json={}))
         mcp = FastMCP("test")
         tools = register_job_tools(mcp, client, audit, limiter)
