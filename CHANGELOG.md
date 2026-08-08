@@ -5,6 +5,49 @@ All notable changes to **comfyui-mcp-secure** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Agent harness switched to OpenCode** — Claude Code and GitHub Copilot
+  tooling removed. The repo now ships agent configuration under `.opencode/`
+  (`opencode.json`, path-scoped `rules/`, a read-only `review` subagent, a
+  `/preflight` command, a zero-skip test hook, and a graphify plugin) and an
+  `AGENTS.md` entry point. `CLAUDE.md` remains as a flat mirror of the rules
+  for harnesses that read it directly; the path-scoped `.opencode/rules/` files
+  are the source of truth. The server itself was already harness-agnostic (any
+  MCP client over stdio or Streamable HTTP).
+
+### Removed
+
+- **Claude Code plugin** — `.claude-plugin/`, `.claude/`, `.mcp.json`, and the
+  `hooks/` directory (Claude `PostToolUse` security-warning hook) removed.
+  Security warnings already surface in the MCP tool response envelope
+  (`warnings` array), so no behavior is lost; the agent reads them from the
+  tool output directly.
+- **GitHub Copilot instructions** — `.github/copilot-instructions.md` and
+  `.github/instructions/` removed.
+
+### Added
+
+- **`.opencode/`** — `opencode.json` (wires `context7` + `graphify` MCP
+  servers, `review` subagent, `/preflight` command, graphify plugin,
+  `watcher.ignore`), `rules/` (security, architecture, tools, testing,
+  workflow, enforcement, graphify), `agents/review.md`, `commands/preflight.md`,
+  `hooks/check-no-skipped-tests.sh`, `plugins/graphify.js`. The `graphify` MCP
+  server (`python -m graphify.serve graphify-out/graph.json --transport stdio`)
+  exposes `query_graph`, `get_node`, `get_neighbors`, `get_community`,
+  `god_nodes`, `graph_stats`, and `shortest_path` for live agent queries
+  against the knowledge graph.
+- **`AGENTS.md`** — harness-agnostic entry point indexing the grounding rules.
+- **`scripts/graphify.sh`** — wrapper that sources `.env` (LLM backend) and
+  picks the pinned interpreter before invoking the graphify CLI.
+- **`scripts/hooks/`** — graphify git hooks (`post-commit`/`post-merge`
+  auto-refresh of the knowledge graph structure; `install.sh` to activate).
+- **`.env.example`** — opencode opt-ins (`OPENCODE_ENABLE_EXA`,
+  `OPENCODE_EXPERIMENTAL_LSP_TOOL`) and the graphify LLM backend config
+  (MLflow AI Gateway primary, local ollama fallback).
+
 ## [2.1.0] — 2026-05-12
 
 Additive minor release. Adds `comfyui_analyze_workflow`, replaces the bespoke

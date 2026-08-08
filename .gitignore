@@ -25,5 +25,8 @@ logs/
 # Skill output (graphify knowledge graph artifacts)
 graphify-out/
 
+# Local env (graphify LLM backend, opencode opt-ins) — never commit
+.env
+
 # Internal planning artifacts — not part of the public repo
 docs/superpowers/
