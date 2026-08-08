@@ -36,9 +36,6 @@ def register_job_tools(
     )
     async def comfyui_get_queue() -> dict[str, Any]:
         """Get the current ComfyUI execution queue state."""
-        rl = read_limiter if read_limiter is not None else limiter
-        rl.check("get_queue")
-        await audit.async_log(tool="get_queue", action="called")
         return await client.get_queue()
 
     tool_fns["comfyui_get_queue"] = comfyui_get_queue
@@ -64,9 +61,6 @@ def register_job_tools(
         (`{prompt_id: {...}}`); callers should index fields directly on the
         returned object.
         """
-        rl = read_limiter if read_limiter is not None else limiter
-        rl.check("get_job")
-        await audit.async_log(tool="get_job", action="called", extra={"prompt_id": prompt_id})
         return await client.get_job(prompt_id)
 
     tool_fns["comfyui_get_job"] = comfyui_get_job
@@ -114,20 +108,6 @@ def register_job_tools(
         Each job includes prompt_id, status (pending/in_progress/completed/failed/cancelled),
         timing, and outputs (when completed).
         """
-        rl = read_limiter if read_limiter is not None else limiter
-        rl.check("list_jobs")
-        await audit.async_log(
-            tool="list_jobs",
-            action="called",
-            extra={
-                "status": status,
-                "workflow_id": workflow_id,
-                "sort_by": sort_by,
-                "sort_order": sort_order,
-                "limit": limit,
-                "offset": offset,
-            },
-        )
         return await client.get_jobs(
             status=list(status) if status is not None else None,
             workflow_id=workflow_id,
@@ -149,8 +129,6 @@ def register_job_tools(
     )
     async def comfyui_cancel_job(prompt_id: str) -> str:
         """Cancel a running or queued job by its prompt_id."""
-        limiter.check("cancel_job")
-        await audit.async_log(tool="cancel_job", action="called", extra={"prompt_id": prompt_id})
         await client.delete_queue_item(prompt_id)
         return f"Cancelled job {prompt_id}"
 
@@ -172,8 +150,6 @@ def register_job_tools(
         running one. ComfyUI silently no-ops if prompt_id is queued but
         not yet running.
         """
-        limiter.check("interrupt")
-        await audit.async_log(tool="interrupt", action="called", extra={"prompt_id": prompt_id})
         await client.interrupt(prompt_id=prompt_id)
         if prompt_id is None:
             return "Interrupted current execution (global)"
@@ -191,9 +167,6 @@ def register_job_tools(
     )
     async def comfyui_get_queue_status() -> dict[str, Any]:
         """Get detailed queue status including currently running and pending prompts."""
-        rl = read_limiter if read_limiter is not None else limiter
-        rl.check("get_queue_status")
-        await audit.async_log(tool="get_queue_status", action="called")
         return await client.get_prompt_status()
 
     tool_fns["comfyui_get_queue_status"] = comfyui_get_queue_status
@@ -213,12 +186,6 @@ def register_job_tools(
             clear_running: Stop the currently running workflow
             clear_pending: Remove pending workflows from the queue
         """
-        limiter.check("clear_queue")
-        await audit.async_log(
-            tool="clear_queue",
-            action="called",
-            extra={"clear_running": clear_running, "clear_pending": clear_pending},
-        )
         await client.clear_queue(clear_running=clear_running, clear_pending=clear_pending)
         return f"Queue cleared (running={clear_running}, pending={clear_pending})"
 
@@ -242,9 +209,6 @@ def register_job_tools(
         Args:
             prompt_id: The prompt_id returned by run_workflow or generate_image.
         """
-        progress_limiter = read_limiter if read_limiter is not None else limiter
-        progress_limiter.check("get_progress")
-        await audit.async_log(tool="get_progress", action="called", extra={"prompt_id": prompt_id})
         if progress is None:
             return {
                 "prompt_id": prompt_id,

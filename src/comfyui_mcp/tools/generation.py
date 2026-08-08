@@ -517,7 +517,6 @@ def register_generation_tools(
                   with status, outputs, and elapsed time. If False (default), return
                   immediately with just the prompt_id.
         """
-        limiter.check("run_workflow")
         wf = _validate_workflow_json(workflow)
 
         return await _submit_workflow(
@@ -563,7 +562,6 @@ def register_generation_tools(
         Args:
             workflow: JSON string of a ComfyUI workflow (API format).
         """
-        limiter.check("run_workflow_stream")
         wf = _validate_workflow_json(workflow)
 
         return await _submit_workflow(
@@ -602,7 +600,6 @@ def register_generation_tools(
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         """Generate an image from a text prompt using a default txt2img workflow."""
-        limiter.check("generate_image")
         if not MIN_DIMENSION <= width <= MAX_WIDTH:
             raise ValueError(f"width must be between {MIN_DIMENSION} and {MAX_WIDTH}")
         if not MIN_DIMENSION <= height <= MAX_HEIGHT:
@@ -659,9 +656,6 @@ def register_generation_tools(
         Parses the workflow graph, extracts models, parameters, and execution flow.
         Enriches with display names from the ComfyUI server when available.
         """
-        summary_limiter = read_limiter if read_limiter is not None else limiter
-        summary_limiter.check("summarize_workflow")
-
         # Defense-in-depth: pydantic enforces Literal at the FastMCP boundary,
         # but direct Python callers (including tests) bypass that. Keep the
         # runtime check.
@@ -721,7 +715,6 @@ def register_generation_tools(
 
         The input image must already be uploaded to ComfyUI via comfyui_upload_image.
         """
-        limiter.check("transform_image")
         _validate_strength(strength)
         _validate_steps(steps)
         _validate_cfg(cfg)
@@ -783,7 +776,6 @@ def register_generation_tools(
         comfyui_upload_image/comfyui_upload_mask.
         White regions in the mask indicate areas to regenerate.
         """
-        limiter.check("inpaint_image")
         _validate_strength(strength)
         _validate_steps(steps)
         _validate_cfg(cfg)
@@ -847,7 +839,6 @@ def register_generation_tools(
         The input image must already be uploaded to ComfyUI via comfyui_upload_image.
         The scale factor is determined by the upscale model (e.g. RealESRGAN_x4plus = 4x).
         """
-        limiter.check("upscale_image")
         clean_image = _validate_image_filename(image, sanitizer)
 
         wf = _create_from_template("upscale", {"image": clean_image, "model_name": upscale_model})

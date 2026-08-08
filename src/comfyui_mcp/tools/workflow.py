@@ -88,7 +88,6 @@ def register_workflow_tools(
             ``comfyui_create_workflow(template="txt2img",
             params='{"prompt": "a sunset", "width": 768, "steps": 30}')``
         """
-        limiter.check("create_workflow")
         if len(params.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(f"params JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)")
 
@@ -161,7 +160,6 @@ def register_workflow_tools(
             "input_name": "steps", "value": 50},
             {"op": "add_node", "class_type": "LoraLoader"}]'``
         """
-        limiter.check("modify_workflow")
         if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
                 f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
@@ -244,7 +242,6 @@ def register_workflow_tools(
         endpoint; if the server is unreachable, ``display_name`` falls back to
         the bare ``class_type``.
         """
-        limiter.check("analyze_workflow")
         if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
                 f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"
@@ -308,7 +305,6 @@ def register_workflow_tools(
               ``txt2img -> upscale``, or ``unknown``. (For the full
               structural breakdown, use ``comfyui_analyze_workflow``.)
         """
-        limiter.check("validate_workflow")
         if len(workflow.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
                 f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)"

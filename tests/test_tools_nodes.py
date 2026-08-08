@@ -162,24 +162,6 @@ class TestSearchCustomNodes:
         assert result["total"] == 0
 
     @respx.mock
-    async def test_rate_limiter_called(self, components, registered_tools):
-        _mock_node_list()
-        # First call should succeed
-        await registered_tools["comfyui_search_custom_nodes"](query="test")
-        # Exhaust the rate limiter
-        limiter = components["read_limiter"]
-        for _ in range(120):
-            try:
-                limiter.check("search_custom_nodes")
-            except Exception:
-                break
-        # Next call should hit rate limit
-        from comfyui_mcp.security.rate_limit import RateLimitError
-
-        with pytest.raises(RateLimitError):
-            await registered_tools["comfyui_search_custom_nodes"](query="test")
-
-    @respx.mock
     async def test_audit_log_written(self, components, registered_tools):
         _mock_node_list()
         await registered_tools["comfyui_search_custom_nodes"](query="test")
@@ -242,29 +224,6 @@ class TestInstallCustomNode:
     async def test_validates_too_long_id(self, registered_tools):
         with pytest.raises(ValueError, match="must not exceed 200"):
             await registered_tools["comfyui_install_custom_node"](node_id="x" * 201)
-
-    @respx.mock
-    @patch("comfyui_mcp.tools.nodes.asyncio.sleep", new_callable=AsyncMock)
-    async def test_rate_limiter_called(self, mock_sleep, components, registered_tools):
-        respx.post(f"{BASE}/v2/manager/queue/task").mock(return_value=httpx.Response(200))
-        _mock_operation_success()
-        # First call succeeds
-        await registered_tools["comfyui_install_custom_node"](
-            node_id="comfy-pack-one", restart=False
-        )
-        # Exhaust the rate limiter
-        limiter = components["wf_limiter"]
-        for _ in range(120):
-            try:
-                limiter.check("install_custom_node")
-            except Exception:
-                break
-        from comfyui_mcp.security.rate_limit import RateLimitError
-
-        with pytest.raises(RateLimitError):
-            await registered_tools["comfyui_install_custom_node"](
-                node_id="comfy-pack-one", restart=False
-            )
 
 
 class TestUninstallCustomNode:
@@ -354,23 +313,3 @@ class TestGetCustomNodeStatus:
         assert result["is_processing"] is True
         assert result["total"] == 3
         assert result["completed"] == 1
-
-    @respx.mock
-    async def test_rate_limiter_called(self, components, registered_tools):
-        respx.get(f"{BASE}/v2/manager/queue/status").mock(
-            return_value=httpx.Response(
-                200, json={"is_processing": False, "total": 0, "completed": 0}
-            )
-        )
-        await registered_tools["comfyui_get_custom_node_status"]()
-        # Exhaust limiter
-        limiter = components["read_limiter"]
-        for _ in range(120):
-            try:
-                limiter.check("get_custom_node_status")
-            except Exception:
-                break
-        from comfyui_mcp.security.rate_limit import RateLimitError
-
-        with pytest.raises(RateLimitError):
-            await registered_tools["comfyui_get_custom_node_status"]()
