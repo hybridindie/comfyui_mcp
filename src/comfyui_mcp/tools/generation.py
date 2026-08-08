@@ -102,6 +102,41 @@ def _validate_image_filename(filename: str, sanitizer: PathSanitizer) -> str:
     return sanitizer.validate_filename(filename)
 
 
+async def _validate_model_via_resource(
+    *,
+    folder: str,
+    model: str,
+    ctx: Any,
+) -> None:
+    """Preflight: confirm a named model exists by reading the comfyui://models
+    resource (#140). Reuses the resource layer instead of calling
+    client.get_models directly. Fails fast (ValueError) when the model is
+    absent — no /prompt round-trip. When ctx is None (direct/test callers),
+    skip the check (keep the pre-existing behavior).
+    """
+    if ctx is None or not model:
+        return None
+    result = await ctx.read_resource(f"comfyui://models/{folder}")
+    models: list[str] = []
+    for content in getattr(result, "contents", []) or []:
+        raw = getattr(content, "content", None)
+        if isinstance(raw, str):
+            try:
+                payload = json.loads(raw)
+                if isinstance(payload, dict) and "models" in payload:
+                    models = list(payload["models"])
+                    break
+            except json.JSONDecodeError:
+                continue
+    if model not in models:
+        raise ValueError(
+            f"Model '{model}' not found in folder '{folder}' "
+            f"(available: {len(models)} models). Use comfyui_list_models or the "
+            f"comfyui://models/{folder} resource to discover available models."
+        )
+    return None
+
+
 async def _submit_workflow(
     *,
     wf: dict[str, Any],
@@ -236,6 +271,19 @@ async def _submit_workflow(
             prompt_id,
             client_id=ws_client_id,
         )
+        # #140: report progress as MCP notifications when a Context is available.
+        # Each progress event in the stream surfaces to the client live instead
+        # of requiring it to poll get_progress. Direct callers (ctx=None) skip.
+        if ctx is not None:
+            for event in events:
+                if isinstance(event, dict) and event.get("type") == "progress":
+                    data = event.get("data", {}) or {}
+                    step = data.get("value")
+                    total = data.get("max")
+                    if isinstance(step, (int, float)) and isinstance(total, (int, float)):
+                        await ctx.report_progress(float(step), float(total))
+            if state.step is not None and state.total_steps is not None:
+                await ctx.report_progress(float(state.step), float(state.total_steps))
         await audit.async_log(
             tool=tool_name,
             action="stream_completed",
@@ -606,6 +654,12 @@ def register_generation_tools(
             raise ValueError(f"height must be between {MIN_DIMENSION} and {MAX_HEIGHT}")
         _validate_steps(steps)
         _validate_cfg(cfg)
+
+        # #140: preflight the model via the comfyui://models resource when a
+        # Context is available — fail fast (no /prompt round-trip) if the model
+        # is absent. Skipped for direct/test callers (ctx=None).
+        if model:
+            await _validate_model_via_resource(folder="checkpoints", model=model, ctx=ctx)
 
         wf = _build_txt2img_workflow(prompt, negative_prompt, width, height, steps, cfg, model)
 

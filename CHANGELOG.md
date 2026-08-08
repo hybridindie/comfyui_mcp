@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`ctx.report_progress` + `ctx.read_resource` in generation tools** —
+  `run_workflow_stream` reports step/total as MCP progress notifications
+  (clients get live updates instead of polling `get_progress`); `generate_image`
+  preflights the named model via the `comfyui://models/checkpoints` resource
+  and fails fast (no `/prompt` round-trip) when the model is absent.
+  Direct/test callers (ctx=None) keep the pre-existing behavior (#140).
 - **Built-in FastMCP 4 middleware wired** alongside `SecurityMiddleware` —
   `ResponseCachingMiddleware` (caches read-only tools + the 4 `comfyui://`
   resources, 30s TTL), `ResponseLimitingMiddleware` (caps
