@@ -9,17 +9,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Agent harness switched to OpenCode** — Claude Code and GitHub Copilot
-  tooling removed. The repo now ships agent configuration under `.opencode/`
-  (`opencode.json`, path-scoped `rules/`, a read-only `review` subagent, a
-  `/preflight` command, a zero-skip test hook, and a graphify plugin) and an
-  `AGENTS.md` entry point. `CLAUDE.md` remains as a flat mirror of the rules
-  for harnesses that read it directly; the path-scoped `.opencode/rules/` files
-  are the source of truth. The server itself was already harness-agnostic (any
-  MCP client over stdio or Streamable HTTP).
+- **Migrated to FastMCP 4 beta** (`fastmcp[tasks]==4.0.0b1`, built on MCP SDK
+  v2). The server now imports `FastMCP` from `fastmcp` instead of the
+  `mcp.server.fastmcp` bundle bundled in `mcp` v1. `ToolAnnotations` field
+  arguments converted from camelCase to snake_case (`readOnlyHint` →
+  `read_only_hint`, etc.). `host`/`port` transport settings moved from the
+  `FastMCP()` constructor to `mcp.run()`; the streamable-HTTP transport is
+  now named `"http"` internally (#123, #129).
+- **Consolidated `CLAUDE.md` into `AGENTS.md`** — single harness-agnostic
+  entry point, no more Claude Code coupling. All live references in tests,
+  the review subagent, and rules updated (#123, #129).
+- **Updated `.opencode/rules/`** to permit the cleaner architecture the
+  migration unlocks: security rules 3/4 accept middleware enforcement as
+  an alternative to in-tool calls; architecture rule 11 accepts
+  module-level `Depends()`-decorated functions alongside the
+  `register_*_tools()` factory; tools.md checklist rewritten for dual
+  enforcement paths and DI; testing rule 19 covers both enforcement paths
+  (#123, #129).
+
+### Added
+
+- **Resources** (`resources.py`) — read-only ComfyUI state the LLM can
+  browse by URI without a tool call: `comfyui://models/{folder}`,
+  `comfyui://nodes/installed`, `comfyui://queue`, `comfyui://system`.
+  Templated resources inherit FastMCP 4's built-in path-traversal screening
+  (#124, #130).
+- **Prompts** (`prompts.py`) — reusable workflow-template recipes
+  (`txt2img_prompt`, `img2img_prompt`, `inpaint_prompt`, `upscale_prompt`)
+  returning a plain string auto-wrapped as a user message (#124, #130).
+- **`SecurityMiddleware`** (`middleware.py`) — centralizes rate-limit
+  checks + entry audit logging across every tool call via the FastMCP 4
+  `on_call_tool` hook. Sensitive tool arguments are redacted before the
+  audit record is written. `mask_error_details=True` on the server
+  constructor masks internal exception tracebacks from clients (#125,
+  #131).
+- **Dependency injection** (`dependencies.py`) — `Depends()` providers
+  for the `client`/`audit`/`inspector`/`limiter` singletons
+  (`configure_dependencies()` at startup). `tools/history_di.py` is the
+  proof module; the remaining tools migrate incrementally. Per-file
+  `B008` ruff ignore for the `Depends()`-in-default idiom (#126, #132).
+- **Elicitation gate** — enforce-mode workflows with dangerous-node or
+  suspicious-input warnings now `ctx.elicit()` the user for confirmation
+  before submission. Decline/cancel raises `WorkflowBlockedError` without
+  calling `post_prompt`. Direct/test callers without a `Context` keep the
+  pre-existing behavior (#127, #133).
+- **Background tasks** (optional) — `TasksExtension` (Docket-backed) for
+  long-running workflows over the HTTP transport. Disabled by default;
+  `tasks.enabled` config + `COMFYUI_TASKS_ENABLED`/
+  `COMFYUI_TASKS_BACKEND_URL` env overrides. In-memory (`memory://`) or
+  Redis (`redis://host:port/db`) backends (#128, #134).
 
 ### Removed
 
+- **`CLAUDE.md`** — consolidated into `AGENTS.md` (no more Claude Code
+  coupling). The path-scoped `.opencode/rules/` files are the source of
+  truth (#123, #129).
 - **Claude Code plugin** — `.claude-plugin/`, `.claude/`, `.mcp.json`, and the
   `hooks/` directory (Claude `PostToolUse` security-warning hook) removed.
   Security warnings already surface in the MCP tool response envelope
@@ -28,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Copilot instructions** — `.github/copilot-instructions.md` and
   `.github/instructions/` removed.
 
-### Added
+### Added (agent tooling)
 
 - **`.opencode/`** — `opencode.json` (wires `context7` + `graphify` MCP
   servers, `review` subagent, `/preflight` command, graphify plugin,

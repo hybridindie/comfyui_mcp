@@ -12,11 +12,23 @@ This server adds five security layers between the AI assistant and ComfyUI:
 
 | Layer | What it does |
 |-------|-------------|
-| **Workflow Inspector** | Parses every workflow before execution, extracts node types, flags dangerous patterns (`eval`, `exec`, `__import__`, `subprocess`). Configurable audit-only or enforcement mode. |
-| **Path Sanitizer** | Validates all filenames, subfolders, and URL path segments — blocks path traversal (`../`), null bytes, percent-encoded attacks, absolute paths, and disallowed file extensions. |
-| **Rate Limiter** | Token-bucket rate limiting per tool category to prevent runaway loops. |
+| **Workflow Inspector** | Parses every workflow before execution, extracts node types, flags dangerous patterns (`eval`, `exec`, `__import__`, `subprocess`). Configurable audit-only or enforcement mode. In enforce mode, dangerous-node and suspicious-input warnings **elicit the user** for confirmation before submission. |
+| **Path Sanitizer** | Validates all filenames, subfolders, and URL path segments — blocks path traversal (`../`), null bytes, percent-encoded attacks, absolute paths, and disallowed file extensions. Templated resources (`comfyui://models/{folder}`) also inherit FastMCP 4's built-in path-traversal screening. |
+| **SecurityMiddleware** | Centralized rate-limit checks + entry audit logging across every tool call via the FastMCP 4 `on_call_tool` hook. Sensitive tool arguments (`token`, `password`, `api_key`) are redacted before the audit record is written. |
 | **Audit Logger** | Structured JSON logging of every operation with automatic redaction of sensitive fields (tokens, passwords). |
 | **Selective API Surface** | Only exposes safe ComfyUI endpoints. Dangerous endpoints (`/userdata`, `/free`, `/users`) are never proxied. `/system_stats` is called internally by `comfyui_get_system_info` but only a strict whitelist (GPU VRAM, queue counts, version) is returned. |
+
+### Resources & Prompts (FastMCP 4)
+
+The server exposes read-only ComfyUI state as **resources** the LLM can browse by URI without a tool call, and **prompts** as reusable workflow-template recipes:
+
+- **Resources**: `comfyui://models/{folder}`, `comfyui://nodes/installed`, `comfyui://queue`, `comfyui://system`
+- **Prompts**: `txt2img_prompt`, `img2img_prompt`, `inpaint_prompt`, `upscale_prompt`
+
+### Dependency injection & background tasks (FastMCP 4)
+
+- **Depends() DI** — tool modules may declare their dependencies (`client`, `audit`, `inspector`, `limiter`) via `Depends()` providers (auto-excluded from the MCP schema) instead of receiving them through `register_*_tools()` factories. Both patterns are valid; `history_di.py` is the proof module, with the remaining tools migrating incrementally.
+- **Background tasks** (optional) — long-running workflows can run as background tasks via `TasksExtension` (Docket-backed) instead of holding the request open. Disabled by default; see [Background tasks](#background-tasks-optional-phase-6).
 
 ### Real-time progress tracking
 
@@ -482,6 +494,8 @@ Environment variables override config file values:
 | `COMFYUI_CIVITAI_API_KEY` | `model_search.civitai_api_key` |
 | `COMFYUI_MAX_SEARCH_RESULTS` | `model_search.max_search_results` |
 | `COMFYUI_ALLOWED_DOWNLOAD_DOMAINS` | `security.allowed_download_domains` |
+| `COMFYUI_TASKS_ENABLED` | `tasks.enabled` (optional background tasks) |
+| `COMFYUI_TASKS_BACKEND_URL` | `tasks.backend_url` (`memory://` or `redis://...`) |
 
 ### HuggingFace and CivitAI API keys
 
@@ -687,19 +701,26 @@ flowchart TB
         MC[AI Assistant / MCP Client]
     end
 
-    subgraph MCP["ComfyUI MCP Server"]
+    subgraph MCP["ComfyUI MCP Server (FastMCP 4)"]
         CONFIG[Config<br/>YAML/env]
         AL[Audit Logger<br/>JSON logs]
 
         subgraph Security["Security Layers"]
-            WI[Workflow Inspector<br/>Dangerous nodes<br/>Suspicious input]
+            WI[Workflow Inspector<br/>Dangerous nodes<br/>Suspicious input<br/>+ Elicitation gate]
             PS[Path Sanitizer<br/>Traversal block<br/>Extension filter]
             RL[Rate Limiter<br/>Token-bucket]
         end
 
+        MW[SecurityMiddleware<br/>rate limit + entry audit<br/>on_call_tool hook]
+        DI[Dependencies<br/>Depends() providers]
+
         subgraph Tools["Tool Groups"]
-            TG[generation.py<br/>jobs.py<br/>discovery.py<br/>history.py<br/>files.py]
+            TG[generation.py<br/>jobs.py<br/>discovery.py<br/>history.py / history_di.py<br/>files.py]
         end
+
+        RES[Resources<br/>comfyui://models, nodes, queue, system]
+        PR[Prompts<br/>txt2img, img2img, inpaint, upscale]
+        TASKS[TasksExtension<br/>optional, Docket-backed]
 
         API[ComfyUI Client<br/>httpx]
         WS[WebSocket Progress<br/>websockets]
@@ -714,7 +735,10 @@ flowchart TB
     CONFIG --> MCP
     AL --> MCP
 
-    MCP --> Security
+    MCP --> MW
+    MW --> Security
+    MW --> Tools
+    DI --> Tools
     Security --> Tools
     Tools --> API
     Tools --> WS
@@ -726,15 +750,19 @@ flowchart TB
 
 | Component | File | Responsibility |
 |-----------|------|----------------|
-| Server | `server.py` | Entry point, wires components, registers tools |
-| Config | `config.py` | Pydantic settings, YAML loading, env overrides |
+| Server | `server.py` | Entry point, wires components, registers tools/resources/prompts/middleware |
+| Config | `config.py` | Pydantic settings, YAML loading, env overrides (incl. `tasks.*`) |
 | Client | `client.py` | Async HTTP client for ComfyUI REST API |
+| SecurityMiddleware | `middleware.py` | Centralized rate-limit + entry-audit via FastMCP 4 `on_call_tool` hook |
+| Dependencies | `dependencies.py` | `Depends()` providers for client/audit/inspector/limiter singletons |
+| Resources | `resources.py` | `@mcp.resource` URIs — models, nodes, queue, system (read-only browsing) |
+| Prompts | `prompts.py` | `@mcp.prompt` workflow-template recipes (txt2img, img2img, inpaint, upscale) |
 | Progress | `progress.py` | WebSocket progress tracking with HTTP polling fallback |
 | Audit | `audit.py` | Structured JSON logging with redaction |
-| Workflow Inspector | `security/inspector.py` | Node type detection, dangerous pattern matching |
+| Workflow Inspector | `security/inspector.py` | Node type detection, dangerous pattern matching, elicitation gate |
 | Node Auditor | `security/node_auditor.py` | Scans installed nodes for dangerous patterns |
 | Path Sanitizer | `security/sanitizer.py` | Path traversal, extension filtering |
-| Rate Limiter | `security/rate_limit.py` | Token-bucket per tool category |
+| Rate Limiter | `security/rate_limit.py` | Token-bucket per tool category (enforced by `SecurityMiddleware`) |
 | Download Validator | `security/download_validator.py` | URL domain/path and extension validation for downloads |
 | Model Checker | `security/model_checker.py` | Proactive missing model detection in workflows |
 | Model Manager | `model_manager.py` | Lazy detection of ComfyUI-Model-Manager availability |
@@ -745,9 +773,13 @@ flowchart TB
 
 ```text
 src/comfyui_mcp/
-├── server.py              # MCP server entry point, wires all components
+├── server.py              # MCP server entry point, wires all components + middleware
 ├── config.py              # Pydantic settings, YAML loading, env overrides
 ├── client.py              # Async HTTP client for ComfyUI API
+├── middleware.py          # SecurityMiddleware (rate limit + entry audit, on_call_tool)
+├── dependencies.py        # Depends() providers (client/audit/inspector/limiter singletons)
+├── resources.py           # @mcp.resource URIs (models, nodes, queue, system)
+├── prompts.py             # @mcp.prompt workflow-template recipes
 ├── progress.py            # WebSocket progress tracking with HTTP polling fallback
 ├── pagination.py          # Offset-based pagination helper for list tools
 ├── audit.py               # Structured JSON audit logger
@@ -764,11 +796,12 @@ src/comfyui_mcp/
 │   ├── operations.py      # Workflow graph operations (add/remove nodes, connect, etc.)
 │   └── validation.py      # Workflow analysis and validation
 └── tools/
-    ├── generation.py      # generate_image, run_workflow, summarize_workflow
+    ├── generation.py      # generate_image, run_workflow, summarize_workflow (elicitation-gated)
     ├── workflow.py        # create_workflow, modify_workflow, validate_workflow, analyze_workflow
     ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
     ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
-    ├── history.py         # get_history
+    ├── history.py         # get_history (factory version)
+    ├── history_di.py      # get_history (DI version — Depends() proof module)
     ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
     ├── models.py          # search_models, download_model, get_download_tasks, cancel_download
     └── nodes.py           # search/install/uninstall/update custom nodes
