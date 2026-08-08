@@ -34,20 +34,34 @@ When a rule and this file disagree, the rule wins.
 
 ## Project Overview
 
-A secure MCP (Model Context Protocol) server for ComfyUI. Enables AI assistants
-to generate images, run workflows, and manage jobs through ComfyUI with built-in
-security controls:
-- Workflow Inspector (detects dangerous nodes like `eval`, `exec`)
+A secure MCP (Model Context Protocol) server for ComfyUI, built on
+**FastMCP 4**. Enables AI assistants to generate images, run workflows, and
+manage jobs through ComfyUI with built-in security controls:
+- Workflow Inspector (detects dangerous nodes like `eval`, `exec`) with
+  **user elicitation** — enforce mode asks the user to confirm before
+  submitting a flagged workflow
 - Path Sanitizer (blocks path traversal attacks)
-- Rate Limiter (token-bucket per tool category)
-- Audit Logger (structured JSON logging)
+- **SecurityMiddleware** — centralized rate limiting + entry audit logging
+  (FastMCP 4 `on_call_tool` hook) across every tool call
+- Audit Logger (structured JSON logging with redaction)
 - Selective API surface (blocks dangerous endpoints)
+- **Resources** — read-only ComfyUI state the LLM can browse by URI
+  (`comfyui://models/{folder}`, `comfyui://nodes/installed`, `comfyui://queue`,
+  `comfyui://system`)
+- **Prompts** — reusable workflow-template recipes (txt2img, img2img,
+  inpaint, upscale)
+- **Dependency injection** — `Depends()` providers for the
+  `client`/`audit`/`inspector`/`limiter` singletons (opt-in per tool module;
+  the `register_*_tools()` factory remains valid)
+- **Background tasks** (optional) — `TasksExtension` (Docket-backed) for
+  long-running workflows over the HTTP transport
 
 ## Tech Stack
 
 - **Python**: 3.12
 - **Package Manager**: uv
-- **MCP Framework**: fastmcp[tasks] 4.0.0b1 (standalone FastMCP 4 beta)
+- **MCP Framework**: fastmcp[tasks] 4.0.0b1 (standalone FastMCP 4 beta,
+  built on MCP SDK v2)
 - **HTTP Client**: httpx (async)
 - **Validation**: pydantic
 - **Config**: pyyaml
@@ -56,10 +70,14 @@ security controls:
 
 ```
 src/comfyui_mcp/
-├── server.py              # MCP server entry, wires all components
+├── server.py              # MCP server entry, wires all components + middleware
 ├── config.py              # Pydantic settings, YAML loading, env overrides
 ├── client.py              # Async HTTP client for ComfyUI API
 ├── audit.py               # Structured JSON audit logger
+├── middleware.py          # SecurityMiddleware (rate limit + entry audit, on_call_tool)
+├── dependencies.py        # Depends() providers (client/audit/inspector/limiter singletons)
+├── resources.py           # @mcp.resource URIs (models, nodes, queue, system)
+├── prompts.py             # @mcp.prompt workflow-template recipes
 ├── model_manager.py       # Lazy Model Manager detection and folder caching
 ├── model_registry.py      # Canonical model loader field registry
 ├── node_manager.py        # ComfyUI Manager detector
@@ -77,11 +95,12 @@ src/comfyui_mcp/
 │   ├── operations.py      # Workflow graph operations (add/remove nodes, connect)
 │   └── validation.py      # Workflow analysis and validation
 └── tools/
-    ├── generation.py      # generate_image, run_workflow, summarize_workflow
+    ├── generation.py      # generate_image, run_workflow, summarize_workflow (elicitation-gated)
     ├── workflow.py        # create_workflow, modify_workflow, validate_workflow
     ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
     ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
-    ├── history.py         # get_history
+    ├── history.py         # get_history (factory version)
+    ├── history_di.py      # get_history (DI version — Depends() proof module)
     ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
     ├── models.py          # search_models, download_model, get_download_tasks, cancel_download
     └── nodes.py           # search/install/uninstall/update custom nodes
@@ -151,11 +170,12 @@ Config file: `~/.comfyui-mcp/config.yaml`
 
 Key settings:
 - `comfyui.url` — ComfyUI server URL
-- `security.mode` — "audit" (log only) or "enforce" (block unapproved nodes)
+- `security.mode` — "audit" (log only) or "enforce" (block unapproved nodes, elicit user on warnings)
 - `security.dangerous_nodes` — List of node types to flag/warn
 - `rate_limits.*` — Requests per minute per category
+- `tasks.enabled` — Optional background tasks (Phase 6); `tasks.backend_url` selects memory vs redis
 
-Environment variables override config: `COMFYUI_URL`, `COMFYUI_SECURITY_MODE`, etc.
+Environment variables override config: `COMFYUI_URL`, `COMFYUI_SECURITY_MODE`, `COMFYUI_TASKS_ENABLED`, `COMFYUI_TASKS_BACKEND_URL`, etc.
 
 ## Testing Notes
 
@@ -177,14 +197,23 @@ Two known quirks discovered against the live API:
 
 1. Add the tool function in the appropriate `tools/*.py`
 2. Use `@mcp.tool()` decorator with a clear docstring
-3. Call `limiter.check("tool_name")` first (or rely on `RateLimitingMiddleware`)
-4. Call `audit.log(tool="tool_name", action="...")` (or rely on `AuditMiddleware`)
+3. Ensure rate limiting is in effect — in-tool `limiter.check("tool_name")`
+   OR rely on `SecurityMiddleware` (wired in `server.py`); add the tool to
+   `_TOOL_CATEGORIES` if using the middleware path
+4. Ensure audit logging is in effect — in-tool `audit.async_log(...)` OR
+   rely on `SecurityMiddleware` (it writes the `action="called"` entry
+   record; keep lifecycle logs like `submitted`/`completed` in the tool)
 5. If it handles files: validate through `sanitizer`
-6. If it submits workflows: inspect through `inspector`
+6. If it submits workflows: inspect through `inspector` (and pass `ctx` to
+   `_submit_workflow` for the elicitation gate in enforce mode)
 7. Use `Annotated[type, Field(...)]` for parameters with constraints (3+ params)
 8. Return `dict[str, Any]` if all code paths return structured data; use `-> str` only for mixed return paths
-9. Add the function to the `tool_fns` dict and return it (or define as a module-level decorated function with `Depends()`)
-10. Wire it in `server.py` `_register_all_tools()` if it needs new dependencies
+9. Either add the function to the `tool_fns` dict and return it (factory
+   pattern), *or* define it as a module-level decorated function with
+   `Depends()` for DI (see `tools/history_di.py` for the pattern)
+10. Wire it in `server.py` `_register_all_tools()` if it uses the factory
+    pattern and needs new dependencies (module-level decorated functions
+    with `Depends()` skip this — the decorator registers them)
 11. Add tests in `tests/test_tools_*.py` that call the function directly
 12. Update the Tools table in `README.md`
 
@@ -199,8 +228,26 @@ Two known quirks discovered against the live API:
 
 1. Add to the appropriate module in `security/`
 2. Wire it in `server.py` `_build_server()` and pass to tool registration
+   (or add to `SecurityMiddleware` if it is a cross-cutting concern)
 3. Add config fields to `config.py` if needed — every field must be read somewhere
 4. Add tests in `tests/test_*.py`
+
+## Adding a new resource or prompt (checklist)
+
+1. Add the `@mcp.resource("comfyui://...")` function in `resources.py` (for
+   read-only state) or the `@mcp.prompt` function in `prompts.py` (for
+   workflow recipes). Register in `server.py` `_register_all_tools()`.
+2. Templated resources (`comfyui://.../{param}`) inherit FastMCP 4's
+   path-traversal screening (on by default); still anchor the final path
+   against an allowed root and confirm containment before reading.
+3. Prompts return a plain string (auto-wrapped as a user message) or
+   `list[Message]` for multi-turn — not `mcp.types.PromptMessage` or raw
+   role/content dicts.
+4. Resources/prompts use the read-only rate limiter; add a `limiter.check()`
+   call and an `audit.async_log()` entry record (or rely on
+   `SecurityMiddleware`).
+5. Add tests in `tests/test_resources.py` / `tests/test_prompts.py` that call
+   the function directly.
 
 ## Maintaining the dangerous nodes list
 
