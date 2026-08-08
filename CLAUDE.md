@@ -1,8 +1,18 @@
-# CLAUDE.md — ComfyUI MCP Server
+# CLAUDE.md
+
+This file provides guidance to AI agent harnesses (OpenCode and any MCP-capable
+client) when working with code in this repository. The constitutional rules
+live in [`.opencode/rules/`](./.opencode/rules/) (loaded as `instructions` in
+[`opencode.json`](./.opencode/opencode.json)); the sections below are a flat
+mirror of those rules for harnesses that read `CLAUDE.md` directly. When the two
+disagree, the path-scoped rule file wins. [`AGENTS.md`](./AGENTS.md) is the
+harness-agnostic entry point.
 
 ## Project Overview
 
-A secure MCP (Model Context Protocol) server for ComfyUI. Enables AI assistants like Claude to generate images, run workflows, and manage jobs through ComfyUI with built-in security controls:
+A secure MCP (Model Context Protocol) server for ComfyUI. Enables AI assistants
+to generate images, run workflows, and manage jobs through ComfyUI with built-in
+security controls:
 - Workflow Inspector (detects dangerous nodes like `eval`, `exec`)
 - Path Sanitizer (blocks path traversal attacks)
 - Rate Limiter (token-bucket per tool category)
@@ -53,7 +63,11 @@ src/comfyui_mcp/
     └── nodes.py           # search/install/uninstall/update custom nodes
 
 scripts/
-└── smoke_test.py          # Operator smoke-test against a live ComfyUI instance
+├── smoke_test.py          # Operator smoke-test against a live ComfyUI instance
+├── compare_evals.py       # Diff two Inspect AI eval runs (PASS/FAIL + per-tag breakdown)
+├── run_multimodel_eval.py # Run one Task against N models in a single invocation
+├── graphify.sh            # graphify wrapper — sources .env, picks pinned interpreter
+└── hooks/                 # graphify git hooks (post-commit/post-merge auto-refresh)
 
 tests/                     # pytest with asyncio_mode = auto
 pyproject.toml            # Project config (hatchling build)
@@ -70,6 +84,15 @@ uv run ruff format src/ tests/        # Format (in-place)
 uv run ruff format --check src/ tests/  # Format check (CI)
 uv run mypy src/comfyui_mcp/          # Type check
 uv run pre-commit run --all-files     # Run all pre-commit hooks
+
+# Preflight gate (workflow step 4 before a PR): zero-skip + ruff + format + mypy + pytest
+./.opencode/hooks/check-no-skipped-tests.sh   # zero-skip scan
+
+# graphify (knowledge graph) — always via the wrapper so .env is observed
+scripts/graphify.sh update .          # AST-only structure refresh (no LLM)
+scripts/graphify.sh label .           # regenerate community names via the gateway
+scripts/graphify.sh query "..."       # scoped subgraph for a question
+scripts/hooks/install.sh              # activate graphify git hooks (once per clone)
 
 # Smoke-test against a live ComfyUI instance
 uv run python scripts/smoke_test.py                          # Full (connectivity + folders + download)
@@ -152,7 +175,7 @@ These are non-negotiable. This is a security-focused project.
 ### Release & PR workflow
 
 26. **Squash-merge convention.** Every PR is squash-merged with title in the form `Imperative summary (#N)` (gh's default). Squash-merge produces one commit per PR on `main`; never use merge commits or rebase-merges.
-27. **Conventional commit body.** Commit message body explains *why*. End every commit with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` (or the active model identifier) when authored with Claude.
+27. **Conventional commit body.** Commit message body explains *why*. End every commit with `Co-Authored-By: <model identifier> <noreply@...>` (or the active model identifier) when authored with an AI assistant.
 28. **CHANGELOG-driven releases.** Cutting a release requires three coordinated edits:
     1. Bump `pyproject.toml` `[project].version`
     2. Promote `CHANGELOG.md`'s `[Unreleased]` section to `[X.Y.Z] — YYYY-MM-DD` with a summary paragraph and `### Added` / `### Changed` / `### Fixed` / `### Removed` sub-sections

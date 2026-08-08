@@ -1,0 +1,58 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "git commit *": "ask",
+      "git push *": "ask",
+      "rm *": "ask"
+    },
+    "websearch": "allow",
+    "webfetch": "allow"
+  },
+  "instructions": [
+    "AGENTS.md",
+    ".opencode/rules/security.md",
+    ".opencode/rules/architecture.md",
+    ".opencode/rules/tools.md",
+    ".opencode/rules/testing.md",
+    ".opencode/rules/workflow.md",
+    ".opencode/rules/enforcement.md",
+    ".opencode/rules/graphify.md"
+  ],
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true
+    },
+    "graphify": {
+      "type": "local",
+      "command": [
+        "/home/johnd/.pyenv/versions/3.13.14/bin/python3",
+        "-m",
+        "graphify.serve",
+        "/home/johnd/Development/comfyui_mcp/graphify-out/graph.json",
+        "--transport",
+        "stdio"
+      ],
+      "enabled": true
+    }
+  },
+  "watcher": {
+    "ignore": [
+      "graphify-out/**",
+      ".venv/**",
+      ".mypy_cache/**",
+      ".ruff_cache/**",
+      ".pytest_cache/**",
+      ".benchmarks/**",
+      "uv.lock",
+      "dist/**",
+      "logs/**"
+    ]
+  },
+  "plugin": [
+    ".opencode/plugins/graphify.js"
+  ]
+}

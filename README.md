@@ -1,8 +1,8 @@
 # comfyui-mcp-secure
 
-A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants like Claude to generate images, run workflows, and manage jobs through ComfyUI — with built-in security controls that existing ComfyUI MCP servers lack.
+A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants to generate images, run workflows, and manage jobs through ComfyUI — with built-in security controls that existing ComfyUI MCP servers lack.
 
-> **Using Claude?** This repo also ships as a Claude Code plugin — 8 `/comfy:*` slash commands (`/comfy:gen`, `/comfy:workflow`, `/comfy:troubleshooting`, …) and a `PostToolUse` security hook, all pre-wired to the MCP server. One command to install: `claude plugin install .` See [Install as a Claude plugin](#what-the-plugin-gives-you) for the full reference + worked end-to-end example.
+> **Using OpenCode?** This repo ships agent configuration under `.opencode/` — grounding rules (`.opencode/rules/`), a read-only `review` subagent, a `/preflight` command, and a graphify plugin — all pre-wired to the MCP server. See [AGENTS.md](./AGENTS.md) for the entry point. The server itself works with **any** MCP client over stdio or Streamable HTTP.
 
 ## Why this exists
 
@@ -84,8 +84,6 @@ Previously these tools returned either a free-form sentence (`wait=False`) or a 
 
 ### Install
 
-> **Claude Code users:** the fastest path is the plugin — see [Install as a Claude plugin](#install-as-a-claude-plugin-from-this-repo) below. It wires the MCP server + slash commands + security hook in one step. The options below are for everyone else (raw MCP wiring, Docker, source installs).
-
 #### Option A: From PyPI
 
 ```bash
@@ -146,9 +144,9 @@ comfyui:
 EOF
 ```
 
-### Add to Claude Code / Claude Desktop
+### Add to your MCP client
 
-The MCP server communicates over stdio. Add one of the following configurations depending on how you installed.
+The MCP server communicates over stdio. Add one of the following configurations to your MCP client (OpenCode, Claude Desktop, Cursor, or any stdio MCP client) depending on how you installed.
 
 **From source (uv):**
 
@@ -208,94 +206,58 @@ The MCP server communicates over stdio. Add one of the following configurations 
 
 > **Note:** `host.docker.internal` routes to your host machine from inside Docker. If ComfyUI runs on a remote server, replace with that server's URL. On Linux, you may need to add `--add-host=host.docker.internal:host-gateway`.
 
-### Install as a Claude plugin (from this repo)
+### Agent configuration (OpenCode)
 
-This repository ships as a complete Claude Code plugin — manifest at `.claude-plugin/plugin.json`. Two install paths:
+This repository ships agent configuration under `.opencode/` for [OpenCode](https://opencode.ai) (and any harness that reads `AGENTS.md`). The server itself is harness-agnostic — it works with any MCP client over stdio or Streamable HTTP.
 
-```bash
-# Direct from GitHub (recommended — pulls the published tag):
-claude plugin install https://github.com/hybridindie/comfyui_mcp
+Agent-related files in this repo:
 
-# Or from a local clone (for development or unreleased changes):
-claude plugin install .
-```
+- `AGENTS.md` — harness-agnostic entry point; index of the grounding rules
+- `.opencode/opencode.json` — wires `context7` (MCP/FastMCP/Pydantic/httpx docs), a `review` subagent, a `/preflight` command, the graphify plugin, and a `watcher.ignore`
+- `.opencode/rules/` — path-scoped constitutional rules (security, architecture, tools, testing, workflow, enforcement, graphify); loaded as `instructions` in `opencode.json`
+- `.opencode/agents/review.md` — read-only pre-PR reviewer subagent
+- `.opencode/commands/preflight.md` — `/preflight` command (lint/format/type/tests gate)
+- `.opencode/hooks/check-no-skipped-tests.sh` — zero-skip suite-health gate
+- `.opencode/plugins/graphify.js` — knowledge-graph reminder plugin
+- `skills/` — convenience recipes that wrap common multi-tool flows (`gen`, `workflow`, `status`, `progress`, `history`, `models`, `troubleshooting`, `workflows`)
 
-Plugin-related files in this repo:
+#### Skills
 
-- `.claude-plugin/plugin.json` (plugin manifest — name, version, license, homepage)
-- `.mcp.json` (MCP server bootstrap config)
-- `hooks/` (security warning hook)
-- `skills/` (slash-command skills)
+The `skills/` directory contains pre-authored recipes that wrap common multi-tool flows so a user doesn't have to choreograph the calls themselves. They are harness-agnostic markdown and work with any agent that loads them. The two "knowledge" skills (`workflows`, `troubleshooting`) are auto-applied when the conversation matches their topic.
 
-If you use the included `.mcp.json`, set both internal and optional external ComfyUI URLs as needed:
-
-```json
-{
-  "mcpServers": {
-    "comfyui": {
-      "command": "uvx",
-      "args": ["comfyui-mcp-secure"],
-      "env": {
-        "COMFYUI_URL": "http://comfyui:8188",
-        "COMFYUI_EXTERNAL_URL": "https://comfyui.example.com"
-      }
-    }
-  }
-}
-```
-
-#### What the plugin gives you
-
-Three cooperating layers, used together:
-
-1. **MCP tool surface** — 47 tools exposing ComfyUI's workflow / generation / discovery / security API. The full table is in the [Tools](#tools) section below — these are the lowest-level primitives, available to any model connected to the server.
-2. **Slash-command skills** under `/comfy:*` — pre-authored recipes that wrap common multi-tool flows so a user doesn't have to choreograph the calls themselves. Skills load lazily; the two "knowledge" skills (`workflows`, `troubleshooting`) get auto-applied by Claude when the conversation matches their topic.
-3. **PostToolUse security hook** — fires after the MCP tools that touch dangerous surface and surfaces a one-line warning if the workflow inspector or node auditor flagged anything.
-
-#### Slash-command reference
-
-| Command | What it does |
+| Skill | What it does |
 |---|---|
-| `/comfy:gen <prompt>` | Generate an image. Picks a model via `comfyui_list_models`, calls `comfyui_generate_image(wait=True)`, fetches the result via `comfyui_get_image`. |
-| `/comfy:workflow <description>` | Build a workflow from a built-in template, validate it, then offer to run or modify. |
-| `/comfy:workflows` | Knowledge skill — auto-applied when the conversation involves building/modifying workflows. Covers workflow JSON format, common node chains (txt2img/img2img/ControlNet/LoRA), and the key node reference. |
-| `/comfy:status` | Show queue state (running + pending jobs). |
-| `/comfy:progress <prompt_id>` | Per-job execution progress (current node, step X of Y, status). |
-| `/comfy:history` | Recent completions with prompt IDs and output filenames. |
-| `/comfy:models [folder]` | List models in a folder type (defaults to `checkpoints`). |
-| `/comfy:troubleshooting` | Knowledge skill — auto-applied when users report connection, model, workflow, or security errors. Covers connection failures, model-not-found, workflow execution failures, queue-stuck, security warnings, and the two upstream-plugin (ComfyUI-Manager, ComfyUI-Model-Manager) setup issues. |
+| `gen <prompt>` | Generate an image. Picks a model via `comfyui_list_models`, calls `comfyui_generate_image(wait=True)`, fetches the result via `comfyui_get_image`. |
+| `workflow <description>` | Build a workflow from a built-in template, validate it, then offer to run or modify. |
+| `workflows` | Knowledge skill — auto-applied when the conversation involves building/modifying workflows. Covers workflow JSON format, common node chains (txt2img/img2img/ControlNet/LoRA), and the key node reference. |
+| `status` | Show queue state (running + pending jobs). |
+| `progress <prompt_id>` | Per-job execution progress (current node, step X of Y, status). |
+| `history` | Recent completions with prompt IDs and output filenames. |
+| `models [folder]` | List models in a folder type (defaults to `checkpoints`). |
+| `troubleshooting` | Knowledge skill — auto-applied when users report connection, model, workflow, or security errors. Covers connection failures, model-not-found, workflow execution failures, queue-stuck, security warnings, and the two upstream-plugin (ComfyUI-Manager, ComfyUI-Model-Manager) setup issues. |
 
-#### Security hook
+#### Security warnings in the tool response
 
-A single `PostToolUse` hook (`hooks/security-warning.sh`, wired via `hooks/hooks.json`) fires after these MCP tools:
-
-- `comfyui_audit_dangerous_nodes`
-- `comfyui_install_custom_node`
-- `comfyui_update_custom_node`
-- `comfyui_run_workflow`
-- `comfyui_generate_image`
-
-It scans the tool output for `WorkflowInspector` markers (`"Dangerous node type"`, `"Suspicious input"`) and `NodeAuditor` results with `dangerous.count > 0`. If anything matches, it prints a one-line warning so Claude sees it and asks the user to confirm before proceeding. The hook always exits 0 — it never blocks; it just adds a heads-up.
+The workflow inspector and node auditor surface warnings directly in the tool response envelope. When `comfyui_run_workflow`, `comfyui_generate_image`, `comfyui_audit_dangerous_nodes`, `comfyui_install_custom_node`, or `comfyui_update_custom_node` detect dangerous node patterns (`"Dangerous node type"`, `"Suspicious input"`, or `dangerous.count > 0`), the response includes a `warnings` array. The agent reads this from the tool output and asks the user to confirm before proceeding — exactly the audit-mode-default behavior the project ships with.
 
 #### End-to-end example
 
-A user types `/comfy:gen a yellow apple, photorealistic, 4k`. The layers cooperate:
+A user asks to generate "a yellow apple, photorealistic, 4k". The layers cooperate:
 
 1. The `gen` skill parses the prompt and applies defaults (512×512, 20 steps, cfg 7.0).
 2. It calls `comfyui_list_models(folder="checkpoints")`, picks an available model from the paginated `items` list, and confirms with the user if ambiguous.
 3. It calls `comfyui_generate_image(prompt=..., model=..., wait=True)`.
 4. Server-side, the MCP tool runs `WorkflowInspector.inspect()` on the workflow before submitting it to ComfyUI. With a clean built-in workflow there are no warnings.
 5. ComfyUI executes; the tool blocks until the unified envelope comes back with `status="completed"`.
-6. The `PostToolUse` hook fires, checks the tool output for the threat patterns, finds none, and exits silently.
-7. The skill reads `result["outputs"][0]` (a `{node_id, filename, subfolder}` dict), calls `comfyui_get_image(filename=..., subfolder="output", preview_format="webp", preview_quality=80)` for a cheap thumbnail, and presents the image inline.
+6. The skill reads `result["outputs"][0]` (a `{node_id, filename, subfolder}` dict), calls `comfyui_get_image(filename=..., subfolder="output", preview_format="webp", preview_quality=80)` for a cheap thumbnail, and presents the image inline.
 
-Contrast that with running a user-supplied custom workflow that contains an `Exec`-class node: step 4's inspector emits `warnings: ["Dangerous node type: Exec..."]`, the hook detects the pattern in step 6, and surfaces:
+Contrast that with running a user-supplied custom workflow that contains an `Exec`-class node: step 4's inspector emits `warnings: ["Dangerous node type: Exec..."]`, and the response envelope carries:
 
 ```
 SECURITY: Dangerous node patterns detected. Review the audit results above before proceeding.
 ```
 
-Claude sees this in its context and asks the user to confirm before continuing — exactly the audit-mode-default behavior the project ships with.
+The agent sees this in the tool output and asks the user to confirm before continuing — exactly the audit-mode-default behavior the project ships with.
 
 ### Verify
 
@@ -680,7 +642,7 @@ For production, run behind a reverse proxy (nginx, Traefik) to add TLS terminati
 ```mermaid
 flowchart TB
     subgraph Client["LLM Client"]
-        MC[Claude / AI Assistant]
+        MC[AI Assistant / MCP Client]
     end
 
     subgraph MCP["ComfyUI MCP Server"]
@@ -882,7 +844,7 @@ docker pull ghcr.io/hybridindie/comfyui_mcp:latest
 
 ### How it works
 
-The container runs as a non-root `app` user with `uv run comfyui-mcp-secure` as its entrypoint, communicating over stdin/stdout (stdio). This makes it compatible with Claude Code, Claude Desktop, and any MCP client. Config is read from `/home/app/.comfyui-mcp/config.yaml` inside the container — mount your local config directory to provide it, or use environment variables.
+The container runs as a non-root `app` user with `uv run comfyui-mcp-secure` as its entrypoint, communicating over stdin/stdout (stdio). This makes it compatible with OpenCode, Claude Desktop, Cursor, and any MCP client. Config is read from `/home/app/.comfyui-mcp/config.yaml` inside the container — mount your local config directory to provide it, or use environment variables.
 
 ### Running standalone
 
@@ -935,9 +897,9 @@ volumes:
   comfyui-mcp-secure-data:
 ```
 
-### Connecting to Claude Code / Claude Desktop via Docker
+### Connecting via Docker
 
-See the [Docker configuration](#add-to-claude-code--claude-desktop) in Quick Start above. The key points:
+See the [Docker configuration](#add-to-your-mcp-client) in Quick Start above. The key points:
 
 - Use `docker run --rm -i` (interactive, no detach) so stdio works
 - Mount your config: `-v ~/.comfyui-mcp:/home/app/.comfyui-mcp:ro`
