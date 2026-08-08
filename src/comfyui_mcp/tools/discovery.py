@@ -178,9 +178,7 @@ def register_discovery_tools(
             limit: Maximum number of results to return (default: 25, max: 100)
             offset: Starting index for pagination (default: 0)
         """
-        limiter.check("list_models")
         sanitizer.validate_path_segment(folder, label="folder")
-        await audit.async_log(tool="list_models", action="called", extra={"folder": folder})
         models = await client.get_models(folder)
         return paginate(models, offset, limit, default_limit=25, max_limit=100)
 
@@ -204,8 +202,6 @@ def register_discovery_tools(
             limit: Maximum number of results to return (default: 25, max: 100)
             offset: Starting index for pagination (default: 0)
         """
-        limiter.check("list_nodes")
-        await audit.async_log(tool="list_nodes", action="called")
         info = await client.get_object_info()
         return paginate(sorted(info.keys()), offset, limit, default_limit=25, max_limit=100)
 
@@ -237,10 +233,6 @@ def register_discovery_tools(
         category, output_node, search_aliases, plus optional flags like deprecated,
         experimental, and api_node when set on the node.
         """
-        limiter.check("get_node_info")
-        await audit.async_log(
-            tool="get_node_info", action="called", extra={"node_class": node_class}
-        )
         return await client.get_object_info(node_class)
 
     tool_fns["comfyui_get_node_info"] = comfyui_get_node_info
@@ -266,8 +258,6 @@ def register_discovery_tools(
         Returns a paginated envelope: ``{items, total, offset, limit, has_more}``.
         Each item is ``{"package": str, "templates": [...]}`` from the server.
         """
-        limiter.check("list_workflows")
-        await audit.async_log(tool="list_workflows", action="called")
         templates_by_package = await client.get_workflow_templates()
         # client.get_workflow_templates returns dict[package_name, list[template]];
         # flatten to a list of {package, templates} so paginate() can slice it.
@@ -297,8 +287,6 @@ def register_discovery_tools(
         Returns a paginated envelope: ``{items, total, offset, limit, has_more}``.
         Each item is the extension's URL/path string.
         """
-        limiter.check("list_extensions")
-        await audit.async_log(tool="list_extensions", action="called")
         extensions = await client.get_extensions()
         return paginate(extensions, offset, limit, default_limit=25, max_limit=100)
 
@@ -320,8 +308,6 @@ def register_discovery_tools(
         checking ``supports_preview_metadata`` before requesting preview-format
         images via ``comfyui_get_image``.
         """
-        limiter.check("get_server_features")
-        await audit.async_log(tool="get_server_features", action="called")
         return await client.get_features()
 
     tool_fns["comfyui_get_server_features"] = comfyui_get_server_features
@@ -344,8 +330,6 @@ def register_discovery_tools(
 
         Returns a paginated envelope: ``{items, total, offset, limit, has_more}``.
         """
-        limiter.check("list_model_folders")
-        await audit.async_log(tool="list_model_folders", action="called")
         folders = await client.get_model_types()
         return paginate(folders, offset, limit, default_limit=25, max_limit=100)
 
@@ -366,14 +350,8 @@ def register_discovery_tools(
             folder: Model folder type (checkpoints, loras, vae, etc.)
             filename: Name of the model file
         """
-        limiter.check("get_model_metadata")
         sanitizer.validate_path_segment(folder, label="folder")
         sanitizer.validate_path_segment(filename, label="filename")
-        await audit.async_log(
-            tool="get_model_metadata",
-            action="called",
-            extra={"folder": folder, "filename": filename},
-        )
         return await client.get_view_metadata(folder, filename)
 
     tool_fns["comfyui_get_model_metadata"] = comfyui_get_model_metadata
@@ -395,7 +373,6 @@ def register_discovery_tools(
         Returns:
             Dictionary with dangerous and suspicious node counts and lists
         """
-        limiter.check("audit_dangerous_nodes")
         await audit.async_log(tool="audit_dangerous_nodes", action="started")
 
         auditor = node_auditor if node_auditor else NodeAuditor()
@@ -452,8 +429,6 @@ def register_discovery_tools(
             Dictionary with keys: comfyui_version, devices (list of GPU info),
             queue (running/pending counts).
         """
-        limiter.check("get_system_info")
-        await audit.async_log(tool="get_system_info", action="called")
 
         raw, queue_raw = await asyncio.gather(
             client.get_system_stats(),
@@ -532,12 +507,6 @@ def register_discovery_tools(
             and ``notes`` (str). Callers that only need the settings can
             read ``result["recommended"]`` directly.
         """
-        limiter.check("get_model_presets")
-        await audit.async_log(
-            tool="get_model_presets",
-            action="called",
-            extra={"model_name": model_name, "model_family": model_family},
-        )
 
         family: str | None = None
         if model_family:
@@ -590,13 +559,7 @@ def register_discovery_tools(
             ``negative_prompt_tips`` (str). Callers that only need the
             advice can read ``result["guide"]`` directly.
         """
-        limiter.check("get_prompting_guide")
         normalized = _normalize_model_family(model_family)
-        await audit.async_log(
-            tool="get_prompting_guide",
-            action="called",
-            extra={"model_family": normalized},
-        )
 
         if normalized not in _SUPPORTED_MODEL_FAMILIES:
             supported = ", ".join(sorted(_SUPPORTED_MODEL_FAMILIES))

@@ -34,11 +34,6 @@ async def _get_history_impl(
     """Shared implementation — callable directly with explicit deps (tests)
     or via Depends() resolution (framework). Kept separate so tests can call
     it without going through the MCP framework if needed."""
-    limiter.check("get_history")
-    await audit.async_log(
-        tool="get_history", action="called", extra={"limit": limit, "offset": offset}
-    )
-
     # Fetch one extra entry so we can detect has_more without a second call.
     get_history_kwargs: dict[str, Any] = {"max_items": limit + 1}
     if offset > 0:

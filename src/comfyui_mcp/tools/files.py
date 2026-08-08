@@ -145,7 +145,6 @@ def register_file_tools(
         Defaults to ComfyUI's input directory (the destination workflows read from).
         Set destination='output' or 'temp' only if you have a specific reason.
         """
-        limiter.check("upload_image")
         clean_name = sanitizer.validate_filename(filename)
         clean_subfolder = sanitizer.validate_subfolder(subfolder)
         raw = base64.b64decode(image_data)
@@ -225,7 +224,6 @@ def register_file_tools(
             When response_format='data_uri' and preview_format is set, ComfyUI re-encodes
             the image server-side as a smaller webp or jpeg thumbnail.
         """
-        limiter.check("get_image")
 
         if preview_quality is not None and preview_format is None:
             raise ValueError("preview_quality is only meaningful when preview_format is also set")
@@ -294,8 +292,6 @@ def register_file_tools(
             JSON envelope with paginated list of objects with 'filename' and
             'subfolder' keys. Pass these values to comfyui_get_image to retrieve files.
         """
-        limiter.check("list_outputs")
-        await audit.async_log(tool="list_outputs", action="called")
         history = await client.get_history(max_items=100)
         seen: set[tuple[str, str]] = set()
         results: list[dict[str, str]] = []
@@ -370,7 +366,6 @@ def register_file_tools(
         by the ComfyUI server. The original image must already exist in ComfyUI.
         Defaults to ComfyUI's input directory.
         """
-        limiter.check("upload_mask")
         clean_name = sanitizer.validate_filename(filename)
         clean_original = sanitizer.validate_filename(original_image)
         clean_subfolder = sanitizer.validate_subfolder(subfolder)
@@ -430,7 +425,6 @@ def register_file_tools(
             Dict with 'workflow' (parsed JSON or None), 'prompt' (parsed JSON or None),
             and 'message' (human-readable status).
         """
-        limiter.check("get_workflow_from_image")
         clean_name = sanitizer.validate_filename(filename)
         clean_subfolder = sanitizer.validate_subfolder(subfolder)
         await audit.async_log(

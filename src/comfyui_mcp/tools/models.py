@@ -204,7 +204,6 @@ def register_model_tools(
             JSON with search results including name, download URL, size, and stats.
             Use comfyui_download_model with the URL to install a model.
         """
-        read_limiter.check("search_models")
 
         # Input validation
         stripped_query = query.strip()
@@ -277,7 +276,6 @@ def register_model_tools(
         Returns:
             JSON with download task status. Use comfyui_get_download_tasks to check progress.
         """
-        file_limiter.check("download_model")
 
         # Validate URL domain and path pattern
         validator.validate_url(url)
@@ -345,7 +343,6 @@ def register_model_tools(
         Returns:
             JSON with list of download tasks including progress, speed, and status.
         """
-        read_limiter.check("get_download_tasks")
         await detector.get_folders()  # Ensure Model Manager is available
 
         await audit.async_log(tool="get_download_tasks", action="checking")
@@ -376,7 +373,6 @@ def register_model_tools(
         Args:
             task_id: ID of the download task to cancel
         """
-        file_limiter.check("cancel_download")
         await detector.get_folders()  # Ensure Model Manager is available
 
         await audit.async_log(

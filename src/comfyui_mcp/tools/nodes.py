@@ -214,7 +214,6 @@ def register_node_tools(
             JSON with matching node packs including name, description, author,
             install status, version, and ID.
         """
-        read_limiter.check("search_custom_nodes")
         await node_manager.require_available()
 
         await audit.async_log(
@@ -320,7 +319,6 @@ def register_node_tools(
         Returns:
             Status message. If restart=True, includes security audit results.
         """
-        wf_limiter.check("install_custom_node")
         await node_manager.require_available()
         _validate_node_id(node_id)
 
@@ -389,7 +387,6 @@ def register_node_tools(
         Returns:
             Status message.
         """
-        wf_limiter.check("uninstall_custom_node")
         await node_manager.require_available()
         _validate_node_id(node_id)
 
@@ -456,7 +453,6 @@ def register_node_tools(
         Returns:
             Status message. If restart=True, includes security audit results.
         """
-        wf_limiter.check("update_custom_node")
         await node_manager.require_available()
         _validate_node_id(node_id)
 
@@ -503,7 +499,6 @@ def register_node_tools(
             JSON with queue status: total tasks, completed, in progress, and
             whether the queue is currently processing.
         """
-        read_limiter.check("get_custom_node_status")
         await node_manager.require_available()
 
         await audit.async_log(tool="get_custom_node_status", action="checking")

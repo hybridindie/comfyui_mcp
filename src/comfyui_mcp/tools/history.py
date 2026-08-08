@@ -61,10 +61,6 @@ def register_history_tools(
 
             ``has_more`` is the canonical end-of-history signal.
         """
-        limiter.check("get_history")
-        await audit.async_log(
-            tool="get_history", action="called", extra={"limit": limit, "offset": offset}
-        )
 
         # Fetch one extra entry so we can detect has_more without a second call.
         # max_items is capped to 1000 by the client; for limit=100 that's 101,

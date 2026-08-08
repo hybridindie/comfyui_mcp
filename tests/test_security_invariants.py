@@ -21,6 +21,7 @@ from typing import Any
 
 import httpx
 import pytest
+import respx
 from fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
@@ -176,24 +177,102 @@ def _has_instance_of(fn: Any, cls: type) -> bool:
 
 
 class TestRateLimiterInvariant:
-    """Security rule 3: All tools must go through the rate limiter."""
+    """Security rule 3: All tools must be rate-limited.
 
-    def test_every_tool_has_a_rate_limiter_in_closure(self, all_tools: dict[str, Any]) -> None:
-        missing = [name for name, fn in all_tools.items() if not _has_instance_of(fn, RateLimiter)]
-        assert not missing, (
-            f"{len(missing)} tool(s) have no RateLimiter in closure — "
-            f"cannot enforce security rule 3: {sorted(missing)}"
+    The in-tool limiter.check() boilerplate was removed (#137); enforcement
+    is now via SecurityMiddleware.on_call_tool. This test proves the middleware
+    fires end-to-end via mcp.call_tool (not just that the limiter is in the
+    closure — the old closure test only proved capture, not invocation, and
+    silently passed even when the check was removed).
+    """
+
+    @respx.mock
+    async def test_middleware_enforces_rate_limit_for_tool(self, tmp_path: Path) -> None:
+        import httpx
+
+        from comfyui_mcp.middleware import build_middleware_stack
+
+        client = ComfyUIClient(base_url="http://test:8188")
+        audit = AuditLogger(audit_file=tmp_path / "audit.log")
+        sanitizer = PathSanitizer(allowed_extensions=[".png", ".json"])
+        node_auditor = NodeAuditor()
+        rl_read = RateLimiter(max_per_minute=1)  # exhaust after 1 call
+        rl_workflow = RateLimiter(max_per_minute=10)
+        rl_generation = RateLimiter(max_per_minute=10)
+        rl_file = RateLimiter(max_per_minute=30)
+        mcp = FastMCP("invariants-middleware-test")
+        register_discovery_tools(mcp, client, audit, rl_read, sanitizer, node_auditor)
+        for mw in build_middleware_stack(
+            audit=audit,
+            rate_limiters={
+                "read": rl_read,
+                "workflow": rl_workflow,
+                "generation": rl_generation,
+                "file": rl_file,
+            },
+            tool_categories={"comfyui_list_nodes": "read"},
+        ):
+            mcp.add_middleware(mw)
+        respx.get("http://test:8188/object_info").mock(
+            return_value=httpx.Response(200, json={"KSampler": {}})
         )
+        # First call succeeds
+        first = await mcp.call_tool("comfyui_list_nodes", {"limit": 25, "offset": 0})
+        assert first.is_error is False
+        # Second call exceeds the 1/min limit — middleware raises ToolError
+        from fastmcp.exceptions import ToolError
+
+        with pytest.raises(ToolError, match="Rate limit exceeded"):
+            await mcp.call_tool("comfyui_list_nodes", {"limit": 25, "offset": 0})
 
 
 class TestAuditInvariant:
-    """Security rule 4: All tools must audit log."""
+    """Security rule 4: All tools must audit log.
 
-    def test_every_tool_has_an_audit_logger_in_closure(self, all_tools: dict[str, Any]) -> None:
-        missing = [name for name, fn in all_tools.items() if not _has_instance_of(fn, AuditLogger)]
-        assert not missing, (
-            f"{len(missing)} tool(s) have no AuditLogger in closure — "
-            f"cannot enforce security rule 4: {sorted(missing)}"
+    The in-tool entry audit (action=\"called\") was removed (#137); the entry
+    record is now written by SecurityMiddleware.on_call_tool. This test proves
+    the middleware writes the audit record end-to-end.
+    """
+
+    @respx.mock
+    async def test_middleware_writes_entry_audit_for_tool(self, tmp_path: Path) -> None:
+        import json as _json
+
+        import httpx
+
+        from comfyui_mcp.middleware import build_middleware_stack
+
+        client = ComfyUIClient(base_url="http://test:8188")
+        audit_path = tmp_path / "audit.log"
+        audit = AuditLogger(audit_file=audit_path)
+        sanitizer = PathSanitizer(allowed_extensions=[".png", ".json"])
+        node_auditor = NodeAuditor()
+        rl_read = RateLimiter(max_per_minute=60)
+        mcp = FastMCP("invariants-audit-test")
+        register_discovery_tools(mcp, client, audit, rl_read, sanitizer, node_auditor)
+        for mw in build_middleware_stack(
+            audit=audit,
+            rate_limiters={
+                "read": rl_read,
+                "workflow": RateLimiter(max_per_minute=10),
+                "generation": RateLimiter(max_per_minute=10),
+                "file": RateLimiter(max_per_minute=30),
+            },
+            tool_categories={"comfyui_list_nodes": "read"},
+        ):
+            mcp.add_middleware(mw)
+        respx.get("http://test:8188/object_info").mock(
+            return_value=httpx.Response(200, json={"KSampler": {}})
+        )
+        await mcp.call_tool("comfyui_list_nodes", {"limit": 25, "offset": 0})
+        records = []
+        if audit_path.exists():
+            records = [_json.loads(line) for line in audit_path.read_text().splitlines() if line]
+        assert any(
+            r["tool"] == "comfyui_list_nodes" and r["action"] == "called" for r in records
+        ), (
+            "SecurityMiddleware did not write the entry audit record — the "
+            "on_call_tool hook must fire for every tool call (security rule 4)"
         )
 
 

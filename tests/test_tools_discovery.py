@@ -350,17 +350,42 @@ class TestGetSystemInfo:
 
     @respx.mock
     async def test_rate_limit_enforced(self, tmp_path):
+        """Rate limiting is now enforced by SecurityMiddleware (on_call_tool),
+        not the in-tool limiter.check() call (#137). This test drives the tool
+        through mcp.call_tool so the middleware fires."""
+        import httpx
+        import respx
+
+        from comfyui_mcp.middleware import build_middleware_stack
+
         client = ComfyUIClient(base_url="http://test:8188")
         audit = AuditLogger(audit_file=tmp_path / "audit.log")
-        limiter = RateLimiter(max_per_minute=0)
+        limiter = RateLimiter(max_per_minute=0)  # zero tokens — first call blocked
         sanitizer = PathSanitizer(allowed_extensions=_ALLOWED_EXTENSIONS)
         mcp = FastMCP("test")
-        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+        register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+        for mw in build_middleware_stack(
+            audit=audit,
+            rate_limiters={
+                "read": limiter,
+                "workflow": limiter,
+                "generation": limiter,
+                "file": limiter,
+            },
+            tool_categories={"comfyui_get_system_info": "read"},
+        ):
+            mcp.add_middleware(mw)
 
-        from comfyui_mcp.security.rate_limit import RateLimitError
+        respx.get("http://test:8188/system_stats").mock(
+            return_value=httpx.Response(200, json={"system": {}, "devices": []})
+        )
+        respx.get("http://test:8188/queue").mock(
+            return_value=httpx.Response(200, json={"queue_running": [], "queue_pending": []})
+        )
+        from fastmcp.exceptions import ToolError
 
-        with pytest.raises(RateLimitError):
-            await tools["comfyui_get_system_info"]()
+        with pytest.raises(ToolError, match="Rate limit exceeded"):
+            await mcp.call_tool("comfyui_get_system_info", {})
 
 
 class TestModelPresetsAndGuides:
