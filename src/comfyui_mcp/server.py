@@ -303,6 +303,15 @@ def _build_server(
         "mask_error_details": True,
     }
 
+    # Phase 6: when background tasks are enabled, pass tasks=True so async
+    # tools are task-capable. Per the FastMCP 4 docs, the server-wide flag
+    # enables task support for every async tool; individual tools can still
+    # opt out with task=False. The TasksExtension is registered below after
+    # the server is built (it needs the server instance). All our tools are
+    # async, so the sync-tool caveat does not apply.
+    if settings.tasks.enabled:
+        server_kwargs["tasks"] = True
+
     # FastMCP 4 moved host/port off the FastMCP() constructor to run()/http_app(),
     # so they no longer belong in server_kwargs. main() passes them to mcp.run().
     server = FastMCP(**server_kwargs)
@@ -341,6 +350,15 @@ def _build_server(
         tool_categories=_TOOL_CATEGORIES,
     ):
         server.add_middleware(mw)
+
+    # Phase 6: register the TasksExtension when background tasks are enabled.
+    # The extension backs @mcp.tool(task=True) / tasks=True with Docket
+    # (in-memory by default; redis:// for horizontal scaling). It must be
+    # added after the server is built and after task-capable tools register.
+    if settings.tasks.enabled:
+        from fastmcp_tasks import TasksExtension
+
+        server.add_extension(TasksExtension(url=settings.tasks.backend_url))
 
     return server, settings, client, search_http
 
