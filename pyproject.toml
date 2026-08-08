@@ -84,6 +84,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S106"]         # allow assert, hardcoded passwords in tests
 "scripts/*" = ["T201"]               # CLI scripts use print intentionally
+# DI tool files use Depends() / Progress() in argument defaults — the
+# documented FastMCP 4 / FastAPI idiom for dependency injection. B008
+# (function call in default) is a false positive on this pattern.
+"src/comfyui_mcp/tools/*_di.py" = ["B008"]
+"src/comfyui_mcp/dependencies.py" = ["B008"]
 
 [tool.ruff.format]
 quote-style = "double"
