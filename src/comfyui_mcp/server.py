@@ -12,6 +12,7 @@ from fastmcp import FastMCP
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.config import ModelSearchSettings, Settings, load_settings
+from comfyui_mcp.middleware import build_middleware_stack
 from comfyui_mcp.model_manager import ModelManagerDetector
 from comfyui_mcp.node_manager import ComfyUIManagerDetector
 from comfyui_mcp.progress import WebSocketProgress
@@ -87,6 +88,74 @@ def _create_rate_limiters(settings: Settings) -> dict[str, RateLimiter]:
         "file": RateLimiter(max_per_minute=settings.rate_limits.file_ops),
         "read": RateLimiter(max_per_minute=settings.rate_limits.read_only),
     }
+
+
+# Tool-name -> rate-limit category. Mirrors the per-register_*_tools() limiter
+# argument wiring so the SecurityMiddleware enforces the same per-category
+# limits without the in-tool limiter.check() boilerplate. Tools not listed
+# default to "read" (the least-privileged bucket) in the middleware.
+_TOOL_CATEGORIES: dict[str, str] = {
+    # generation tools (rate_limits.generation)
+    "run_workflow": "generation",
+    "run_workflow_stream": "generation",
+    "generate_image": "generation",
+    "transform_image": "generation",
+    "inpaint_image": "generation",
+    "upscale_image": "generation",
+    "summarize_workflow": "read",  # uses read_limiter in generation.py
+    # file tools (rate_limits.file_ops)
+    "upload_image": "file",
+    "get_image": "file",
+    "list_outputs": "file",
+    "upload_mask": "file",
+    "get_workflow_from_image": "file",
+    # model tools — file ops use file, reads use read
+    "download_model": "file",
+    "cancel_download": "file",
+    "search_models": "read",
+    "get_download_tasks": "read",
+    # node tools — install/uninstall/update use workflow, reads use read
+    "install_custom_node": "workflow",
+    "uninstall_custom_node": "workflow",
+    "update_custom_node": "workflow",
+    "search_custom_nodes": "read",
+    "get_custom_node_status": "read",
+    # job tools — mutating queue ops use workflow, reads use read
+    "cancel_job": "workflow",
+    "interrupt": "workflow",
+    "clear_queue": "workflow",
+    "get_queue": "read",
+    "get_queue_status": "read",
+    "get_job": "read",
+    "get_progress": "read",
+    # discovery / history / workflow tools all use read
+    "list_models": "read",
+    "list_nodes": "read",
+    "get_node_info": "read",
+    "list_workflows": "read",
+    "list_extensions": "read",
+    "get_server_features": "read",
+    "list_model_folders": "read",
+    "get_model_metadata": "read",
+    "audit_dangerous_nodes": "read",
+    "get_system_info": "read",
+    "get_model_presets": "read",
+    "get_prompting_guide": "read",
+    "get_history": "read",
+    "create_workflow": "read",
+    "modify_workflow": "read",
+    "analyze_workflow": "read",
+    "validate_workflow": "read",
+    # resources and prompts use read
+    "resource_models": "read",
+    "resource_nodes": "read",
+    "resource_queue": "read",
+    "resource_system": "read",
+    "prompt_txt2img": "read",
+    "prompt_img2img": "read",
+    "prompt_inpaint": "read",
+    "prompt_upscale": "read",
+}
 
 
 def _register_all_tools(
@@ -208,6 +277,10 @@ def _build_server(
             "inform the user and ask for confirmation before proceeding with execution."
         ),
         "lifespan": _lifespan,
+        # Phase 3: mask internal error details from clients — only ToolError
+        # messages (which we control) include details. Generic exceptions get
+        # a masked message rather than an internal traceback.
+        "mask_error_details": True,
     }
 
     # FastMCP 4 moved host/port off the FastMCP() constructor to run()/http_app(),
@@ -237,6 +310,17 @@ def _build_server(
         search_http=search_http,
         node_manager=node_manager,
     )
+
+    # Phase 3: wire the middleware stack. SecurityMiddleware centralizes rate
+    # limiting (security rule 3) and entry audit logging (rule 4) so the
+    # per-tool limiter.check() + audit.async_log(action="called") boilerplate
+    # can be dropped. Tools keep their domain-specific lifecycle audit logs.
+    for mw in build_middleware_stack(
+        audit=audit,
+        rate_limiters=rate_limiters,
+        tool_categories=_TOOL_CATEGORIES,
+    ):
+        server.add_middleware(mw)
 
     return server, settings, client, search_http
 

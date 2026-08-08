@@ -640,9 +640,12 @@ Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are
 - Handles percent-encoded inputs (URL decoding before validation)
 - Enforces max upload size (default 50MB), max filename length (255 chars)
 
-**Rate Limiter** (`security/rate_limit.py`)
+**Rate Limiter** (`security/rate_limit.py`) + **SecurityMiddleware** (`middleware.py`)
 - Token-bucket per tool category: workflow (10/min), generation (10/min), file_ops (30/min), read_only (60/min)
 - In-memory only (resets on restart, no distributed support)
+- `SecurityMiddleware` centralizes rate-limit checks + entry audit logging across every tool call (FastMCP 4 `on_call_tool` hook), so the per-tool `limiter.check()` / `audit.async_log(action="called")` boilerplate can be dropped. Tools keep their domain-specific lifecycle audit logs (`submitted`, `completed`, etc.)
+- Sensitive tool arguments (`token`, `password`, `api_key`, ...) are redacted by the middleware before the entry audit record is written
+- `mask_error_details=True` on the server constructor masks internal exception tracebacks from clients — only `ToolError` messages (which we control) include details
 
 **HTTP Client** (`client.py`)
 - Configurable TLS verification, connect/read timeouts

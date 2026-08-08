@@ -3,6 +3,7 @@
 import pytest
 
 from comfyui_mcp.config import ComfyUISettings, Settings
+from comfyui_mcp.middleware import SecurityMiddleware
 from comfyui_mcp.server import _build_server, _select_image_view_base_url
 
 
@@ -16,6 +17,22 @@ class TestServerSetup:
         settings = Settings(comfyui=ComfyUISettings(url="http://test:8188"))
         _, returned_settings, *_ = _build_server(settings)
         assert returned_settings.comfyui.url == "http://test:8188"
+
+    def test_build_server_wires_security_middleware(self):
+        """Phase 3: SecurityMiddleware is registered so rate limiting +
+        entry audit are enforced centrally (testing rule 19 covers both
+        enforcement paths)."""
+        settings = Settings(comfyui=ComfyUISettings(url="http://test:8188"))
+        server, *_ = _build_server(settings)
+        # FastMCP stores middleware on the server; reach it via the private
+        # attribute the framework exposes. If the attribute moves, the test
+        # fails loudly rather than silently skipping enforcement.
+        stack = getattr(server, "_middleware", None) or getattr(server, "middleware", None)
+        assert stack is not None, "Could not locate middleware list on FastMCP server"
+        assert any(isinstance(m, SecurityMiddleware) for m in stack), (
+            "SecurityMiddleware not registered — per-tool rate limit + audit "
+            "boilerplate cannot be dropped without it (security rules 3, 4)"
+        )
 
 
 class TestImageViewBaseUrlSelection:
