@@ -27,7 +27,7 @@ The server exposes read-only ComfyUI state as **resources** the LLM can browse b
 
 ### Dependency injection & background tasks (FastMCP 4)
 
-- **Depends() DI** — tool modules may declare their dependencies (`client`, `audit`, `inspector`, `limiter`) via `Depends()` providers (auto-excluded from the MCP schema) instead of receiving them through `register_*_tools()` factories. Both patterns are valid; `history_di.py` is the proof module, with the remaining tools migrating incrementally.
+- **Depends() DI** — tool modules may declare their dependencies (`client`, `audit`, `inspector`, `limiter`) via `Depends()` providers (auto-excluded from the MCP schema) instead of receiving them through `register_*_tools()` factories. `history_di.py` is the canonical DI module; the remaining tools migrate incrementally.
 - **Background tasks** (optional) — long-running workflows can run as background tasks via `TasksExtension` (Docket-backed) instead of holding the request open. Disabled by default; see [Background tasks](#background-tasks-optional-phase-6).
 
 ### Real-time progress tracking
@@ -715,7 +715,7 @@ flowchart TB
         DI[Dependencies<br/>Depends() providers]
 
         subgraph Tools["Tool Groups"]
-            TG[generation.py<br/>jobs.py<br/>discovery.py<br/>history.py / history_di.py<br/>files.py]
+            TG[generation.py<br/>jobs.py<br/>discovery.py<br/>history_di.py<br/>files.py]
         end
 
         RES[Resources<br/>comfyui://models, nodes, queue, system]
@@ -800,8 +800,7 @@ src/comfyui_mcp/
     ├── workflow.py        # create_workflow, modify_workflow, validate_workflow, analyze_workflow
     ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
     ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
-    ├── history.py         # get_history (factory version)
-    ├── history_di.py      # get_history (DI version — Depends() proof module)
+    ├── history_di.py      # get_history (DI version — Depends())
     ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
     ├── models.py          # search_models, download_model, get_download_tasks, cancel_download
     └── nodes.py           # search/install/uninstall/update custom nodes
