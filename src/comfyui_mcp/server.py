@@ -15,6 +15,8 @@ from comfyui_mcp.config import ModelSearchSettings, Settings, load_settings
 from comfyui_mcp.model_manager import ModelManagerDetector
 from comfyui_mcp.node_manager import ComfyUIManagerDetector
 from comfyui_mcp.progress import WebSocketProgress
+from comfyui_mcp.prompts import register_prompts
+from comfyui_mcp.resources import register_resources
 from comfyui_mcp.security.download_validator import DownloadValidator
 from comfyui_mcp.security.inspector import WorkflowInspector
 from comfyui_mcp.security.model_checker import ModelChecker
@@ -157,6 +159,11 @@ def _register_all_tools(
         node_manager=node_manager,
         node_auditor=node_auditor,
     )
+    # Resources and prompts use the read-only limiter — they mirror discovery
+    # tools' cross-cutting concerns (rate limit + audit) but expose state as
+    # URIs the LLM can browse without a tool call.
+    register_resources(server, client, audit, rate_limiters["read"], sanitizer)
+    register_prompts(server, client, audit, rate_limiters["read"], sanitizer)
 
 
 def _build_server(

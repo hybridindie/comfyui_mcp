@@ -373,6 +373,30 @@ The `comfyui_download_model` tool always sends a `previewFile` field (required b
 | `comfyui_upload_mask` | Upload a mask image to ComfyUI. Path-sanitized. Params: filename, mask_data, original_image, subfolder, original_subfolder, `destination="input"\|"output"\|"temp"` (default `input`), `overwrite` (default False — ComfyUI auto-renames duplicates). |
 | `comfyui_get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |
 
+### Resources
+
+Read-only state the LLM can browse by URI without a tool call. Templated
+resources inherit FastMCP 4's built-in path-traversal screening.
+
+| URI | Description |
+|-----|-------------|
+| `comfyui://models/{folder}` | List models in a folder (checkpoints, loras, vae, etc.). Path-traversal in `{folder}` is screened. |
+| `comfyui://nodes/installed` | Sorted list of all available ComfyUI node class types from `/object_info`. |
+| `comfyui://queue` | Current queue state — running and pending job counts. |
+| `comfyui://system` | Whitelisted system info: ComfyUI version, GPU VRAM, queue counts. Sensitive fields (hostname, OS, CPU, paths) excluded. |
+
+### Prompts
+
+Reusable, parameterized prompt recipes for the built-in workflow templates.
+Return a plain string the LLM can use as guidance.
+
+| Prompt | Description |
+|--------|-------------|
+| `txt2img_prompt` | Text-to-image recipe. Params: `prompt`, `style="photorealistic"`. |
+| `img2img_prompt` | Image-to-image recipe. Params: `image`, `prompt`, `style="photorealistic"`. |
+| `inpaint_prompt` | Inpaint recipe. Params: `image`, `mask`, `prompt`, `style="photorealistic"`. |
+| `upscale_prompt` | Upscale recipe. Params: `image`, `upscale_model="RealESRGAN_x4plus.pth"`. |
+
 ### Deliberately not exposed
 
 These ComfyUI endpoints are **never** proxied due to security risks:
