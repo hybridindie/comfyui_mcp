@@ -148,10 +148,52 @@ def build_middleware_stack(
 
     Order matters: the first added runs first on the way in, last on the way
     out. SecurityMiddleware runs early so rate limiting + audit apply to every
-    call before the tool body executes.
+    call before the tool body executes. The built-in middleware (#139) adds:
+    - ResponseCachingMiddleware: caches read-only tools + the 4 resources with
+      a short TTL so the bespoke _OBJECT_INFO_TTL cache in client.py can be
+      dropped once object_info-backed tools are covered.
+    - ResponseLimitingMiddleware: caps large list_nodes/list_models/get_history
+      payloads so they cannot blow an LLM context window.
+    - PingMiddleware: keeps long-lived HTTP connections alive (no-op on stdio).
+    - StructuredLoggingMiddleware: general request/response logging for ops,
+      distinct from the security AuditLogger. include_payloads=False to avoid
+      double-redaction work.
     """
+    from fastmcp.server.middleware import PingMiddleware
+    from fastmcp.server.middleware.caching import (
+        CallToolSettings,
+        ReadResourceSettings,
+        ResponseCachingMiddleware,
+    )
+    from fastmcp.server.middleware.logging import StructuredLoggingMiddleware
+    from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
+
     return [
         SecurityMiddleware(
             audit=audit, rate_limiters=rate_limiters, tool_categories=tool_categories
         ),
+        ResponseCachingMiddleware(
+            call_tool_settings=CallToolSettings(
+                included_tools=[
+                    "comfyui_list_nodes",
+                    "comfyui_get_node_info",
+                    "comfyui_list_model_folders",
+                    "comfyui_list_extensions",
+                    "comfyui_get_server_features",
+                ],
+                ttl=30,
+            ),
+            read_resource_settings=ReadResourceSettings(ttl=30),
+        ),
+        ResponseLimitingMiddleware(
+            max_size=500_000,
+            tools=[
+                "comfyui_list_nodes",
+                "comfyui_get_node_info",
+                "comfyui_list_models",
+                "comfyui_get_history",
+            ],
+        ),
+        PingMiddleware(interval_ms=30000),
+        StructuredLoggingMiddleware(include_payloads=False),
     ]
