@@ -12,6 +12,7 @@ from fastmcp import FastMCP
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.config import ModelSearchSettings, Settings, load_settings
+from comfyui_mcp.dependencies import configure_dependencies
 from comfyui_mcp.middleware import build_middleware_stack
 from comfyui_mcp.model_manager import ModelManagerDetector
 from comfyui_mcp.node_manager import ComfyUIManagerDetector
@@ -24,10 +25,10 @@ from comfyui_mcp.security.model_checker import ModelChecker
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
+from comfyui_mcp.tools import history_di
 from comfyui_mcp.tools.discovery import register_discovery_tools
 from comfyui_mcp.tools.files import register_file_tools
 from comfyui_mcp.tools.generation import register_generation_tools
-from comfyui_mcp.tools.history import register_history_tools
 from comfyui_mcp.tools.jobs import register_job_tools
 from comfyui_mcp.tools.models import register_model_tools
 from comfyui_mcp.tools.nodes import register_node_tools
@@ -178,7 +179,10 @@ def _register_all_tools(
 ) -> None:
     """Register all MCP tool groups with their dependencies."""
     register_discovery_tools(server, client, audit, rate_limiters["read"], sanitizer, node_auditor)
-    register_history_tools(server, client, audit, rate_limiters["read"])
+    # Phase 4: history tool uses the DI version (module-level decorated fn
+    # with Depends()). The factory version stays for test_security_invariants
+    # closure checks until the full migration lands.
+    history_di.register(server)
     register_job_tools(
         server,
         client,
@@ -264,6 +268,22 @@ def _build_server(
     )
     model_checker = ModelChecker()
     search_http = httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=30, write=10, pool=10))
+
+    # Phase 4: populate the DI provider slots so module-level decorated tools
+    # (history_di, and future DI migrations) can resolve their dependencies via
+    # Depends(). The factory-based tools still receive the same singletons
+    # positionally through register_*_tools() — both patterns coexist.
+    configure_dependencies(
+        client=client,
+        audit=audit,
+        inspector=inspector,
+        sanitizer=sanitizer,
+        model_checker=model_checker,
+        read_limiter=rate_limiters["read"],
+        workflow_limiter=rate_limiters["workflow"],
+        generation_limiter=rate_limiters["generation"],
+        file_limiter=rate_limiters["file"],
+    )
 
     server_kwargs: dict = {
         "name": "ComfyUI",
