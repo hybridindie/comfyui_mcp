@@ -30,3 +30,4 @@ graphify-out/
 
 # Internal planning artifacts — not part of the public repo
 docs/superpowers/
+evals/*.md

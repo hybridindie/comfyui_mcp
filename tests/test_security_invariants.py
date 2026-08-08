@@ -38,10 +38,10 @@ from comfyui_mcp.security.model_checker import ModelChecker
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
+from comfyui_mcp.tools import history_di
 from comfyui_mcp.tools.discovery import register_discovery_tools
 from comfyui_mcp.tools.files import register_file_tools
 from comfyui_mcp.tools.generation import register_generation_tools
-from comfyui_mcp.tools.history import register_history_tools
 from comfyui_mcp.tools.jobs import register_job_tools
 from comfyui_mcp.tools.models import register_model_tools
 from comfyui_mcp.tools.nodes import register_node_tools
@@ -113,7 +113,12 @@ def all_tools(tmp_path: Path) -> Iterator[dict[str, Any]]:
 
     tools: dict[str, Any] = {}
     tools.update(register_discovery_tools(mcp, client, audit, rl_read, sanitizer, node_auditor))
-    tools.update(register_history_tools(mcp, client, audit, rl_read))
+    # history is the DI version (history_di.register) — the factory was removed in #138.
+    # The DI tool is not in the tools dict (it has no closure to inspect), but the
+    # sanitizer/inspector invariants below only cover factory tools, and the
+    # middleware-invocation tests (TestRateLimiterInvariant/TestAuditInvariant)
+    # cover the DI tool's enforcement via the SecurityMiddleware path.
+    history_di.register(mcp)
     tools.update(
         register_job_tools(mcp, client, audit, rl_workflow, read_limiter=rl_read, progress=progress)
     )
