@@ -21,7 +21,7 @@ replaces the generic *entry* audit + the rate-limit check.
 
 from __future__ import annotations
 
-from fastmcp.exceptions import ToolError
+from fastmcp.exceptions import PromptError, ResourceError, ToolError
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 
 from comfyui_mcp.audit import AuditLogger, _redact_sensitive
@@ -90,6 +90,51 @@ class SecurityMiddleware(Middleware):
             extra={"arguments": redacted},
         )
 
+        return await call_next(context)
+
+    async def on_read_resource(self, context: MiddlewareContext, call_next):
+        # Closes the #136 gap: on_call_tool fires for tools only, so resources
+        # need their own hook for security rules 3 and 4. The message is a
+        # ReadResourceRequestParams carrying `uri`.
+        message = context.message
+        uri = str(getattr(message, "uri", None) or "<unknown>")
+        component_name = f"resource:{uri}"
+
+        limiter = self._limiter_for(component_name)
+        try:
+            limiter.check(component_name)
+        except RateLimitError as e:
+            raise ResourceError(str(e)) from e
+
+        await self._audit.async_log(
+            tool=component_name,
+            action="called",
+            extra={"uri": uri},
+        )
+        return await call_next(context)
+
+    async def on_get_prompt(self, context: MiddlewareContext, call_next):
+        # Closes the #136 gap for prompts. The message is a
+        # GetPromptRequestParams carrying `name` and `arguments`.
+        message = context.message
+        prompt_name = getattr(message, "name", None) or "<unknown>"
+        arguments = getattr(message, "arguments", None) or {}
+        component_name = f"prompt:{prompt_name}"
+
+        limiter = self._limiter_for(component_name)
+        try:
+            limiter.check(component_name)
+        except RateLimitError as e:
+            raise PromptError(str(e)) from e
+
+        redacted: dict[str, object] = (
+            _redact_sensitive(dict(arguments)) if isinstance(arguments, dict) else {}
+        )
+        await self._audit.async_log(
+            tool=component_name,
+            action="called",
+            extra={"arguments": redacted},
+        )
         return await call_next(context)
 
 

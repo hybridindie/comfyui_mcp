@@ -29,6 +29,8 @@ from comfyui_mcp.config import ModelSearchSettings
 from comfyui_mcp.model_manager import ModelManagerDetector
 from comfyui_mcp.node_manager import ComfyUIManagerDetector
 from comfyui_mcp.progress import WebSocketProgress
+from comfyui_mcp.prompts import register_prompts
+from comfyui_mcp.resources import register_resources
 from comfyui_mcp.security.download_validator import DownloadValidator
 from comfyui_mcp.security.inspector import WorkflowInspector
 from comfyui_mcp.security.model_checker import ModelChecker
@@ -234,4 +236,83 @@ class TestInspectorInvariant:
         assert not missing, (
             f"{len(missing)} workflow-submitting tool(s) have no WorkflowInspector in closure — "
             f"cannot enforce security rule 5: {sorted(missing)}"
+        )
+
+
+# --- Resources and prompts (#136) ---
+# The all_tools fixture above covers factory tools only. Resources and prompts
+# are registered separately and need their own closure invariant check —
+# without this, removing their in-tool limiter/audit calls (which the
+# SecurityMiddleware on_read_resource/on_get_prompt hooks now cover) would
+# not be caught by any test.
+
+
+@pytest.fixture
+def all_components(tmp_path: Path) -> Iterator[dict[str, Any]]:
+    """Build the resource and prompt functions with real wiring."""
+    client = ComfyUIClient(base_url="http://mock-comfyui:8188")
+    audit = AuditLogger(audit_file=tmp_path / "audit.log")
+    sanitizer = PathSanitizer(allowed_extensions=[".png", ".jpg", ".json"])
+    rl_read = RateLimiter(max_per_minute=60)
+    mcp = FastMCP("invariants-components-test")
+    components: dict[str, Any] = {}
+    components.update(register_resources(mcp, client, audit, rl_read, sanitizer))
+    components.update(register_prompts(mcp, client, audit, rl_read, sanitizer))
+    yield components
+
+
+class TestResourceRateLimiterInvariant:
+    """Security rule 3 for resources: each resource closure must have a
+    RateLimiter (in-tool enforcement path). The middleware on_read_resource
+    hook is the framework path; both are covered."""
+
+    def test_resources_have_rate_limiter_in_closure(self, all_components: dict[str, Any]) -> None:
+        resource_fns = {k: v for k, v in all_components.items() if k.startswith("comfyui_")}
+        assert resource_fns, "No resource functions registered — fixture is broken"
+        missing = [
+            name for name, fn in resource_fns.items() if not _has_instance_of(fn, RateLimiter)
+        ]
+        assert not missing, (
+            f"{len(missing)} resource(s) have no RateLimiter in closure — "
+            f"cannot enforce security rule 3 for resources: {sorted(missing)}"
+        )
+
+
+class TestResourceAuditInvariant:
+    """Security rule 4 for resources: each resource closure must have an
+    AuditLogger."""
+
+    def test_resources_have_audit_logger_in_closure(self, all_components: dict[str, Any]) -> None:
+        resource_fns = {k: v for k, v in all_components.items() if k.startswith("comfyui_")}
+        missing = [
+            name for name, fn in resource_fns.items() if not _has_instance_of(fn, AuditLogger)
+        ]
+        assert not missing, (
+            f"{len(missing)} resource(s) have no AuditLogger in closure — "
+            f"cannot enforce security rule 4 for resources: {sorted(missing)}"
+        )
+
+
+class TestPromptRateLimiterInvariant:
+    """Security rule 3 for prompts."""
+
+    def test_prompts_have_rate_limiter_in_closure(self, all_components: dict[str, Any]) -> None:
+        prompt_fns = {k: v for k, v in all_components.items() if k.endswith("_prompt")}
+        assert prompt_fns, "No prompt functions registered — fixture is broken"
+        missing = [name for name, fn in prompt_fns.items() if not _has_instance_of(fn, RateLimiter)]
+        assert not missing, (
+            f"{len(missing)} prompt(s) have no RateLimiter in closure — "
+            f"cannot enforce security rule 3 for prompts: {sorted(missing)}"
+        )
+
+
+class TestPromptAuditInvariant:
+    """Security rule 4 for prompts."""
+
+    def test_prompts_have_audit_logger_in_closure(self, all_components: dict[str, Any]) -> None:
+        prompt_fns = {k: v for k, v in all_components.items() if k.endswith("_prompt")}
+        missing = [name for name, fn in prompt_fns.items() if not _has_instance_of(fn, AuditLogger)]
+        assert not missing, (
+            f"{len(missing)} prompt(s) have no AuditLogger in closure — "
+            f"cannot enforce security rule 4 for prompts: {sorted(missing)}"
         )
