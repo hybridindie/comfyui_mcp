@@ -8,7 +8,7 @@ import json
 from typing import Annotated, Any, Literal
 
 import httpx
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -115,6 +115,7 @@ async def _submit_workflow(
     stream_events: bool = False,
     model_checker: ModelChecker | None = None,
     inspect_extra: dict[str, Any] | None = None,
+    ctx: Any = None,
 ) -> dict[str, Any]:
     """Inspect, submit, and optionally wait for a workflow.
 
@@ -133,13 +134,20 @@ async def _submit_workflow(
 
     ``success_message`` is preserved in the audit log but no longer surfaces in
     the return value — callers consume structured fields.
+
+    Elicitation gate (Phase 5): when ``ctx`` is provided and the inspector is
+    in enforce mode with warnings, the user is asked to confirm before
+    submission. A decline/cancel or an accept with data=False raises
+    WorkflowBlockedError without calling post_prompt. When ``ctx`` is None
+    (direct/test callers), the pre-existing behavior is preserved —
+    WorkflowBlockedError is raised immediately in enforce mode with warnings.
     """
     inspection = inspector.inspect(wf)
     if model_checker is not None:
         model_warnings = await model_checker.check_models(wf, client)
         if model_warnings:
             inspection.warnings.extend(model_warnings)
-            if inspector.mode == "enforce":
+            if inspector.mode == "enforce" and not ctx:
                 raise WorkflowBlockedError(f"Workflow blocked — missing models: {model_warnings}")
 
     log_kwargs: dict[str, Any] = {
@@ -153,6 +161,39 @@ async def _submit_workflow(
     if model_checker is not None:
         log_kwargs["status"] = "allowed"
     await audit.async_log(**log_kwargs)
+
+    # Elicitation gate (Phase 5): in enforce mode with warnings, ask the user
+    # to confirm before submitting. Only fires when ctx is provided (a live
+    # MCP request). Direct/test callers (ctx=None) keep the pre-existing
+    # behavior — WorkflowBlockedError is raised below for enforce + warnings.
+    if inspection.warnings and inspector.mode == "enforce":
+        if ctx is not None:
+            await audit.async_log(
+                tool=tool_name,
+                action="eliciting_confirmation",
+                extra={"warnings": inspection.warnings},
+            )
+            elicit_result = await ctx.elicit(
+                message=(
+                    f"Workflow has {len(inspection.warnings)} warning(s) in "
+                    f"enforce mode: {inspection.warnings}. Proceed with submission?"
+                ),
+                response_type=bool,
+            )
+            action = getattr(elicit_result, "action", None)
+            accepted = action == "accept"
+            data = getattr(elicit_result, "data", None) if accepted else None
+            if not (accepted and data is True):
+                await audit.async_log(
+                    tool=tool_name,
+                    action="elicitation_declined",
+                    extra={"action": action, "warnings": inspection.warnings},
+                )
+                raise WorkflowBlockedError(
+                    f"Workflow blocked by user — dangerous nodes: {inspection.warnings}"
+                )
+        else:
+            raise WorkflowBlockedError(f"Workflow blocked — dangerous nodes: {inspection.warnings}")
 
     # Fail fast if the caller asked us to wait but no progress tracker is
     # wired in — otherwise we'd silently return a submitted envelope and the
@@ -461,7 +502,9 @@ def register_generation_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_run_workflow(workflow: str, wait: bool = False) -> dict[str, Any]:
+    async def comfyui_run_workflow(
+        workflow: str, wait: bool = False, ctx: Context | None = None
+    ) -> dict[str, Any]:
         """Submit an arbitrary ComfyUI workflow for execution.
 
         See also: comfyui_run_workflow_stream for a streaming variant that emits
@@ -488,6 +531,7 @@ def register_generation_tools(
             progress=progress,
             stream_events=False,
             model_checker=model_checker,
+            ctx=ctx,
         )
 
     tool_fns["comfyui_run_workflow"] = comfyui_run_workflow
@@ -500,7 +544,9 @@ def register_generation_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_run_workflow_stream(workflow: str) -> dict[str, Any]:
+    async def comfyui_run_workflow_stream(
+        workflow: str, ctx: Context | None = None
+    ) -> dict[str, Any]:
         """Submit a ComfyUI workflow and return websocket stream events plus final status.
 
         Uses ComfyUI's websocket stream endpoint internally to capture per-event
@@ -531,6 +577,7 @@ def register_generation_tools(
             progress=progress,
             stream_events=True,
             model_checker=model_checker,
+            ctx=ctx,
         )
 
     tool_fns["comfyui_run_workflow_stream"] = comfyui_run_workflow_stream
@@ -552,6 +599,7 @@ def register_generation_tools(
         cfg: CfgField = 7.0,
         model: ModelNameField = "",
         wait: WaitField = False,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         """Generate an image from a text prompt using a default txt2img workflow."""
         limiter.check("generate_image")
@@ -576,6 +624,7 @@ def register_generation_tools(
             stream_events=False,
             model_checker=model_checker,
             inspect_extra={"prompt": prompt, "width": width, "height": height},
+            ctx=ctx,
         )
 
     tool_fns["comfyui_generate_image"] = comfyui_generate_image
@@ -666,6 +715,7 @@ def register_generation_tools(
         cfg: CfgField = 7.0,
         model: ModelNameField = "",
         wait: WaitField = False,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         """Transform an existing image using a text prompt (img2img).
 
@@ -702,6 +752,7 @@ def register_generation_tools(
             progress=progress,
             stream_events=False,
             inspect_extra={"image": clean_image, "prompt": prompt, "strength": strength},
+            ctx=ctx,
         )
 
     tool_fns["comfyui_transform_image"] = comfyui_transform_image
@@ -724,6 +775,7 @@ def register_generation_tools(
         cfg: CfgField = 7.0,
         model: ModelNameField = "",
         wait: WaitField = False,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         """Inpaint regions of an image using a mask and text prompt.
 
@@ -764,6 +816,7 @@ def register_generation_tools(
             progress=progress,
             stream_events=False,
             inspect_extra={"image": clean_image, "mask": clean_mask, "prompt": prompt},
+            ctx=ctx,
         )
 
     tool_fns["comfyui_inpaint_image"] = comfyui_inpaint_image
@@ -787,6 +840,7 @@ def register_generation_tools(
             ),
         ] = "RealESRGAN_x4plus.pth",
         wait: WaitField = False,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         """Upscale an image using a model-based upscaler.
 
@@ -809,6 +863,7 @@ def register_generation_tools(
             progress=progress,
             stream_events=False,
             inspect_extra={"image": clean_image, "upscale_model": upscale_model},
+            ctx=ctx,
         )
 
     tool_fns["comfyui_upscale_image"] = comfyui_upscale_image

@@ -598,6 +598,8 @@ security:
 
 **Tip:** Use `comfyui_audit_dangerous_nodes` to identify dangerous nodes, run workflows in audit mode to see which nodes you use, then switch to enforce mode with that allowlist.
 
+**Elicitation gate (Phase 5):** when enforce mode is on and the inspector produces warnings (dangerous-node types, suspicious inputs like `eval()`/`exec()`, or missing models), the generation tools (`comfyui_run_workflow`, `comfyui_generate_image`, `comfyui_transform_image`, `comfyui_inpaint_image`, `comfyui_upscale_image`) ask the user to confirm before submitting — `ctx.elicit(..., response_type=bool)`. A decline or cancel raises `WorkflowBlockedError` without calling `post_prompt`. Unapproved-node enforcement (the `allowed_nodes` allowlist) still blocks hard inside the inspector before elicitation; the gate fires on the warning path. Programmatic callers without a live MCP context keep the pre-existing behavior (immediate `WorkflowBlockedError` in enforce mode with warnings).
+
 ## Audit log
 
 All tool invocations are logged as JSON lines to `~/.comfyui-mcp/audit.log`:
