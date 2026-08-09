@@ -336,3 +336,147 @@ class TestCloudApiNodesDangerous:
             assert any(node_type in w for w in result.warnings), (
                 f"Cloud API node {node_type} was not flagged by the inspector"
             )
+
+
+# ---------------------------------------------------------------------------
+# #110 — subgraphs can hide nodes from the inspector. A submitted workflow
+# may contain subgraph references whose internal nodes are not present at the
+# top level. The inspector must at minimum warn that inspection is incomplete.
+# ---------------------------------------------------------------------------
+
+
+def _make_subgraph_workflow() -> dict:
+    """Build a workflow with a subgraph node referencing an internal graph.
+
+    ComfyUI subgraphs embed the nested node map under the subgraph node's
+    ``inputs`` or a ``subgraph`` key. This shape mirrors the real structure:
+    the top-level node map has a ``Reroute_subgraph`` entry whose ``inputs``
+    contains the nested nodes.
+    """
+    return {
+        "1": {
+            "class_type": "KSampler",
+            "inputs": {"cfg": 7.0},
+        },
+        "2": {
+            "class_type": "Reroute_subgraph",
+            "inputs": {
+                "subgraph": {
+                    "10": {
+                        "class_type": "Terminal",  # dangerous — must be detected
+                        "inputs": {},
+                    },
+                    "11": {
+                        "class_type": "KSampler",
+                        "inputs": {"cfg": 8.0},
+                    },
+                },
+            },
+        },
+    }
+
+
+def _make_unexpanded_subgraph_workflow() -> dict:
+    """Build a workflow with a subgraph node that has no inline node map.
+
+    The subgraph is referenced by ID only — its internal nodes are not present
+    in the submitted JSON. The inspector cannot fully inspect this and must
+    warn.
+    """
+    return {
+        "1": {
+            "class_type": "KSampler",
+            "inputs": {"cfg": 7.0},
+        },
+        "2": {
+            "class_type": "Reroute_subgraph",
+            "inputs": {
+                "subgraph_id": "abc123",  # reference only, no inline nodes
+            },
+        },
+    }
+
+
+class TestSubgraphInspection:
+    """#110: the inspector must recurse into (or at least warn about) subgraphs."""
+
+    def test_inspector_warns_about_unexpanded_subgraph(self):
+        """The inspector must emit a warning when a workflow contains a subgraph
+        node it cannot fully inspect."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=["Terminal"],
+            allowed_nodes=[],
+        )
+        workflow = _make_unexpanded_subgraph_workflow()
+        result = inspector.inspect(workflow)
+        assert any("subgraph" in w.lower() for w in result.warnings), (
+            "Workflow with an unexpanded subgraph node produced no subgraph warning "
+            "— the inspector silently skips nested nodes (issue #110)"
+        )
+
+    def test_inspector_detects_dangerous_node_inside_subgraph(self):
+        """A dangerous node nested inside a subgraph must be flagged."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=["Terminal"],
+            allowed_nodes=[],
+        )
+        workflow = _make_subgraph_workflow()
+        result = inspector.inspect(workflow)
+        assert any("Terminal" in w for w in result.warnings), (
+            "Dangerous node 'Terminal' inside a subgraph was not detected — "
+            "inspection-evasion via subgraphs (issue #110)"
+        )
+
+    def test_inspector_detects_suspicious_input_inside_subgraph(self):
+        """Suspicious input patterns inside a subgraph must be flagged."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=[],
+            allowed_nodes=[],
+        )
+        workflow = {
+            "1": {
+                "class_type": "Reroute_subgraph",
+                "inputs": {
+                    "subgraph": {
+                        "5": {
+                            "class_type": "CustomNode",
+                            "inputs": {
+                                "code": "__import__('os').system('rm -rf /')",
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        result = inspector.inspect(workflow)
+        assert any("suspicious" in w.lower() for w in result.warnings), (
+            "Suspicious input inside a subgraph was not detected (issue #110)"
+        )
+
+    def test_inspector_collects_nodes_used_inside_subgraph(self):
+        """class_types inside a subgraph must appear in nodes_used."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=[],
+            allowed_nodes=[],
+        )
+        workflow = _make_subgraph_workflow()
+        result = inspector.inspect(workflow)
+        assert "Terminal" in result.nodes_used, (
+            "class_type 'Terminal' inside a subgraph was not collected in "
+            "nodes_used — the inspector skips subgraph contents (issue #110)"
+        )
+
+    def test_enforce_mode_blocks_dangerous_node_inside_subgraph(self):
+        """In enforce mode, a dangerous node inside a subgraph must block."""
+        inspector = WorkflowInspector(
+            mode="enforce",
+            dangerous_nodes=["Terminal"],
+            allowed_nodes=["KSampler", "Reroute_subgraph"],
+        )
+        workflow = _make_subgraph_workflow()
+        with pytest.raises(WorkflowBlockedError, match="Terminal"):
+            inspector.inspect(workflow)
