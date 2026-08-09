@@ -133,6 +133,8 @@ _TOOL_CATEGORIES: dict[str, str] = {
     "get_progress": "read",
     # discovery / history / workflow tools all use read
     "list_models": "read",
+    "list_models_detailed": "read",
+    "get_model_preview": "read",
     "list_nodes": "read",
     "get_node_info": "read",
     "list_workflows": "read",

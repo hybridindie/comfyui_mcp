@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`/experiment/models` metadata + preview** —
+  `comfyui_list_models_detailed` lists models in a folder with file
+  metadata (`name`, `pathIndex`, `modified`, `created`, `size`) from
+  `/experiment/models/{folder}`; `comfyui_get_model_preview` fetches a
+  model's preview image via `/experiment/models/preview/...` (returns
+  base64 image data + mime type, or `{"available": false}` on 404) (#143).
 - **`/settings` read/write** — `comfyui_get_settings` reads ComfyUI server
   settings (sampler defaults, UI prefs, feature flags) from `GET /settings`;
   `comfyui_update_settings` merges new settings via `POST /settings`

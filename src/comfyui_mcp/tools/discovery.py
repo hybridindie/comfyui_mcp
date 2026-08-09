@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated, Any
 
+import httpx
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
@@ -183,6 +184,90 @@ def register_discovery_tools(
         return paginate(models, offset, limit, default_limit=25, max_limit=100)
 
     tool_fns["comfyui_list_models"] = comfyui_list_models
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        )
+    )
+    async def comfyui_list_models_detailed(
+        folder: str = "checkpoints",
+    ) -> dict[str, Any]:
+        """List models in a folder with file metadata (name, pathIndex, modified, created, size).
+
+        Uses the /experiment/models/{folder} endpoint (#143). Use this when you
+        need the pathIndex (for preview lookups) or file sizes; use
+        comfyui_list_models for a bare-name listing.
+
+        Args:
+            folder: Model folder type (checkpoints, loras, vae, etc.)
+        """
+        sanitizer.validate_path_segment(folder, label="folder")
+        await audit.async_log(
+            tool="list_models_detailed", action="called", extra={"folder": folder}
+        )
+        models = await client.get_models_detailed(folder)
+        return {"folder": folder, "models": models, "count": len(models)}
+
+    tool_fns["comfyui_list_models_detailed"] = comfyui_list_models_detailed
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        )
+    )
+    async def comfyui_get_model_preview(
+        folder: Annotated[str, Field(description="Model folder (checkpoints, loras, etc.)")],
+        path_index: Annotated[
+            int, Field(description="pathIndex from comfyui_list_models_detailed", ge=0)
+        ],
+        filename: Annotated[str, Field(description="Model filename")],
+    ) -> dict[str, Any]:
+        """Fetch a model's preview image via /experiment/models/preview (\\#143).
+
+        Returns the preview as base64-encoded image data with a mime_type, or
+        {"available": false} when the model has no preview (404).
+
+        Args:
+            folder: Model folder type.
+            path_index: The pathIndex from comfyui_list_models_detailed.
+            filename: The model filename.
+        """
+        sanitizer.validate_path_segment(folder, label="folder")
+        if not filename or "\x00" in filename or ".." in filename:
+            raise ValueError(f"filename is invalid: {filename!r}")
+        await audit.async_log(
+            tool="get_model_preview",
+            action="called",
+            extra={"folder": folder, "path_index": path_index, "filename": filename},
+        )
+        import base64
+
+        try:
+            r = await client.get_model_preview(folder, path_index, filename)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return {"available": False, "folder": folder, "filename": filename}
+            raise
+        content_type = r.headers.get("content-type", "application/octet-stream")
+        data = r.content
+        encoded = base64.b64encode(data).decode("ascii")
+        return {
+            "available": True,
+            "folder": folder,
+            "filename": filename,
+            "mime_type": content_type,
+            "size_bytes": len(data),
+            "data_base64": encoded,
+        }
+
+    tool_fns["comfyui_get_model_preview"] = comfyui_get_model_preview
 
     @mcp.tool(
         annotations=ToolAnnotations(
