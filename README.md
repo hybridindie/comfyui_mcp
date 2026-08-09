@@ -328,6 +328,8 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | `comfyui_list_model_folders` | List available model folder types. |
 | `comfyui_get_model_metadata` | Get metadata for a specific model file. |
 | `comfyui_audit_dangerous_nodes` | Scan all installed nodes to identify potentially dangerous ones. |
+| `comfyui_list_subgraphs` | List available reusable subgraph templates from ComfyUI (`/global_subgraphs`). |
+| `comfyui_get_subgraph` | Fetch a single subgraph's JSON for inspection or insertion (`/global_subgraphs/{id}`). |
 | `comfyui_get_system_info` | Sanitized GPU VRAM, queue depth, and ComfyUI version (whitelist-filtered from `/system_stats`). |
 | `comfyui_get_settings` | Read ComfyUI server settings (sampler defaults, UI prefs, feature flags) from `GET /settings`. |
 | `comfyui_update_settings` | Merge new settings into the ComfyUI server config via `POST /settings` (audit-logged; mutating). |

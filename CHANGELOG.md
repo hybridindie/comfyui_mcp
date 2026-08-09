@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`/global_subgraphs` endpoints** — `comfyui_list_subgraphs` lists
+  reusable subgraph templates (custom-node + blueprint subgraphs) from
+  `GET /global_subgraphs`; `comfyui_get_subgraph` fetches a single
+  subgraph's JSON (node map) from `GET /global_subgraphs/{id}` for
+  inspection or insertion. New `insert_subgraph` operation in
+  `workflow/operations.py` embeds a subgraph node map into a workflow,
+  with the inspector recursing into it (#110). Depends on the inspector
+  subgraph recursion from #110 (#144).
 - **Subgraph inspection** — the workflow inspector now recurses into
   subgraph nodes (class_type containing `subgraph`) when the nested node map
   is embedded inline, so dangerous nodes and suspicious inputs inside

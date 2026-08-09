@@ -384,6 +384,28 @@ class ComfyUIClient:
         r = await self._request("get", "/models")
         return r.json()
 
+    async def get_global_subgraphs(self) -> dict:
+        """GET /global_subgraphs — list reusable subgraph templates (#144).
+
+        Returns a dict mapping subgraph entry IDs to SubgraphEntry objects
+        (without the ``data`` field). Use ``get_global_subgraph(id)`` to
+        fetch the actual graph JSON for a specific subgraph.
+        """
+        r = await self._request("get", "/global_subgraphs")
+        return r.json()
+
+    async def get_global_subgraph(self, subgraph_id: str) -> dict:
+        """GET /global_subgraphs/{id} — fetch a single subgraph's JSON (#144).
+
+        The ``data`` field in the response contains the subgraph's node map
+        as a JSON string. Raises ``httpx.HTTPStatusError`` on 404 if the
+        subgraph ID does not exist.
+        """
+        _validate_path_segment(subgraph_id, label="subgraph_id")
+        r = await self._request("get", f"/global_subgraphs/{subgraph_id}")
+        r.raise_for_status()
+        return r.json()
+
     async def get_view_metadata(self, folder: str, filename: str) -> dict:
         _validate_path_segment(folder, label="folder")
         if not filename or "\x00" in filename or ".." in filename:
