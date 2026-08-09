@@ -480,3 +480,35 @@ class TestSubgraphInspection:
         workflow = _make_subgraph_workflow()
         with pytest.raises(WorkflowBlockedError, match="Terminal"):
             inspector.inspect(workflow)
+
+    def test_inspector_handles_deeply_nested_subgraphs_without_crashing(self):
+        """A deeply nested subgraph must not crash the inspector with
+        RecursionError. Instead, a depth-limit warning is emitted."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=[],
+            allowed_nodes=[],
+        )
+        # Build a self-referencing subgraph: each level nests another one.
+        # Without the depth guard this would hit Python's recursion limit.
+        workflow: dict = {
+            "0": {
+                "class_type": "Reroute_subgraph",
+                "inputs": {"subgraph": {}},
+            },
+        }
+        current = workflow["0"]["inputs"]["subgraph"]
+        for i in range(1, 25):
+            nested: dict = {
+                str(i): {
+                    "class_type": "Reroute_subgraph",
+                    "inputs": {"subgraph": {}},
+                },
+            }
+            current.update(nested)
+            current = nested[str(i)]["inputs"]["subgraph"]
+        # Must not raise RecursionError
+        result = inspector.inspect(workflow)
+        assert any("max subgraph depth" in w.lower() for w in result.warnings), (
+            "Deeply nested subgraph did not produce a depth-limit warning (issue #110)"
+        )

@@ -22,6 +22,10 @@ _SUSPICIOUS_PATTERNS = [
 # Keys that may hold a nested node map inside a subgraph node's inputs.
 _SUBGRAPH_KEYS = ("subgraph", "nodes", "graph")
 
+# Maximum subgraph nesting depth. Prevents RecursionError from a malicious or
+# malformed workflow with self-referencing or deeply nested subgraphs.
+_MAX_SUBGRAPH_DEPTH = 10
+
 
 class WorkflowBlockedError(Exception):
     """Raised when a workflow is blocked in enforce mode."""
@@ -132,9 +136,15 @@ class WorkflowInspector:
             if class_type and _is_subgraph_class(class_type):
                 sub_nodes = _find_subgraph_node_map(node_data)
                 if sub_nodes is not None:
-                    sub_result = self.inspect(sub_nodes, _depth=_depth + 1)
-                    nodes_used.extend(sub_result.nodes_used)
-                    warnings.extend(sub_result.warnings)
+                    if _depth >= _MAX_SUBGRAPH_DEPTH:
+                        warnings.append(
+                            f"Node {node_id} ({class_type}) exceeds max subgraph depth "
+                            f"({_MAX_SUBGRAPH_DEPTH}) — deeper nesting not inspected"
+                        )
+                    else:
+                        sub_result = self.inspect(sub_nodes, _depth=_depth + 1)
+                        nodes_used.extend(sub_result.nodes_used)
+                        warnings.extend(sub_result.warnings)
                 else:
                     warnings.append(
                         f"Node {node_id} ({class_type}) contains unexpanded subgraph "
