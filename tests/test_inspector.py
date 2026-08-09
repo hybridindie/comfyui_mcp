@@ -2,6 +2,7 @@
 
 import pytest
 
+from comfyui_mcp.config import _DEFAULT_DANGEROUS_NODES
 from comfyui_mcp.security.inspector import (
     WorkflowBlockedError,
     WorkflowInspector,
@@ -105,3 +106,69 @@ class TestWorkflowInspector:
         }
         result = audit_inspector.inspect(workflow)
         assert any("suspicious" in w.lower() for w in result.warnings)
+
+
+# ---------------------------------------------------------------------------
+# #109 — first-party ComfyUI cloud API nodes must be flagged (network egress
+# + cost). These class_types ship in ComfyUI core (PR #9129) and send user
+# prompts/images to paid third-party services from the ComfyUI host.
+# ---------------------------------------------------------------------------
+
+# Representative sample — one per vendor (16 vendors, 109 total nodes).
+_CLOUD_API_NODE_SAMPLES = [
+    "FluxProUltraImageNode",  # BFL
+    "GeminiNode",  # Gemini
+    "IdeogramV3",  # Ideogram
+    "KlingTextToVideoNode",  # Kling
+    "LumaImageNode",  # Luma
+    "MinimaxTextToVideoNode",  # Minimax
+    "MoonvalleyTxt2VideoNode",  # Moonvalley
+    "OpenAIDalle3",  # OpenAI
+    "PikaTextToVideoNode2_2",  # Pika
+    "PixverseTextToVideoNode",  # PixVerse
+    "RecraftTextToImageNode",  # Recraft
+    "Rodin3D_Regular",  # Rodin
+    "RunwayImageToVideoNodeGen4",  # Runway
+    "StabilityStableImageUltraNode",  # Stability AI
+    "TripoTextToModelNode",  # Tripo
+    "VeoVideoGenerationNode",  # Veo2 (Google)
+]
+
+
+class TestCloudApiNodesDangerous:
+    """#109: first-party cloud API nodes must be in the dangerous-nodes list."""
+
+    def test_cloud_api_nodes_in_default_dangerous_list(self):
+        """Every sampled cloud API node must be in _DEFAULT_DANGEROUS_NODES."""
+        missing = [n for n in _CLOUD_API_NODE_SAMPLES if n not in _DEFAULT_DANGEROUS_NODES]
+        assert not missing, (
+            f"{len(missing)} cloud API node(s) missing from _DEFAULT_DANGEROUS_NODES: {missing}"
+        )
+
+    def test_inspector_flags_cloud_api_node(self):
+        """The inspector must warn when a workflow uses a cloud API node."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=list(_DEFAULT_DANGEROUS_NODES),
+            allowed_nodes=[],
+        )
+        workflow = _make_workflow("KSampler", "KlingTextToVideoNode")
+        result = inspector.inspect(workflow)
+        assert any("KlingTextToVideoNode" in w for w in result.warnings), (
+            "Cloud API node KlingTextToVideoNode was not flagged — data exfiltration "
+            "and cost risk goes unwarned (issue #109)"
+        )
+
+    def test_inspector_flags_all_sampled_cloud_api_nodes(self):
+        """Every sampled cloud API node must trigger a warning."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=list(_DEFAULT_DANGEROUS_NODES),
+            allowed_nodes=[],
+        )
+        for node_type in _CLOUD_API_NODE_SAMPLES:
+            workflow = _make_workflow(node_type)
+            result = inspector.inspect(workflow)
+            assert any(node_type in w for w in result.warnings), (
+                f"Cloud API node {node_type} was not flagged by the inspector"
+            )
