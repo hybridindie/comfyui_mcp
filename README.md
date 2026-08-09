@@ -22,7 +22,7 @@ This server adds five security layers between the AI assistant and ComfyUI:
 
 The server exposes read-only ComfyUI state as **resources** the LLM can browse by URI without a tool call, and **prompts** as reusable workflow-template recipes:
 
-- **Resources**: `comfyui://models/{folder}`, `comfyui://nodes/installed`, `comfyui://queue`, `comfyui://system`
+- **Resources**: `comfyui://models/{folder}`, `comfyui://nodes/installed`, `comfyui://queue`, `comfyui://system`, `comfyui://settings`
 - **Prompts**: `txt2img_prompt`, `img2img_prompt`, `inpaint_prompt`, `upscale_prompt`
 
 ### Dependency injection & background tasks (FastMCP 4)
@@ -327,6 +327,8 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | `comfyui_get_model_metadata` | Get metadata for a specific model file. |
 | `comfyui_audit_dangerous_nodes` | Scan all installed nodes to identify potentially dangerous ones. |
 | `comfyui_get_system_info` | Sanitized GPU VRAM, queue depth, and ComfyUI version (whitelist-filtered from `/system_stats`). |
+| `comfyui_get_settings` | Read ComfyUI server settings (sampler defaults, UI prefs, feature flags) from `GET /settings`. |
+| `comfyui_update_settings` | Merge new settings into the ComfyUI server config via `POST /settings` (audit-logged; mutating). |
 
 ### Custom Node Management
 
@@ -397,6 +399,7 @@ resources inherit FastMCP 4's built-in path-traversal screening.
 | `comfyui://nodes/installed` | Sorted list of all available ComfyUI node class types from `/object_info`. |
 | `comfyui://queue` | Current queue state — running and pending job counts. |
 | `comfyui://system` | Whitelisted system info: ComfyUI version, GPU VRAM, queue counts. Sensitive fields (hostname, OS, CPU, paths) excluded. |
+| `comfyui://settings` | ComfyUI server settings (sampler defaults, UI prefs, feature flags) from `GET /settings`. |
 
 ### Prompts
 
