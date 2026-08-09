@@ -367,6 +367,19 @@ class ComfyUIClient:
         r = await self._request("get", "/features")
         return r.json()
 
+    async def get_settings(self) -> dict:
+        """GET /settings — read ComfyUI server settings (#142)."""
+        r = await self._request("get", "/settings")
+        return r.json()
+
+    async def update_settings(self, settings: dict) -> None:
+        """POST /settings — merge new settings into the server config (#142).
+
+        Mutating: callers should audit-log the diff and gate through enforce
+        mode if the settings can affect security posture.
+        """
+        await self._request("post", "/settings", json=settings)
+
     async def get_model_types(self) -> list:
         r = await self._request("get", "/models")
         return r.json()

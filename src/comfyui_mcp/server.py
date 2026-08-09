@@ -32,6 +32,7 @@ from comfyui_mcp.tools.generation import register_generation_tools
 from comfyui_mcp.tools.jobs import register_job_tools
 from comfyui_mcp.tools.models import register_model_tools
 from comfyui_mcp.tools.nodes import register_node_tools
+from comfyui_mcp.tools.settings import register_settings_tools
 from comfyui_mcp.tools.workflow import register_workflow_tools
 
 
@@ -137,6 +138,8 @@ _TOOL_CATEGORIES: dict[str, str] = {
     "list_workflows": "read",
     "list_extensions": "read",
     "get_server_features": "read",
+    "get_settings": "read",
+    "update_settings": "workflow",
     "list_model_folders": "read",
     "get_model_metadata": "read",
     "audit_dangerous_nodes": "read",
@@ -233,6 +236,7 @@ def _register_all_tools(
         node_manager=node_manager,
         node_auditor=node_auditor,
     )
+    register_settings_tools(server, client, audit, rate_limiters["read"], sanitizer)
     # Resources and prompts use the read-only limiter — they mirror discovery
     # tools' cross-cutting concerns (rate limit + audit) but expose state as
     # URIs the LLM can browse without a tool call.

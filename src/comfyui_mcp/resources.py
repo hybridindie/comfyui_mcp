@@ -142,4 +142,19 @@ def register_resources(
 
     resource_fns["comfyui_system_info"] = comfyui_system_info
 
+    @mcp.resource(
+        "comfyui://settings",
+        name="ComfyUI Settings",
+        description="ComfyUI server settings (sampler defaults, UI prefs, feature flags).",
+        mime_type="application/json",
+    )
+    async def comfyui_settings() -> str:
+        """Return the current ComfyUI server settings from GET /settings (#142)."""
+        limiter.check("resource_settings")
+        await audit.async_log(tool="resource_settings", action="called")
+        settings = await client.get_settings()
+        return _json_str(settings)
+
+    resource_fns["comfyui_settings"] = comfyui_settings
+
     return resource_fns

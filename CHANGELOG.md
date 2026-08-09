@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`/settings` read/write** — `comfyui_get_settings` reads ComfyUI server
+  settings (sampler defaults, UI prefs, feature flags) from `GET /settings`;
+  `comfyui_update_settings` merges new settings via `POST /settings`
+  (audit-logged; mutating). A `comfyui://settings` resource exposes the
+  read-only view (#142).
 - **Native `/api/jobs/{id}/cancel` + batch cancel** — `comfyui_cancel_job`
   now uses the native state-agnostic jobs-cancel endpoint (server classifies
   running/pending/terminal) and falls back to the legacy `/queue` delete on
