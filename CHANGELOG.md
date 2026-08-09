@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Subgraph inspection** — the workflow inspector now recurses into
+  subgraph nodes (class_type containing `subgraph`) when the nested node map
+  is embedded inline, so dangerous nodes and suspicious inputs inside
+  subgraphs are detected. When a subgraph reference has no inline node map,
+  a `"contains unexpanded subgraph — cannot fully inspect"` warning is
+  emitted so callers know inspection is incomplete (#110).
 - **First-party cloud API nodes flagged** — `_DEFAULT_DANGEROUS_NODES` now
   includes all 135 first-party ComfyUI cloud API node class_types across 16
   vendors (BFL, Gemini, Ideogram, Kling, Luma, Minimax, Moonvalley, OpenAI,
