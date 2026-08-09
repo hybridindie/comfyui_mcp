@@ -2,6 +2,7 @@
 
 import pytest
 
+from comfyui_mcp.config import _DEFAULT_DANGEROUS_NODES
 from comfyui_mcp.security.inspector import (
     WorkflowBlockedError,
     WorkflowInspector,
@@ -105,3 +106,233 @@ class TestWorkflowInspector:
         }
         result = audit_inspector.inspect(workflow)
         assert any("suspicious" in w.lower() for w in result.warnings)
+
+
+# ---------------------------------------------------------------------------
+# #109 — first-party ComfyUI cloud API nodes must be flagged (network egress
+# + cost). These class_types ship in ComfyUI core (PR #9129) and send user
+# prompts/images to paid third-party services from the ComfyUI host.
+# ---------------------------------------------------------------------------
+
+# All cloud API node class_types, grouped by vendor (16 vendors, 135 total).
+# Extracted from comfy/api_nodes/ (PR #9129, merged Aug 8, 2025).
+_CLOUD_API_NODES: list[str] = [
+    # BFL (Black Forest Labs / Flux)
+    "FluxProUltraImageNode",
+    "FluxProExpandNode",
+    "FluxProFillNode",
+    "FluxEraseNode",
+    "FluxVTONode",
+    "Flux2ImageNode",
+    "Flux3TextToVideoNode",
+    "Flux3ImageToVideoNode",
+    "Flux3VideoContinuationNode",
+    # Gemini (Google)
+    "GeminiNode",
+    "GeminiNodeV2",
+    "GeminiInputFiles",
+    "GeminiImageNode",
+    "GeminiImage2Node",
+    "GeminiNanoBanana2",
+    "GeminiNanoBanana2V2",
+    "GeminiVideoOmni",
+    # Ideogram
+    "IdeogramV3",
+    "IdeogramV4",
+    "IdeogramPImage",
+    # Kling
+    "KlingTextToVideoNode",
+    "KlingOmniProTextToVideoNode",
+    "KlingOmniProFirstLastFrameNode",
+    "KlingOmniProImageToVideoNode",
+    "KlingOmniProVideoToVideoNode",
+    "KlingOmniProEditVideoNode",
+    "KlingOmniProImageNode",
+    "KlingImage2VideoNode",
+    "KlingStartEndFrameNode",
+    "KlingVideoExtendNode",
+    "KlingLipSyncAudioToVideoNode",
+    "KlingLipSyncTextToVideoNode",
+    "KlingImageGenerationNode",
+    "KlingTextToVideoWithAudio",
+    "KlingImageToVideoWithAudio",
+    "KlingMotionControl",
+    "KlingVideoNode",
+    "KlingFirstLastFrameNode",
+    "KlingAvatarNode",
+    # Luma
+    "LumaReferenceNode",
+    "LumaConceptsNode",
+    "LumaImageNode",
+    "LumaImageModifyNode",
+    "LumaVideoNode",
+    "LumaImageToVideoNode",
+    "LumaImageNode2",
+    "LumaImageEditNode2",
+    "LumaRay32TextToVideoNode",
+    "LumaRay32ImageToVideoNode",
+    "LumaRay32KeyframeNode",
+    "LumaRay32KeyframesToVideoNode",
+    "LumaRay32VideoEditNode",
+    "LumaRay32VideoReframeNode",
+    "LumaRay32ExtendVideoNode",
+    # Minimax
+    "MinimaxTextToVideoNode",
+    "MinimaxImageToVideoNode",
+    "MinimaxSubjectToVideoNode",
+    "MinimaxHailuoVideoNode",
+    "MinimaxHailuo03TextToVideoNode",
+    "MinimaxHailuo03FirstLastFrameNode",
+    "MinimaxHailuo03ReferenceNode",
+    # Moonvalley
+    "MoonvalleyImg2VideoNode",
+    "MoonvalleyTxt2VideoNode",
+    "MoonvalleyVideo2VideoNode",
+    # OpenAI
+    "OpenAIDalle2",
+    "OpenAIDalle3",
+    "OpenAIGPTImage1",
+    "OpenAIGPTImageNodeV2",
+    "OpenAIChatNode",
+    "OpenAIInputFiles",
+    "OpenAIChatConfig",
+    # Pika
+    "PikaImageToVideoNode2_2",
+    "PikaTextToVideoNode2_2",
+    "PikaScenesV2_2",
+    "Pikadditions",
+    "Pikaswaps",
+    "Pikaffects",
+    "PikaStartEndFrameNode2_2",
+    # PixVerse
+    "PixverseTemplateNode",
+    "PixverseTextToVideoNode",
+    "PixverseImageToVideoNode",
+    "PixverseTransitionVideoNode",
+    # Recraft
+    "RecraftColorRGB",
+    "RecraftControls",
+    "RecraftStyleV3RealisticImage",
+    "RecraftStyleV3DigitalIllustration",
+    "RecraftStyleV3VectorIllustrationNode",
+    "RecraftStyleV3LogoRaster",
+    "RecraftStyleV3InfiniteStyleLibrary",
+    "RecraftCreateStyleNode",
+    "RecraftTextToImageNode",
+    "RecraftImageToImageNode",
+    "RecraftImageInpaintingNode",
+    "RecraftTextToVectorNode",
+    "RecraftVectorizeImageNode",
+    "RecraftReplaceBackgroundNode",
+    "RecraftRemoveBackgroundNode",
+    "RecraftCrispUpscaleNode",
+    "RecraftCreativeUpscaleNode",
+    "RecraftV4TextToImageNode",
+    "RecraftV4TextToVectorNode",
+    # Rodin (3D generation)
+    "Rodin3D_Regular",
+    "Rodin3D_Detail",
+    "Rodin3D_Smooth",
+    "Rodin3D_Sketch",
+    "Rodin3D_Gen2",
+    "Rodin3D_Gen25_Image",
+    "Rodin3D_Gen25_Text",
+    # Runway
+    "RunwayImageToVideoNodeGen3a",
+    "RunwayImageToVideoNodeGen4",
+    "RunwayFirstLastFrameNode",
+    "RunwayTextToImageNode",
+    "RunwayAleph2KeyframeNode",
+    "RunwayAleph2PromptImageNode",
+    "RunwayAleph2VideoToVideoNode",
+    # Stability AI
+    "StabilityStableImageUltraNode",
+    "StabilityStableImageSD_3_5Node",
+    "StabilityUpscaleConservativeNode",
+    "StabilityUpscaleCreativeNode",
+    "StabilityUpscaleFastNode",
+    # Tripo (3D generation)
+    "TripoTextToModelNode",
+    "TripoImageToModelNode",
+    "TripoMultiviewToModelNode",
+    "TripoTextureNode",
+    "TripoRefineNode",
+    "TripoRigNode",
+    "TripoRetargetNode",
+    "TripoConversionNode",
+    "TripoImportModelNode",
+    "TripoP1TextToModelNode",
+    "TripoP1ImageToModelNode",
+    "TripoP1MultiviewToModelNode",
+    # Veo2 / Veo3 (Google)
+    "VeoVideoGenerationNode",
+    "Veo3VideoGenerationNode",
+    "Veo3FirstLastFrameNode",
+]
+
+# One representative per vendor, for targeted inspector-flag tests.
+_CLOUD_API_NODE_SAMPLES = [
+    "FluxProUltraImageNode",  # BFL
+    "GeminiNode",  # Gemini
+    "IdeogramV3",  # Ideogram
+    "KlingTextToVideoNode",  # Kling
+    "LumaImageNode",  # Luma
+    "MinimaxTextToVideoNode",  # Minimax
+    "MoonvalleyTxt2VideoNode",  # Moonvalley
+    "OpenAIDalle3",  # OpenAI
+    "PikaTextToVideoNode2_2",  # Pika
+    "PixverseTextToVideoNode",  # PixVerse
+    "RecraftTextToImageNode",  # Recraft
+    "Rodin3D_Regular",  # Rodin
+    "RunwayImageToVideoNodeGen4",  # Runway
+    "StabilityStableImageUltraNode",  # Stability AI
+    "TripoTextToModelNode",  # Tripo
+    "VeoVideoGenerationNode",  # Veo2 (Google)
+]
+
+
+class TestCloudApiNodesDangerous:
+    """#109: first-party cloud API nodes must be in the dangerous-nodes list."""
+
+    def test_all_cloud_api_nodes_in_default_dangerous_list(self):
+        """Every cloud API node class_type must be in _DEFAULT_DANGEROUS_NODES."""
+        missing = [n for n in _CLOUD_API_NODES if n not in _DEFAULT_DANGEROUS_NODES]
+        assert not missing, (
+            f"{len(missing)} cloud API node(s) missing from _DEFAULT_DANGEROUS_NODES: {missing}"
+        )
+
+    def test_cloud_api_node_count_matches(self):
+        """Verify the documented count matches the actual list length."""
+        cloud_count = sum(1 for n in _CLOUD_API_NODES)
+        assert cloud_count == 135, (
+            f"Expected 135 cloud API nodes, got {cloud_count} — update the count "
+            f"in CHANGELOG/README if ComfyUI added/removed nodes"
+        )
+
+    def test_inspector_flags_cloud_api_node(self):
+        """The inspector must warn when a workflow uses a cloud API node."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=list(_DEFAULT_DANGEROUS_NODES),
+            allowed_nodes=[],
+        )
+        workflow = _make_workflow("KSampler", "KlingTextToVideoNode")
+        result = inspector.inspect(workflow)
+        assert any("KlingTextToVideoNode" in w for w in result.warnings), (
+            "Cloud API node KlingTextToVideoNode was not flagged — data exfiltration "
+            "and cost risk goes unwarned (issue #109)"
+        )
+
+    def test_inspector_flags_all_cloud_api_nodes(self):
+        """Every cloud API node must trigger a warning from the inspector."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=list(_DEFAULT_DANGEROUS_NODES),
+            allowed_nodes=[],
+        )
+        for node_type in _CLOUD_API_NODES:
+            workflow = _make_workflow(node_type)
+            result = inspector.inspect(workflow)
+            assert any(node_type in w for w in result.warnings), (
+                f"Cloud API node {node_type} was not flagged by the inspector"
+            )

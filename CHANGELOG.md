@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **First-party cloud API nodes flagged** — `_DEFAULT_DANGEROUS_NODES` now
+  includes all 135 first-party ComfyUI cloud API node class_types across 16
+  vendors (BFL, Gemini, Ideogram, Kling, Luma, Minimax, Moonvalley, OpenAI,
+  Pika, PixVerse, Recraft, Rodin, Runway, Stability AI, Tripo, Veo2/Veo3).
+  These nodes send user prompts/images to paid third-party services from the
+  ComfyUI host, incurring real monetary cost — they now trigger warnings
+  by default (#109).
 - **`/experiment/models` metadata + preview** —
   `comfyui_list_models_detailed` lists models in a folder with file
   metadata (`name`, `pathIndex`, `modified`, `created`, `size`) from
