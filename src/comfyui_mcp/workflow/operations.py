@@ -106,6 +106,28 @@ def _apply_disconnect(workflow: dict[str, Any], op: dict[str, Any]) -> None:
     del inputs[input_name]
 
 
+def _apply_insert_subgraph(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+    """Insert a subgraph node with an embedded node map (#144).
+
+    Adds a subgraph wrapper node (e.g. ``Reroute_subgraph``) whose ``inputs``
+    contains the nested node map under the ``subgraph`` key. The workflow
+    inspector recurses into this node map (#110).
+    """
+    class_type = op.get("class_type")
+    if not class_type:
+        raise ValueError("insert_subgraph requires 'class_type'")
+    subgraph_nodes = op.get("subgraph_nodes")
+    if not isinstance(subgraph_nodes, dict):
+        raise ValueError("insert_subgraph requires 'subgraph_nodes' (a dict)")
+    node_id = op.get("node_id") or _next_node_id(workflow)
+    if node_id in workflow:
+        raise ValueError(f"Node '{node_id}' already exists")
+    workflow[node_id] = {
+        "class_type": class_type,
+        "inputs": {"subgraph": subgraph_nodes},
+    }
+
+
 def apply_operations(workflow: dict[str, Any], operations: list[dict[str, Any]]) -> dict[str, Any]:
     """Apply a list of operations to a workflow. Returns a new workflow dict.
 
@@ -119,6 +141,7 @@ def apply_operations(workflow: dict[str, Any], operations: list[dict[str, Any]])
         "set_input": _apply_set_input,
         "connect": _apply_connect,
         "disconnect": _apply_disconnect,
+        "insert_subgraph": _apply_insert_subgraph,
     }
     for i, op in enumerate(operations):
         op_type = op.get("op")

@@ -657,4 +657,69 @@ def register_discovery_tools(
 
     tool_fns["comfyui_get_prompting_guide"] = comfyui_get_prompting_guide
 
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        )
+    )
+    async def comfyui_list_subgraphs() -> dict[str, Any]:
+        """List available reusable subgraph templates from ComfyUI (#144).
+
+        Subgraphs are packaged node groups that can be inserted into a
+        workflow as a single unit. Use ``comfyui_get_subgraph`` to fetch
+        the actual graph JSON for a specific subgraph.
+
+        Returns:
+            Dict with ``subgraphs`` (mapping of entry IDs to metadata) and
+            ``count``.
+        """
+        subgraphs = await client.get_global_subgraphs()
+        return {"subgraphs": subgraphs, "count": len(subgraphs)}
+
+    tool_fns["comfyui_list_subgraphs"] = comfyui_list_subgraphs
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        )
+    )
+    async def comfyui_get_subgraph(
+        subgraph_id: Annotated[
+            str,
+            Field(
+                description="Subgraph entry ID from comfyui_list_subgraphs",
+                min_length=1,
+            ),
+        ],
+    ) -> dict[str, Any]:
+        """Fetch a single subgraph's JSON for inspection or insertion (#144).
+
+        The ``data`` field in the response contains the subgraph's node map
+        as a JSON string. The workflow inspector recurses into this node
+        map when a subgraph node is submitted in a workflow (#110).
+
+        Args:
+            subgraph_id: The entry ID from ``comfyui_list_subgraphs``.
+
+        Returns:
+            The subgraph metadata + ``data`` (node map JSON string), or
+            ``{"available": false}`` if the subgraph ID does not exist.
+        """
+        sanitizer.validate_path_segment(subgraph_id, label="subgraph_id")
+        try:
+            subgraph = await client.get_global_subgraph(subgraph_id)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return {"available": False, "subgraph_id": subgraph_id}
+            raise
+        return subgraph
+
+    tool_fns["comfyui_get_subgraph"] = comfyui_get_subgraph
+
     return tool_fns
