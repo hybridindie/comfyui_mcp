@@ -132,6 +132,9 @@ class TestValidateWorkflow:
     @respx.mock
     async def test_valid_workflow(self, components):
         client, audit, limiter, inspector, sanitizer = components
+        respx.get("http://test:8188/node_replacements").mock(
+            return_value=httpx.Response(200, json={})
+        )
         respx.get("http://test:8188/object_info").mock(
             return_value=httpx.Response(
                 200,
@@ -158,6 +161,9 @@ class TestIntegration:
     @respx.mock
     async def test_create_modify_validate_roundtrip(self, components):
         client, audit, limiter, inspector, sanitizer = components
+        respx.get("http://test:8188/node_replacements").mock(
+            return_value=httpx.Response(200, json={})
+        )
         respx.get("http://test:8188/object_info").mock(side_effect=httpx.ConnectError("offline"))
         mcp = FastMCP("test")
         tools = register_workflow_tools(mcp, client, audit, limiter, inspector, sanitizer)
