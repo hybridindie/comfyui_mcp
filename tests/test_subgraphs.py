@@ -7,9 +7,9 @@ from fastmcp import FastMCP
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
-from comfyui_mcp.security.inspector import WorkflowInspector
+from comfyui_mcp.security.inspector import WorkflowBlockedError, WorkflowInspector
 from comfyui_mcp.security.rate_limit import RateLimiter
-from comfyui_mcp.security.sanitizer import PathSanitizer
+from comfyui_mcp.security.sanitizer import PathSanitizer, PathValidationError
 from comfyui_mcp.tools.discovery import register_discovery_tools
 from comfyui_mcp.workflow.operations import apply_operations
 
@@ -147,6 +147,17 @@ class TestGetSubgraphTool:
         result = await tools["comfyui_get_subgraph"](subgraph_id="nonexistent")
         assert result["available"] is False
 
+    @respx.mock
+    async def test_get_subgraph_rejects_path_traversal(self, components):
+        """Path-traversal attempts in subgraph_id must be rejected by the sanitizer."""
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+
+        for bad_id in ["../etc/passwd", "foo/bar", "foo\x00bar", "foo;rm -rf /"]:
+            with pytest.raises(PathValidationError):
+                await tools["comfyui_get_subgraph"](subgraph_id=bad_id)
+
 
 # ---------------------------------------------------------------------------
 # Workflow operations — insert_subgraph
@@ -201,6 +212,25 @@ class TestInsertSubgraphOperation:
                 [{"op": "insert_subgraph", "class_type": "Reroute_subgraph"}],
             )
 
+    def test_insert_subgraph_rejects_duplicate_node_id(self):
+        """Inserting a subgraph with an existing node_id must raise."""
+        workflow = {
+            "1": {"class_type": "KSampler", "inputs": {"cfg": 7.0}},
+        }
+        subgraph_nodes = {"10": {"class_type": "KSampler", "inputs": {}}}
+        with pytest.raises(ValueError, match="already exists"):
+            apply_operations(
+                workflow,
+                [
+                    {
+                        "op": "insert_subgraph",
+                        "class_type": "Reroute_subgraph",
+                        "subgraph_nodes": subgraph_nodes,
+                        "node_id": "1",
+                    },
+                ],
+            )
+
 
 # ---------------------------------------------------------------------------
 # Inspector integration — a subgraph inserted via operations must be scanned
@@ -236,3 +266,30 @@ class TestInsertedSubgraphInspection:
         assert any("Terminal" in w for w in result.warnings), (
             "Dangerous node inside an inserted subgraph was not flagged"
         )
+
+    def test_enforce_mode_blocks_dangerous_node_in_inserted_subgraph(self):
+        """In enforce mode, a dangerous node inside an inserted subgraph must
+        block the workflow (the #110 recursion fix + #144 insertion)."""
+        inspector = WorkflowInspector(
+            mode="enforce",
+            dangerous_nodes=["Terminal"],
+            allowed_nodes=["KSampler", "Reroute_subgraph"],
+        )
+        workflow = {
+            "1": {"class_type": "KSampler", "inputs": {"cfg": 7.0}},
+        }
+        subgraph_nodes = {
+            "10": {"class_type": "Terminal", "inputs": {}},
+        }
+        result_wf = apply_operations(
+            workflow,
+            [
+                {
+                    "op": "insert_subgraph",
+                    "class_type": "Reroute_subgraph",
+                    "subgraph_nodes": subgraph_nodes,
+                },
+            ],
+        )
+        with pytest.raises(WorkflowBlockedError, match="Terminal"):
+            inspector.inspect(result_wf)
