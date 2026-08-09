@@ -318,6 +318,8 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | Tool | Description |
 |------|-------------|
 | `comfyui_list_models` | List available models by folder (checkpoints, loras, vae, etc.). |
+| `comfyui_list_models_detailed` | List models in a folder with file metadata (name, `pathIndex`, `modified`, `created`, `size`) from `/experiment/models/{folder}`. Use this when you need the `pathIndex` for preview lookups. |
+| `comfyui_get_model_preview` | Fetch a model's preview image via `/experiment/models/preview/{folder}/{path_index}/{filename}`. Returns base64-encoded image data + mime type, or `{"available": false}` on 404. |
 | `comfyui_list_nodes` | List all available node types. |
 | `comfyui_get_node_info` | Get detailed info about a specific node type. |
 | `comfyui_list_workflows` | List saved workflow templates. |

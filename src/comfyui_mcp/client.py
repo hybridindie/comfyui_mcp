@@ -391,6 +391,29 @@ class ComfyUIClient:
         r = await self._request("get", f"/view_metadata/{folder}", params={"filename": filename})
         return r.json()
 
+    async def get_models_detailed(self, folder: str) -> list:
+        """GET /experiment/models/{folder} — model list with file metadata
+        (name, pathIndex, modified, created, size) per file (#143).
+        """
+        _validate_path_segment(folder, label="folder")
+        r = await self._request("get", f"/experiment/models/{folder}")
+        return r.json()
+
+    async def get_model_preview(
+        self, folder: str, path_index: int, filename: str
+    ) -> httpx.Response:
+        """GET /experiment/models/preview/{folder}/{path_index}/{filename} —
+        fetch a model's preview image bytes (#143). Returns the raw response
+        so the caller can inspect the content-type and bytes; a 404 means no
+        preview exists for the model.
+        """
+        _validate_path_segment(folder, label="folder")
+        if not filename or "\x00" in filename or ".." in filename:
+            raise ValueError(f"filename is invalid: {filename!r}")
+        return await self._request(
+            "get", f"/experiment/models/preview/{folder}/{path_index}/{filename}"
+        )
+
     async def get_prompt_status(self) -> dict:
         r = await self._request("get", "/prompt")
         return r.json()
