@@ -6,6 +6,7 @@ import respx
 
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.security.inspector import WorkflowInspector
+from tests.conftest import _real_get_node_replacements
 
 _SAMPLE_REPLACEMENTS = {
     "OldLoaderNode": [
@@ -22,10 +23,28 @@ _SAMPLE_REPLACEMENTS = {
     ],
 }
 
+_SAMPLE_MULTI_REPLACEMENTS = {
+    "AmbiguousNode": [
+        {"old_node_id": "AmbiguousNode", "new_node_id": "ReplacementA"},
+        {"old_node_id": "AmbiguousNode", "new_node_id": "ReplacementB"},
+    ],
+}
+
 
 @pytest.fixture
 def client():
     return ComfyUIClient(base_url="http://test-comfyui:8188")
+
+
+# Opt out of the shared autouse fixture that stubs get_node_replacements —
+# these tests exercise the real client method against respx mocks.
+@pytest.fixture(autouse=True)
+def _mock_node_replacements(monkeypatch):
+    monkeypatch.setattr(
+        ComfyUIClient,
+        "get_node_replacements",
+        _real_get_node_replacements,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -150,3 +169,21 @@ class TestInspectorNodeReplacementWarning:
         assert any("OldLoaderNode" in w and "replacement" in w.lower() for w in result.warnings), (
             "Replaced class_type inside a subgraph did not produce a warning (issue #111)"
         )
+
+    def test_inspector_warns_with_all_replacements_when_multiple(self):
+        """When a class_type maps to multiple replacement entries, the warning
+        must list every candidate — not just the first (review feedback on #156)."""
+        inspector = WorkflowInspector(
+            mode="audit",
+            dangerous_nodes=[],
+            allowed_nodes=[],
+        )
+        workflow = {
+            "1": {"class_type": "AmbiguousNode", "inputs": {}},
+        }
+        result = inspector.inspect(workflow, node_replacements=_SAMPLE_MULTI_REPLACEMENTS)
+        replacement_warnings = [w for w in result.warnings if "replacement" in w.lower()]
+        assert len(replacement_warnings) == 1
+        warning = replacement_warnings[0]
+        assert "ReplacementA" in warning
+        assert "ReplacementB" in warning

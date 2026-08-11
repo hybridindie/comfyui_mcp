@@ -175,11 +175,18 @@ class WorkflowInspector:
                 if node_type in node_replacements:
                     replacements = node_replacements[node_type]
                     if isinstance(replacements, list) and replacements:
-                        new_id = replacements[0].get("new_node_id", "?")
-                        warnings.append(
-                            f"Node type '{node_type}' has a server-side replacement "
-                            f"-> '{new_id}' — what executes may differ from what was vetted"
-                        )
+                        new_ids = [
+                            str(r.get("new_node_id", "?"))
+                            for r in replacements
+                            if isinstance(r, dict)
+                        ]
+                        if new_ids:
+                            replacement_list = ", ".join(new_ids)
+                            warnings.append(
+                                f"Node type '{node_type}' has server-side "
+                                f"replacement(s) -> [{replacement_list}] — what "
+                                f"executes may differ from what was vetted"
+                            )
 
         # Enforce mode: block unapproved nodes
         if self._mode == "enforce" and self._allowed_nodes:
