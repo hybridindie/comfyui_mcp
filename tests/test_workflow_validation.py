@@ -26,6 +26,11 @@ def _valid_workflow() -> dict[str, Any]:
     }
 
 
+def _mock_node_replacements() -> None:
+    """Mock GET /node_replacements (returns empty — no replacements)."""
+    respx.get("http://test:8188/node_replacements").mock(return_value=httpx.Response(200, json={}))
+
+
 @pytest.fixture
 def client():
     return ComfyUIClient(base_url="http://test:8188")
@@ -49,6 +54,7 @@ class TestStructuralValidation:
                 "input": {"required": {"text": ["STRING"], "clip": ["CLIP"]}},
             },
         }
+        _mock_node_replacements()
         respx.get("http://test:8188/object_info").mock(
             return_value=httpx.Response(200, json=object_info)
         )
@@ -68,6 +74,7 @@ class TestStructuralValidation:
 
     @respx.mock
     async def test_broken_connection_is_error(self, client, inspector):
+        _mock_node_replacements()
         wf = {
             "1": {
                 "class_type": "KSampler",
@@ -80,6 +87,7 @@ class TestStructuralValidation:
 
     @respx.mock
     async def test_cycle_is_error(self, client, inspector):
+        _mock_node_replacements()
         wf = {
             "1": {"class_type": "A", "inputs": {"x": ["2", 0]}},
             "2": {"class_type": "B", "inputs": {"x": ["1", 0]}},
@@ -92,6 +100,7 @@ class TestStructuralValidation:
 class TestServerValidation:
     @respx.mock
     async def test_missing_node_type_is_error(self, client, inspector):
+        _mock_node_replacements()
         respx.get("http://test:8188/object_info").mock(
             return_value=httpx.Response(
                 200,
@@ -113,6 +122,7 @@ class TestServerValidation:
 
     @respx.mock
     async def test_missing_model_is_warning(self, client, inspector):
+        _mock_node_replacements()
         object_info = {
             "CheckpointLoaderSimple": {
                 "display_name": "Load Checkpoint",
@@ -135,6 +145,7 @@ class TestServerValidation:
 
     @respx.mock
     async def test_server_unreachable_adds_warning(self, client, inspector):
+        _mock_node_replacements()
         respx.get("http://test:8188/object_info").mock(side_effect=httpx.ConnectError("offline"))
         wf = _valid_workflow()
         result = await validate_workflow(wf, client, inspector)
@@ -145,6 +156,7 @@ class TestServerValidation:
 class TestSecurityValidation:
     @respx.mock
     async def test_dangerous_node_adds_warning(self, client, inspector):
+        _mock_node_replacements()
         respx.get("http://test:8188/object_info").mock(side_effect=httpx.ConnectError("offline"))
         wf = {"1": {"class_type": "EvalNode", "inputs": {}}}
         result = await validate_workflow(wf, client, inspector)
@@ -152,6 +164,7 @@ class TestSecurityValidation:
 
     @respx.mock
     async def test_enforce_mode_blocks(self, client):
+        _mock_node_replacements()
         respx.get("http://test:8188/object_info").mock(side_effect=httpx.ConnectError("offline"))
         enforce_inspector = WorkflowInspector(
             mode="enforce",
@@ -168,6 +181,7 @@ class TestParallelModelChecks:
     @respx.mock
     async def test_multiple_model_loaders_checked(self, client, inspector):
         """Workflow with 2 loaders in different folders should check both."""
+        _mock_node_replacements()
         object_info = {
             "CheckpointLoaderSimple": {"display_name": "Load Checkpoint"},
             "LoraLoader": {"display_name": "Load LoRA"},
@@ -204,6 +218,7 @@ class TestParallelModelChecks:
     @respx.mock
     async def test_duplicate_folders_fetched_once(self, client, inspector):
         """Two checkpoint loaders should only trigger one /models/checkpoints call."""
+        _mock_node_replacements()
         object_info = {
             "CheckpointLoaderSimple": {"display_name": "Load Checkpoint"},
         }

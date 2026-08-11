@@ -110,13 +110,22 @@ class WorkflowInspector:
         """Return the current inspection mode ('audit' or 'enforce')."""
         return self._mode
 
-    def inspect(self, workflow: dict, _depth: int = 0) -> InspectionResult:
+    def inspect(
+        self,
+        workflow: dict,
+        _depth: int = 0,
+        node_replacements: dict[str, Any] | None = None,
+    ) -> InspectionResult:
         """Inspect a ComfyUI workflow and return findings.
 
         Recurses into subgraph nodes (class_type containing ``subgraph``) when
         the nested node map is embedded inline. If a subgraph reference has no
         inline node map, a warning is emitted so callers know inspection is
         incomplete.
+
+        When ``node_replacements`` is provided (from ``GET /node_replacements``),
+        warns for any submitted ``class_type`` that the server will silently
+        rewrite — what executes may differ from what was vetted (#111).
         """
         nodes_used: list[str] = []
         warnings: list[str] = []
@@ -142,7 +151,11 @@ class WorkflowInspector:
                             f"({_MAX_SUBGRAPH_DEPTH}) — deeper nesting not inspected"
                         )
                     else:
-                        sub_result = self.inspect(sub_nodes, _depth=_depth + 1)
+                        sub_result = self.inspect(
+                            sub_nodes,
+                            _depth=_depth + 1,
+                            node_replacements=node_replacements,
+                        )
                         nodes_used.extend(sub_result.nodes_used)
                         warnings.extend(sub_result.warnings)
                 else:
@@ -155,6 +168,25 @@ class WorkflowInspector:
         for node_type in nodes_used:
             if node_type in self._dangerous_nodes:
                 warnings.append(f"Dangerous node type: {node_type}")
+
+        # Check for server-side node replacements (#111)
+        if node_replacements:
+            for node_type in nodes_used:
+                if node_type in node_replacements:
+                    replacements = node_replacements[node_type]
+                    if isinstance(replacements, list) and replacements:
+                        new_ids = [
+                            str(r.get("new_node_id", "?"))
+                            for r in replacements
+                            if isinstance(r, dict)
+                        ]
+                        if new_ids:
+                            replacement_list = ", ".join(new_ids)
+                            warnings.append(
+                                f"Node type '{node_type}' has server-side "
+                                f"replacement(s) -> [{replacement_list}] — what "
+                                f"executes may differ from what was vetted"
+                            )
 
         # Enforce mode: block unapproved nodes
         if self._mode == "enforce" and self._allowed_nodes:

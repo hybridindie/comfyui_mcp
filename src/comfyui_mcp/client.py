@@ -384,6 +384,17 @@ class ComfyUIClient:
         r = await self._request("get", "/models")
         return r.json()
 
+    async def get_node_replacements(self) -> dict:
+        """GET /node_replacements — fetch the server's node replacement map (#111).
+
+        ComfyUI applies this map to every prompt before validation — submitted
+        ``class_type``s can be silently rewritten server-side. The dict maps
+        old ``class_type`` names to a list of replacement entries (each with
+        ``new_node_id`` and optional ``input_mapping``/``output_mapping``).
+        """
+        r = await self._request("get", "/node_replacements")
+        return r.json()
+
     async def get_global_subgraphs(self) -> dict:
         """GET /global_subgraphs — list reusable subgraph templates (#144).
 

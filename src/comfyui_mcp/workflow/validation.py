@@ -270,8 +270,16 @@ async def validate_workflow(
                     )
 
     # --- Security inspection ---
+    # Fetch server-side node replacement map (#111). The server rewrites
+    # class_types before validation, so what executes may differ from what we
+    # vet. Warn for any submitted class_type that has a replacement. Best-effort:
+    # if the server is unreachable or the endpoint doesn't exist, skip silently.
+    node_replacements: dict[str, Any] | None = None
+    if not errors:
+        with contextlib.suppress(httpx.HTTPError, OSError):
+            node_replacements = await client.get_node_replacements()
     try:
-        result = inspector.inspect(workflow)
+        result = inspector.inspect(workflow, node_replacements=node_replacements)
         warnings.extend(result.warnings)
     except WorkflowBlockedError as e:
         errors.append(f"Security: {e}")

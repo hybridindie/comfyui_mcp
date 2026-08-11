@@ -177,7 +177,13 @@ async def _submit_workflow(
     (direct/test callers), the pre-existing behavior is preserved —
     WorkflowBlockedError is raised immediately in enforce mode with warnings.
     """
-    inspection = inspector.inspect(wf)
+    # Fetch server-side node replacement map (#111). The server rewrites
+    # class_types before validation, so what executes may differ from what we
+    # vet. Warn for any submitted class_type that has a replacement.
+    node_replacements: dict[str, Any] | None = None
+    with contextlib.suppress(httpx.HTTPError, OSError):
+        node_replacements = await client.get_node_replacements()
+    inspection = inspector.inspect(wf, node_replacements=node_replacements)
     if model_checker is not None:
         model_warnings = await model_checker.check_models(wf, client)
         if model_warnings:

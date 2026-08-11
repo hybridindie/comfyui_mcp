@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Server-side node replacement warnings** — the workflow inspector now
+  fetches ComfyUI's `/node_replacements` map and warns when a submitted
+  `class_type` will be silently rewritten server-side before validation.
+  This narrows (but does not fully close) the gap where the inspector vets
+  the pre-submission graph but the server replaces nodes after inspection —
+  what executes may still differ from what was vetted. The warning surfaces
+  every replacement candidate for a replaced `class_type` (not just the
+  first), and recurses into subgraphs. The residual known limitation is
+  that audit-mode inspection does not re-inspect the post-replacement graph;
+  the warning is the mitigation. Warnings are emitted in both
+  `validate_workflow` and `_submit_workflow` (generation tools) (#111).
 - **`/global_subgraphs` endpoints** — `comfyui_list_subgraphs` lists
   reusable subgraph templates (custom-node + blueprint subgraphs) from
   `GET /global_subgraphs`; `comfyui_get_subgraph` fetches a single
