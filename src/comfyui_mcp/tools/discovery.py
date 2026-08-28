@@ -12,7 +12,7 @@ from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
-from comfyui_mcp.pagination import LimitField, OffsetField, paginate
+from comfyui_mcp.pagination import LimitField, OffsetField, PaginationEnvelope, paginate
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
@@ -171,7 +171,7 @@ def register_discovery_tools(
         folder: str = "checkpoints",
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[str]:
         """List available models in a folder (checkpoints, loras, vae, etc.).
 
         Args:
@@ -280,7 +280,7 @@ def register_discovery_tools(
     async def comfyui_list_nodes(
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[str]:
         """List all available ComfyUI node types.
 
         Args:
@@ -333,7 +333,7 @@ def register_discovery_tools(
     async def comfyui_list_workflows(
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[dict[str, Any]]:
         """List workflow templates registered on the ComfyUI server (the
         ``/workflow_templates`` endpoint, populated by installed front-end packages).
 
@@ -365,7 +365,7 @@ def register_discovery_tools(
     async def comfyui_list_extensions(
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[str]:
         """List installed ComfyUI extensions (front-end / back-end JavaScript modules
         registered with the ComfyUI server).
 
@@ -408,7 +408,7 @@ def register_discovery_tools(
     async def comfyui_list_model_folders(
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[str]:
         """List the model-folder types ComfyUI recognizes (checkpoints, loras, vae,
         controlnet, etc.). Pass any returned name as the ``folder`` argument to
         ``comfyui_list_models`` or ``comfyui_get_model_metadata``.

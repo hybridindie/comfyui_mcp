@@ -2,18 +2,30 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Generic, TypedDict, TypeVar
 
 from pydantic import Field
 
+T = TypeVar("T")
 
-def paginate(
-    items: list[Any],
+
+class PaginationEnvelope(TypedDict, Generic[T]):  # noqa: UP046
+    """Fixed shape returned by :func:`paginate`."""
+
+    items: list[T]
+    total: int
+    offset: int
+    limit: int
+    has_more: bool
+
+
+def paginate(  # noqa: UP047
+    items: list[T],
     offset: int = 0,
     limit: int | None = None,
     default_limit: int = 25,
     max_limit: int = 100,
-) -> dict[str, Any]:
+) -> PaginationEnvelope[T]:
     """Slice a list and return a pagination envelope.
 
     Args:

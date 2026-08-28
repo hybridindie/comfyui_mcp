@@ -14,7 +14,7 @@ from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
-from comfyui_mcp.pagination import LimitField, OffsetField, paginate
+from comfyui_mcp.pagination import LimitField, OffsetField, PaginationEnvelope, paginate
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
 
@@ -281,7 +281,7 @@ def register_file_tools(
     async def comfyui_list_outputs(
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[dict[str, str]]:
         """List output files from ComfyUI's execution history.
 
         Args:

@@ -29,10 +29,10 @@
     "graphify": {
       "type": "local",
       "command": [
-        "/home/johnd/.pyenv/versions/3.13.14/bin/python3",
+        "python3",
         "-m",
         "graphify.serve",
-        "/home/johnd/Development/comfyui_mcp/graphify-out/graph.json",
+        "graphify-out/graph.json",
         "--transport",
         "stdio"
       ],

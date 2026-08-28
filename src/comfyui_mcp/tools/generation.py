@@ -106,7 +106,7 @@ async def _validate_model_via_resource(
     *,
     folder: str,
     model: str,
-    ctx: Any,
+    ctx: Context | None,
 ) -> None:
     """Preflight: confirm a named model exists by reading the comfyui://models
     resource (#140). Reuses the resource layer instead of calling
@@ -150,7 +150,7 @@ async def _submit_workflow(
     stream_events: bool = False,
     model_checker: ModelChecker | None = None,
     inspect_extra: dict[str, Any] | None = None,
-    ctx: Any = None,
+    ctx: Context | None = None,
 ) -> dict[str, Any]:
     """Inspect, submit, and optionally wait for a workflow.
 
@@ -426,7 +426,7 @@ def _format_summary(analysis: WorkflowAnalysis) -> str:
     return "\n".join(lines)
 
 
-def _escape_mermaid_text(value: Any) -> str:
+def _escape_mermaid_text(value: object) -> str:
     """Escape text used in Mermaid node labels.
 
     HTML-escapes special characters so that user-controlled workflow values

@@ -42,7 +42,7 @@ def _is_subgraph_class(class_type: str) -> bool:
     return "subgraph" in class_type.lower()
 
 
-def _extract_subgraph_nodes(value: Any) -> dict[str, Any] | None:
+def _extract_subgraph_nodes(value: object) -> dict[str, Any] | None:
     """Extract a nested node map from a value, if it looks like one.
 
     A node map is a dict whose values are dicts containing a ``class_type`` key.
@@ -77,7 +77,9 @@ def _find_subgraph_node_map(node_data: dict) -> dict[str, Any] | None:
     return None
 
 
-def _check_value_for_suspicious(value: Any, node_id: str, class_type: str, key: str) -> list[str]:
+def _check_value_for_suspicious(
+    value: object, node_id: str, class_type: str, key: str
+) -> list[str]:
     """Recursively check a value for suspicious patterns."""
     warnings = []
     if isinstance(value, str):

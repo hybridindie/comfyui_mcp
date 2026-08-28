@@ -16,7 +16,7 @@ from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.config import ModelSearchSettings
 from comfyui_mcp.model_manager import ModelManagerDetector
-from comfyui_mcp.pagination import paginate
+from comfyui_mcp.pagination import PaginationEnvelope, paginate
 from comfyui_mcp.security.download_validator import DownloadValidator
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
@@ -28,6 +28,11 @@ _CIVITAI_API = "https://civitai.com/api/v1/models"
 _MODEL_EXTENSIONS = {".safetensors", ".ckpt", ".pt", ".pth", ".bin"}
 
 _HF_REPO_RE = re.compile(r"^[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+$")
+
+
+class _ModelSearchEnvelope(PaginationEnvelope[dict[str, Any]], total=False):
+    query: str
+    source: str
 
 
 async def _search_civitai(
@@ -197,7 +202,7 @@ def register_model_tools(
             ),
         ] = 5,
         offset: Annotated[int, Field(description="Starting index for pagination", ge=0)] = 0,
-    ) -> dict[str, Any]:
+    ) -> _ModelSearchEnvelope:
         """Search for models on HuggingFace or CivitAI.
 
         Returns:
@@ -243,9 +248,7 @@ def register_model_tools(
         result = paginate(
             results, offset, limit, default_limit=5, max_limit=search_settings.max_search_results
         )
-        result["query"] = stripped_query
-        result["source"] = source
-        return result
+        return {**result, "query": stripped_query, "source": source}
 
     tool_fns["comfyui_search_models"] = comfyui_search_models
 

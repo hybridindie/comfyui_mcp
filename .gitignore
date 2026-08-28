@@ -19,7 +19,7 @@ htmlcov/
 # Review artifacts
 .full-review/
 
-# Eval run outputs (.eval logs, intermediate files) — never commit (CLAUDE.md rule 25)
+# Eval run outputs (.eval logs, intermediate files) — never commit (AGENTS.md rule 25)
 logs/
 
 # Skill output (graphify knowledge graph artifacts)
