@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from fastmcp import FastMCP
@@ -17,6 +17,7 @@ from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer, PathValidationError
 from comfyui_mcp.workflow.operations import apply_operations
 from comfyui_mcp.workflow.templates import create_from_template
+from comfyui_mcp.workflow.types import Workflow
 from comfyui_mcp.workflow.validation import analyze_workflow as _analyze_workflow
 from comfyui_mcp.workflow.validation import validate_workflow as _validate_workflow
 
@@ -171,6 +172,7 @@ def register_workflow_tools(
 
         if not isinstance(wf, dict):
             raise ValueError("Workflow must be a JSON object keyed by node IDs")
+        wf = cast(Workflow, wf)
 
         if len(operations.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
             raise ValueError(
@@ -253,6 +255,7 @@ def register_workflow_tools(
 
         if not isinstance(wf, dict):
             raise ValueError("Workflow must be a JSON object keyed by node IDs")
+        wf = cast(Workflow, wf)
 
         # Best-effort enrichment from /object_info — analyzer handles None.
         object_info: dict[str, Any] | None = None
@@ -316,6 +319,7 @@ def register_workflow_tools(
 
         if not isinstance(wf, dict):
             raise ValueError("Workflow must be a JSON object keyed by node IDs")
+        wf = cast(Workflow, wf)
 
         result = await _validate_workflow(wf, client, inspector)
         await audit.async_log(
