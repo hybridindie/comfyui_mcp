@@ -12,6 +12,7 @@ from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.progress import WebSocketProgress
 from comfyui_mcp.security.rate_limit import RateLimiter
+from comfyui_mcp.tool_types import CancelJobsResult
 
 
 def register_job_tools(
@@ -149,7 +150,7 @@ def register_job_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_cancel_jobs(job_ids: list[str]) -> dict[str, Any]:
+    async def comfyui_cancel_jobs(job_ids: list[str]) -> CancelJobsResult:
         """Batch-cancel one or more jobs by their prompt_ids via /api/jobs/cancel.
 
         Useful for "cancel all my queued jobs" without N round-trips.

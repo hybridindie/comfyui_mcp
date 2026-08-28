@@ -20,6 +20,7 @@ from comfyui_mcp.pagination import PaginationEnvelope, paginate
 from comfyui_mcp.security.download_validator import DownloadValidator
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
+from comfyui_mcp.tool_types import CancelDownloadResult, DownloadTasksResult
 
 _HF_API = "https://huggingface.co/api/models"
 _CIVITAI_API = "https://civitai.com/api/v1/models"
@@ -340,7 +341,7 @@ def register_model_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_get_download_tasks() -> dict[str, Any]:
+    async def comfyui_get_download_tasks() -> DownloadTasksResult:
         """Check the status of active model downloads.
 
         Returns:
@@ -370,7 +371,7 @@ def register_model_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_cancel_download(task_id: str) -> dict[str, Any]:
+    async def comfyui_cancel_download(task_id: str) -> CancelDownloadResult:
         """Cancel and remove a model download task.
 
         Args:

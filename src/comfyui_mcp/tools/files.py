@@ -17,6 +17,7 @@ from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.pagination import LimitField, OffsetField, PaginationEnvelope, paginate
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
+from comfyui_mcp.tool_types import WorkflowFromImageResult
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
@@ -410,7 +411,9 @@ def register_file_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_get_workflow_from_image(filename: str, subfolder: str = "") -> dict[str, Any]:
+    async def comfyui_get_workflow_from_image(
+        filename: str, subfolder: str = ""
+    ) -> WorkflowFromImageResult:
         """Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG.
 
         ComfyUI embeds the full workflow JSON and prompt data in PNG text chunks.

@@ -16,6 +16,12 @@ from comfyui_mcp.pagination import LimitField, OffsetField, PaginationEnvelope, 
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
+from comfyui_mcp.tool_types import (
+    ListModelsDetailedResult,
+    ModelPreviewResult,
+    NodeAuditResult,
+    SubgraphListResult,
+)
 
 _SUPPORTED_MODEL_FAMILIES = {"sd15", "sdxl", "flux", "sd3", "cascade"}
 
@@ -195,7 +201,7 @@ def register_discovery_tools(
     )
     async def comfyui_list_models_detailed(
         folder: str = "checkpoints",
-    ) -> dict[str, Any]:
+    ) -> ListModelsDetailedResult:
         """List models in a folder with file metadata (name, pathIndex, modified, created, size).
 
         Uses the /experiment/models/{folder} endpoint (#143). Use this when you
@@ -228,7 +234,7 @@ def register_discovery_tools(
             int, Field(description="pathIndex from comfyui_list_models_detailed", ge=0)
         ],
         filename: Annotated[str, Field(description="Model filename")],
-    ) -> dict[str, Any]:
+    ) -> ModelPreviewResult:
         """Fetch a model's preview image via /experiment/models/preview (\\#143).
 
         Returns the preview as base64-encoded image data with a mime_type, or
@@ -449,7 +455,7 @@ def register_discovery_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_audit_dangerous_nodes() -> dict[str, Any]:
+    async def comfyui_audit_dangerous_nodes() -> NodeAuditResult:
         """Audit all installed nodes to identify potentially dangerous ones.
 
         Scans for nodes that could execute arbitrary code, run shell commands,
@@ -465,7 +471,7 @@ def register_discovery_tools(
         object_info = await client.get_object_info()
         result = auditor.audit_all_nodes(object_info)
 
-        output = {
+        output: NodeAuditResult = {
             "total_nodes": result.total_nodes,
             "dangerous": {
                 "count": result.dangerous_count,
@@ -665,7 +671,7 @@ def register_discovery_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_list_subgraphs() -> dict[str, Any]:
+    async def comfyui_list_subgraphs() -> SubgraphListResult:
         """List available reusable subgraph templates from ComfyUI (#144).
 
         Subgraphs are packaged node groups that can be inserted into a
