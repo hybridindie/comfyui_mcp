@@ -5,7 +5,7 @@ All notable changes to **comfyui-mcp-secure** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.0] — 2026-08-29
 
 ### Added
 
@@ -163,6 +163,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`.env.example`** — opencode opt-ins (`OPENCODE_ENABLE_EXA`,
   `OPENCODE_EXPERIMENTAL_LSP_TOOL`) and the graphify LLM backend config
   (MLflow AI Gateway primary, local ollama fallback).
+
+### Changed (v2.2.0 session)
+
+- **Type tightening across the codebase** — `typing.Any` reduced from 173
+  to 142 occurrences. `ctx: Any` → `Context | None` in generation tools;
+  `value: Any` → `object` in inspector/generation (preserves isinstance
+  narrowing); `paginate()` made generic with new `PaginationEnvelope[T]`
+  TypedDict (7 tool signatures tightened); new `Workflow`/`WorkflowNode`
+  TypedDicts replace ~30 `dict[str, Any]` across workflow modules; new
+  `tool_types.py` with 10 per-tool result TypedDicts
+  (`CancelJobsResult`, `NodeAuditResult`, `ModelPreviewResult`, etc.).
+  Remaining `Any` are genuine API pass-throughs and open schemas.
+- **fastmcp 4.0.0b1 → 4.0.0b3** — brings `Depends`/`CallArgument`
+  enhancements, Python 3.14 compat, audience pinning for Google OAuth,
+  cryptography 50.0.0. Transitive: `uncalled-for 0.4.0`, `pydocket 0.24.1`.
+- **Dependency floor bumps** — `websockets>=16.0`, `pytest>=9.0.0`,
+  `pytest-asyncio>=1.0.0` to match `uv.lock` (major drift from old floors).
+- **Docker artifacts moved to `deploy/docker/`** — `Dockerfile` and
+  `docker-compose.yml` relocated from repo root for consistency with
+  `deploy/k8s/`. Build context stays at repo root; `.dockerignore` remains
+  at context root (Docker requirement). GitHub workflow and README updated.
+- **Dockerfile Python version fixed** — `python:3.14-slim` →
+  `python:3.12-slim` (CI uses 3.12, `.python-version` is 3.12,
+  `requires-python >=3.12`).
+- **opencode config fixed** — graphify MCP server command was a broken
+  hardcoded Linux path; now portable `python3 -m graphify.serve` with
+  relative graph.json path.
+- **GitHub Actions bumps** — `astral-sh/setup-uv 9.0.0`,
+  `docker/login-action 4.6.0`, `docker/build-push-action 7.3.0`,
+  `docker/setup-buildx-action 4.2.0`, `pypa/gh-action-pypi-publish 1.14.2`.
+
+### Removed (v2.2.0 session)
+
+- **Stale artifacts** — `.git.broken-backup/`, `.worktrees/tool-prefix/`,
+  `dist/` (v0.1.1 + v0.1.5 build artifacts), `.benchmarks/` (empty),
+  stale eval report snapshots (`evals/*-report-*.md` untracked from git).
+- **Stale gitignore entries** — `docs/superpowers/` (directory doesn't
+  exist), `CLAUDE.md` reference in `.gitignore` comment (→ `AGENTS.md`).
+- **Stale `.dockerignore` entry** — `docs` (directory doesn't exist).
 
 ## [2.1.0] — 2026-05-12
 
