@@ -55,11 +55,12 @@ jobs:
 
   publish:
     needs: build
-    runs-on: [self-hosted, linux, hybridindie]
+    runs-on: ubuntu-latest
     environment:
       name: pypi
     permissions:
       id-token: write
+      actions: read
 
     steps:
       - name: Download distributions
@@ -70,3 +71,5 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
+        with:
+          skip-existing: true
