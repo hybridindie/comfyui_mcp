@@ -5,8 +5,10 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from comfyui_mcp.workflow.types import NodeInputValue, Workflow, WorkflowNode
+
 # --- txt2img template ---
-_TXT2IMG: dict[str, dict[str, Any]] = {
+_TXT2IMG: Workflow = {
     "1": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {"ckpt_name": "v1-5-pruned-emaonly.safetensors"},
@@ -49,7 +51,7 @@ _TXT2IMG: dict[str, dict[str, Any]] = {
 }
 
 # --- img2img template ---
-_IMG2IMG: dict[str, dict[str, Any]] = {
+_IMG2IMG: Workflow = {
     "1": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {"ckpt_name": "v1-5-pruned-emaonly.safetensors"},
@@ -96,7 +98,7 @@ _IMG2IMG: dict[str, dict[str, Any]] = {
 }
 
 # --- upscale template ---
-_UPSCALE: dict[str, dict[str, Any]] = {
+_UPSCALE: Workflow = {
     "1": {
         "class_type": "LoadImage",
         "inputs": {"image": "input.png"},
@@ -116,7 +118,7 @@ _UPSCALE: dict[str, dict[str, Any]] = {
 }
 
 # --- inpaint template ---
-_INPAINT: dict[str, dict[str, Any]] = {
+_INPAINT: Workflow = {
     "1": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {"ckpt_name": "v1-5-pruned-emaonly.safetensors"},
@@ -171,7 +173,7 @@ _INPAINT: dict[str, dict[str, Any]] = {
 }
 
 # --- txt2vid AnimateDiff template ---
-_TXT2VID_ANIMATEDIFF: dict[str, dict[str, Any]] = {
+_TXT2VID_ANIMATEDIFF: Workflow = {
     "1": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {"ckpt_name": "v1-5-pruned-emaonly.safetensors"},
@@ -229,7 +231,7 @@ _TXT2VID_ANIMATEDIFF: dict[str, dict[str, Any]] = {
 }
 
 # --- txt2vid Wan template ---
-_TXT2VID_WAN: dict[str, dict[str, Any]] = {
+_TXT2VID_WAN: Workflow = {
     "1": {
         "class_type": "DownloadAndLoadWanModel",
         "inputs": {
@@ -274,10 +276,10 @@ _TXT2VID_WAN: dict[str, dict[str, Any]] = {
 
 def _build_controlnet_template(
     preprocessor_class: str,
-    preprocessor_inputs: dict[str, Any],
+    preprocessor_inputs: dict[str, NodeInputValue],
     control_net_name: str,
     filename_prefix: str,
-) -> dict[str, dict[str, Any]]:
+) -> Workflow:
     """Build a ControlNet template graph with variant-specific preprocessing."""
     return {
         "1": {
@@ -347,7 +349,7 @@ def _build_controlnet_template(
 
 
 # --- controlnet_canny template ---
-_CONTROLNET_CANNY: dict[str, dict[str, Any]] = _build_controlnet_template(
+_CONTROLNET_CANNY: Workflow = _build_controlnet_template(
     preprocessor_class="CannyEdgePreprocessor",
     preprocessor_inputs={
         "image": ["2", 0],
@@ -359,7 +361,7 @@ _CONTROLNET_CANNY: dict[str, dict[str, Any]] = _build_controlnet_template(
 )
 
 # --- controlnet_depth template ---
-_CONTROLNET_DEPTH: dict[str, dict[str, Any]] = _build_controlnet_template(
+_CONTROLNET_DEPTH: Workflow = _build_controlnet_template(
     preprocessor_class="MiDaS-DepthMapPreprocessor",
     preprocessor_inputs={
         "image": ["2", 0],
@@ -371,7 +373,7 @@ _CONTROLNET_DEPTH: dict[str, dict[str, Any]] = _build_controlnet_template(
 )
 
 # --- controlnet_openpose template ---
-_CONTROLNET_OPENPOSE: dict[str, dict[str, Any]] = _build_controlnet_template(
+_CONTROLNET_OPENPOSE: Workflow = _build_controlnet_template(
     preprocessor_class="DWPreprocessor",
     preprocessor_inputs={
         "image": ["2", 0],
@@ -382,7 +384,7 @@ _CONTROLNET_OPENPOSE: dict[str, dict[str, Any]] = _build_controlnet_template(
 )
 
 # --- ip_adapter template ---
-_IP_ADAPTER: dict[str, dict[str, Any]] = {
+_IP_ADAPTER: Workflow = {
     "1": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"},
@@ -447,7 +449,7 @@ _IP_ADAPTER: dict[str, dict[str, Any]] = {
 }
 
 # --- lora_stack template ---
-_LORA_STACK: dict[str, dict[str, Any]] = {
+_LORA_STACK: Workflow = {
     "1": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {"ckpt_name": "v1-5-pruned-emaonly.safetensors"},
@@ -510,7 +512,7 @@ _LORA_STACK: dict[str, dict[str, Any]] = {
 }
 
 # --- face_restore template ---
-_FACE_RESTORE: dict[str, dict[str, Any]] = {
+_FACE_RESTORE: Workflow = {
     "1": {
         "class_type": "LoadImage",
         "inputs": {"image": "input.png"},
@@ -538,7 +540,7 @@ _FACE_RESTORE: dict[str, dict[str, Any]] = {
 }
 
 # --- flux_txt2img template ---
-_FLUX_TXT2IMG: dict[str, dict[str, Any]] = {
+_FLUX_TXT2IMG: Workflow = {
     "1": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {"ckpt_name": "flux1-dev.safetensors"},
@@ -581,7 +583,7 @@ _FLUX_TXT2IMG: dict[str, dict[str, Any]] = {
 }
 
 # --- sdxl_txt2img template ---
-_SDXL_TXT2IMG: dict[str, dict[str, Any]] = {
+_SDXL_TXT2IMG: Workflow = {
     "1": {
         "class_type": "CheckpointLoaderSimple",
         "inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"},
@@ -659,9 +661,9 @@ _PARAM_MAP: dict[str, list[tuple[str, str]]] = {
 }
 
 
-def _apply_params(wf: dict[str, Any], params: dict[str, Any]) -> None:
+def _apply_params(wf: Workflow, params: dict[str, Any]) -> None:
     """Apply parameter overrides to a workflow in-place."""
-    by_type: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+    by_type: dict[str, list[tuple[str, WorkflowNode]]] = {}
     for nid, ndata in wf.items():
         ct = ndata.get("class_type", "")
         by_type.setdefault(ct, []).append((nid, ndata))
@@ -686,7 +688,7 @@ def _apply_params(wf: dict[str, Any], params: dict[str, Any]) -> None:
                     ndata["inputs"][input_key] = value
 
 
-TEMPLATES: dict[str, dict[str, dict[str, Any]]] = {
+TEMPLATES: dict[str, Workflow] = {
     "txt2img": _TXT2IMG,
     "img2img": _IMG2IMG,
     "upscale": _UPSCALE,
@@ -704,7 +706,7 @@ TEMPLATES: dict[str, dict[str, dict[str, Any]]] = {
 }
 
 
-def create_from_template(template: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+def create_from_template(template: str, params: dict[str, Any] | None = None) -> Workflow:
     """Create a workflow from a named template with optional param overrides."""
     if template not in TEMPLATES:
         raise ValueError(

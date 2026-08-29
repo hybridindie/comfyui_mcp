@@ -20,6 +20,7 @@ from comfyui_mcp.security.model_checker import ModelChecker
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
 from comfyui_mcp.workflow.templates import create_from_template as _create_from_template
+from comfyui_mcp.workflow.types import Workflow
 from comfyui_mcp.workflow.validation import INPUT_NODE_TYPES as _INPUT_NODE_TYPES
 from comfyui_mcp.workflow.validation import SAMPLER_NODE_TYPES as _SAMPLER_NODE_TYPES
 from comfyui_mcp.workflow.validation import WorkflowAnalysis
@@ -84,7 +85,7 @@ WaitField = Annotated[
 ]
 
 
-def _validate_workflow_json(raw: str) -> dict[str, Any]:
+def _validate_workflow_json(raw: str) -> Workflow:
     """Parse and validate workflow JSON string."""
     if len(raw.encode("utf-8")) > _MAX_WORKFLOW_JSON_BYTES:
         raise ValueError(f"Workflow JSON exceeds maximum size ({_MAX_WORKFLOW_JSON_BYTES} bytes)")
@@ -94,7 +95,7 @@ def _validate_workflow_json(raw: str) -> dict[str, Any]:
         raise ValueError(f"Invalid JSON workflow: {e}") from e
     if not isinstance(wf, dict):
         raise ValueError("Workflow JSON must be a JSON object at the top level")
-    return wf
+    return wf  # type: ignore[return-value]  # JSON object; runtime checks in callers
 
 
 def _validate_image_filename(filename: str, sanitizer: PathSanitizer) -> str:
@@ -106,7 +107,7 @@ async def _validate_model_via_resource(
     *,
     folder: str,
     model: str,
-    ctx: Any,
+    ctx: Context | None,
 ) -> None:
     """Preflight: confirm a named model exists by reading the comfyui://models
     resource (#140). Reuses the resource layer instead of calling
@@ -150,7 +151,7 @@ async def _submit_workflow(
     stream_events: bool = False,
     model_checker: ModelChecker | None = None,
     inspect_extra: dict[str, Any] | None = None,
-    ctx: Any = None,
+    ctx: Context | None = None,
 ) -> dict[str, Any]:
     """Inspect, submit, and optionally wait for a workflow.
 
@@ -426,7 +427,7 @@ def _format_summary(analysis: WorkflowAnalysis) -> str:
     return "\n".join(lines)
 
 
-def _escape_mermaid_text(value: Any) -> str:
+def _escape_mermaid_text(value: object) -> str:
     """Escape text used in Mermaid node labels.
 
     HTML-escapes special characters so that user-controlled workflow values

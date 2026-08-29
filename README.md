@@ -939,7 +939,7 @@ docker run --rm -i \
   ghcr.io/hybridindie/comfyui_mcp:latest
 
 # Or build and run locally
-docker build -t comfyui-mcp-secure .
+docker build -t comfyui-mcp-secure -f deploy/docker/Dockerfile .
 docker run --rm -i \
   -e COMFYUI_URL=http://host.docker.internal:8188 \
   -v ~/.comfyui-mcp:/home/app/.comfyui-mcp:ro \
@@ -950,29 +950,31 @@ docker run --rm -i \
 
 ### Docker Compose
 
-A `docker-compose.yml` is included for persistent deployments:
+A `docker-compose.yml` is included in `deploy/docker/` for persistent deployments:
 
 ```bash
-# Start
-COMFYUI_URL=http://your-comfyui:8188 docker compose up -d
+# Start (from the repo root)
+COMFYUI_URL=http://your-comfyui:8188 docker compose -f deploy/docker/docker-compose.yml up -d
 
 # View logs
-docker compose logs -f comfyui-mcp-secure
+docker compose -f deploy/docker/docker-compose.yml logs -f comfyui-mcp-secure
 ```
 
-The compose file mounts `./config.yaml` and persists audit logs to a named volume:
+The compose file mounts `config.yaml` (from the repo root) and persists audit logs to a named volume:
 
 ```yaml
 services:
   comfyui-mcp-secure:
-    build: .
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
     image: comfyui-mcp-secure:latest
     container_name: comfyui-mcp-secure
     environment:
       - COMFYUI_URL=${COMFYUI_URL:-http://comfyui:8188}
       - COMFYUI_SECURITY_MODE=${COMFYUI_SECURITY_MODE:-audit}
     volumes:
-      - ./config.yaml:/home/app/.comfyui-mcp/config.yaml:ro
+      - ../../config.yaml:/home/app/.comfyui-mcp/config.yaml:ro
       - comfyui-mcp-secure-data:/home/app/.comfyui-mcp/logs
     restart: unless-stopped
 

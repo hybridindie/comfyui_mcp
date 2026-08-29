@@ -5,8 +5,10 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+from comfyui_mcp.workflow.types import Workflow
 
-def _next_node_id(workflow: dict[str, Any]) -> str:
+
+def _next_node_id(workflow: Workflow) -> str:
     """Generate the next integer node ID after the current max."""
     int_ids = []
     for k in workflow:
@@ -17,7 +19,7 @@ def _next_node_id(workflow: dict[str, Any]) -> str:
     return str(max(int_ids, default=0) + 1)
 
 
-def _apply_add_node(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+def _apply_add_node(workflow: Workflow, op: dict[str, Any]) -> None:
     """Add a node to the workflow."""
     class_type = op.get("class_type")
     if not class_type:
@@ -31,7 +33,7 @@ def _apply_add_node(workflow: dict[str, Any], op: dict[str, Any]) -> None:
     workflow[node_id] = {"class_type": class_type, "inputs": inputs}
 
 
-def _apply_remove_node(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+def _apply_remove_node(workflow: Workflow, op: dict[str, Any]) -> None:
     """Remove a node and clean up dangling references."""
     node_id = op.get("node_id")
     if not node_id:
@@ -54,7 +56,7 @@ def _apply_remove_node(workflow: dict[str, Any], op: dict[str, Any]) -> None:
             del inputs[key]
 
 
-def _apply_set_input(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+def _apply_set_input(workflow: Workflow, op: dict[str, Any]) -> None:
     """Set an input value on a node."""
     node_id = op.get("node_id")
     if not node_id:
@@ -69,7 +71,7 @@ def _apply_set_input(workflow: dict[str, Any], op: dict[str, Any]) -> None:
     workflow[node_id]["inputs"][input_name] = op["value"]
 
 
-def _apply_connect(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+def _apply_connect(workflow: Workflow, op: dict[str, Any]) -> None:
     """Connect one node's output to another node's input."""
     from_node = op.get("from_node")
     if not from_node:
@@ -90,7 +92,7 @@ def _apply_connect(workflow: dict[str, Any], op: dict[str, Any]) -> None:
     workflow[to_node]["inputs"][to_input] = [from_node, from_output]
 
 
-def _apply_disconnect(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+def _apply_disconnect(workflow: Workflow, op: dict[str, Any]) -> None:
     """Clear a connection on a node's input."""
     node_id = op.get("node_id")
     if not node_id:
@@ -106,7 +108,7 @@ def _apply_disconnect(workflow: dict[str, Any], op: dict[str, Any]) -> None:
     del inputs[input_name]
 
 
-def _apply_insert_subgraph(workflow: dict[str, Any], op: dict[str, Any]) -> None:
+def _apply_insert_subgraph(workflow: Workflow, op: dict[str, Any]) -> None:
     """Insert a subgraph node with an embedded node map (#144).
 
     Adds a subgraph wrapper node (e.g. ``Reroute_subgraph``) whose ``inputs``
@@ -128,7 +130,7 @@ def _apply_insert_subgraph(workflow: dict[str, Any], op: dict[str, Any]) -> None
     }
 
 
-def apply_operations(workflow: dict[str, Any], operations: list[dict[str, Any]]) -> dict[str, Any]:
+def apply_operations(workflow: Workflow, operations: list[dict[str, Any]]) -> Workflow:
     """Apply a list of operations to a workflow. Returns a new workflow dict.
 
     Operations execute sequentially. If any fails, the original workflow

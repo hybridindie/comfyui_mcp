@@ -19,7 +19,7 @@ htmlcov/
 # Review artifacts
 .full-review/
 
-# Eval run outputs (.eval logs, intermediate files) — never commit (CLAUDE.md rule 25)
+# Eval run outputs (.eval logs, intermediate files) — never commit (AGENTS.md rule 25)
 logs/
 
 # Skill output (graphify knowledge graph artifacts)
@@ -28,6 +28,5 @@ graphify-out/
 # Local env (graphify LLM backend, opencode opt-ins) — never commit
 .env
 
-# Internal planning artifacts — not part of the public repo
-docs/superpowers/
+# Eval run reports (per-run snapshots, not source)
 evals/*.md

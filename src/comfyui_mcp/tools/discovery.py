@@ -12,10 +12,16 @@ from pydantic import Field
 
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
-from comfyui_mcp.pagination import LimitField, OffsetField, paginate
+from comfyui_mcp.pagination import LimitField, OffsetField, PaginationEnvelope, paginate
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
+from comfyui_mcp.tool_types import (
+    ListModelsDetailedResult,
+    ModelPreviewResult,
+    NodeAuditResult,
+    SubgraphListResult,
+)
 
 _SUPPORTED_MODEL_FAMILIES = {"sd15", "sdxl", "flux", "sd3", "cascade"}
 
@@ -171,7 +177,7 @@ def register_discovery_tools(
         folder: str = "checkpoints",
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[str]:
         """List available models in a folder (checkpoints, loras, vae, etc.).
 
         Args:
@@ -195,7 +201,7 @@ def register_discovery_tools(
     )
     async def comfyui_list_models_detailed(
         folder: str = "checkpoints",
-    ) -> dict[str, Any]:
+    ) -> ListModelsDetailedResult:
         """List models in a folder with file metadata (name, pathIndex, modified, created, size).
 
         Uses the /experiment/models/{folder} endpoint (#143). Use this when you
@@ -228,7 +234,7 @@ def register_discovery_tools(
             int, Field(description="pathIndex from comfyui_list_models_detailed", ge=0)
         ],
         filename: Annotated[str, Field(description="Model filename")],
-    ) -> dict[str, Any]:
+    ) -> ModelPreviewResult:
         """Fetch a model's preview image via /experiment/models/preview (\\#143).
 
         Returns the preview as base64-encoded image data with a mime_type, or
@@ -280,7 +286,7 @@ def register_discovery_tools(
     async def comfyui_list_nodes(
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[str]:
         """List all available ComfyUI node types.
 
         Args:
@@ -333,7 +339,7 @@ def register_discovery_tools(
     async def comfyui_list_workflows(
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[dict[str, Any]]:
         """List workflow templates registered on the ComfyUI server (the
         ``/workflow_templates`` endpoint, populated by installed front-end packages).
 
@@ -365,7 +371,7 @@ def register_discovery_tools(
     async def comfyui_list_extensions(
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[str]:
         """List installed ComfyUI extensions (front-end / back-end JavaScript modules
         registered with the ComfyUI server).
 
@@ -408,7 +414,7 @@ def register_discovery_tools(
     async def comfyui_list_model_folders(
         limit: LimitField = 25,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> PaginationEnvelope[str]:
         """List the model-folder types ComfyUI recognizes (checkpoints, loras, vae,
         controlnet, etc.). Pass any returned name as the ``folder`` argument to
         ``comfyui_list_models`` or ``comfyui_get_model_metadata``.
@@ -449,7 +455,7 @@ def register_discovery_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_audit_dangerous_nodes() -> dict[str, Any]:
+    async def comfyui_audit_dangerous_nodes() -> NodeAuditResult:
         """Audit all installed nodes to identify potentially dangerous ones.
 
         Scans for nodes that could execute arbitrary code, run shell commands,
@@ -465,7 +471,7 @@ def register_discovery_tools(
         object_info = await client.get_object_info()
         result = auditor.audit_all_nodes(object_info)
 
-        output = {
+        output: NodeAuditResult = {
             "total_nodes": result.total_nodes,
             "dangerous": {
                 "count": result.dangerous_count,
@@ -665,7 +671,7 @@ def register_discovery_tools(
             open_world_hint=True,
         )
     )
-    async def comfyui_list_subgraphs() -> dict[str, Any]:
+    async def comfyui_list_subgraphs() -> SubgraphListResult:
         """List available reusable subgraph templates from ComfyUI (#144).
 
         Subgraphs are packaged node groups that can be inserted into a

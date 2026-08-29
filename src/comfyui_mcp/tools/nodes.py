@@ -14,7 +14,7 @@ from pydantic import Field
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.node_manager import ComfyUIManagerDetector
-from comfyui_mcp.pagination import OffsetField, paginate
+from comfyui_mcp.pagination import OffsetField, PaginationEnvelope, paginate
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 
@@ -25,6 +25,10 @@ _QUEUE_POLL_TIMEOUT = 300
 _RESTART_POLL_INTERVAL = 3
 _RESTART_POLL_TIMEOUT = 60
 _RESTART_SETTLE_DELAY = 5
+
+
+class _NodeSearchEnvelope(PaginationEnvelope[dict[str, str]], total=False):
+    query: str
 
 
 def _validate_node_id(node_id: str) -> str:
@@ -202,7 +206,7 @@ def register_node_tools(
             ),
         ] = 10,
         offset: OffsetField = 0,
-    ) -> dict[str, Any]:
+    ) -> _NodeSearchEnvelope:
         """Search installed custom node packs by name, description, or author.
 
         Args:
@@ -273,8 +277,7 @@ def register_node_tools(
         )
 
         result = paginate(results, offset, limit, default_limit=10, max_limit=25)
-        result["query"] = query
-        return result
+        return {**result, "query": query}
 
     tool_fns["comfyui_search_custom_nodes"] = comfyui_search_custom_nodes
 

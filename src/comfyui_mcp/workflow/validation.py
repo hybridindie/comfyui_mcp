@@ -13,6 +13,7 @@ import httpx
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.model_registry import MODEL_LOADER_FIELDS, get_single_field_loaders
 from comfyui_mcp.security.inspector import WorkflowBlockedError, WorkflowInspector
+from comfyui_mcp.workflow.types import Workflow
 
 _logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class WorkflowAnalysis(TypedDict):
 
 
 def analyze_workflow(
-    workflow: dict[str, Any], object_info: dict[str, Any] | None = None
+    workflow: Workflow, object_info: dict[str, Any] | None = None
 ) -> WorkflowAnalysis:
     """Analyze a ComfyUI workflow and return structured data."""
     if not workflow:
@@ -158,7 +159,7 @@ def analyze_workflow(
 
 
 async def validate_workflow(
-    workflow: dict[str, Any],
+    workflow: Workflow,
     client: ComfyUIClient,
     inspector: WorkflowInspector,
 ) -> dict[str, Any]:
@@ -250,7 +251,7 @@ async def validate_workflow(
                     continue
                 for input_key, folder in MODEL_LOADER_FIELDS[ct]:
                     model_name = inputs.get(input_key, "")
-                    if model_name:
+                    if isinstance(model_name, str) and model_name:
                         folder_models.setdefault(folder, []).append((node_id, model_name))
 
         async def _fetch_folder(folder: str) -> tuple[str, list[str]]:

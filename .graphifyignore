@@ -15,6 +15,9 @@ logs/
 # Build artifacts.
 dist/
 
+# Git backup from recovery (temporary).
+.git.broken-backup/
+
 # Project-internal automation and agent/runtime config — operational, not domain.
 # Keep the grounding rules (.opencode/rules/*.md) indexed: they are durable
 # design rationale the graph wants. .opencode/ as a whole is excluded except
