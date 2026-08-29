@@ -1,13 +1,15 @@
 services:
   comfyui-mcp-secure:
-    build: .
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
     image: comfyui-mcp-secure:latest
     container_name: comfyui-mcp-secure
     environment:
       - COMFYUI_URL=${COMFYUI_URL:-http://comfyui:8188}
       - COMFYUI_SECURITY_MODE=${COMFYUI_SECURITY_MODE:-audit}
     volumes:
-      - ./config.yaml:/home/app/.comfyui-mcp/config.yaml:ro
+      - ../../config.yaml:/home/app/.comfyui-mcp/config.yaml:ro
       - comfyui-mcp-secure-data:/home/app/.comfyui-mcp/logs
     restart: unless-stopped
 

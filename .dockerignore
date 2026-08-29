@@ -10,6 +10,15 @@ __pycache__
 .git
 .github
 tests
-docs
 config.yaml
 config.example.yaml
+graphify-out/
+logs/
+.env
+.opencode/
+skills/
+evals/
+deploy/
+*.md
+!README.md
+!LICENSE
