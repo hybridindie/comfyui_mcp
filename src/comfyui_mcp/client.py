@@ -332,7 +332,7 @@ class ComfyUIClient:
         if preview is not None:
             params["preview"] = preview
         r = await self._request("get", "/view", params=params)
-        content_type = r.headers.get("content-type", "image/png")
+        content_type = r.headers.get("content-type", "")
         return r.content, content_type
 
     def build_image_url(

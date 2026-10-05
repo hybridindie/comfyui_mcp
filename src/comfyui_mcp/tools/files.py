@@ -21,6 +21,16 @@ from comfyui_mcp.tool_types import WorkflowFromImageResult
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
+# Content types safe to inline as a data URI: raster images only.
+# Renderable/active types (HTML, JS, CSS, SVG, XML) are excluded on purpose:
+# upstream ComfyUI forces them to download via /view for stored-XSS reasons
+# (GHSA-779p-m5rp-r4h4), and the MCP server must not become an
+# inline-rendering relay. Default-deny: unknown/missing content types are
+# rejected too. Note SVG is technically image/* but is an active XML document
+# type — must be explicitly blocked.
+_INLINE_SAFE_PREFIX = "image/"
+_INLINE_BLOCKED_TYPES = frozenset({"image/svg+xml"})
+
 
 _MAX_TEXT_CHUNK_BYTES = 10 * 1024 * 1024  # 10 MB limit for decompressed text chunks
 _MAX_TOTAL_METADATA_BYTES = 50 * 1024 * 1024  # 50 MB total
@@ -266,8 +276,31 @@ def register_file_tools(
             clean_subfolder,
             preview=preview_spec,
         )
+
+        normalized_type = (content_type or "").strip().lower().split(";")[0]
+        rejected_type = (
+            not normalized_type.startswith(_INLINE_SAFE_PREFIX)
+            or normalized_type in _INLINE_BLOCKED_TYPES
+        )
+        if rejected_type:
+            await audit.async_log(
+                tool="get_image",
+                action="content_type_rejected",
+                extra={
+                    "filename": clean_name,
+                    "content_type": content_type or "<missing>",
+                },
+            )
+            raise ValueError(
+                f"Refusing to inline non-image content type {content_type or '<missing>'!r} "
+                f"from /view; only raster {_INLINE_SAFE_PREFIX}* types may be returned as a "
+                "data URI. Renderable/active types (SVG, HTML, XML) are blocked to prevent "
+                "stored-XSS relay (see GHSA-779p-m5rp-r4h4). Use response_format='url' "
+                "to hand the caller the /view link instead."
+            )
+
         b64 = base64.b64encode(data).decode()
-        return f"data:{content_type};base64,{b64}"
+        return f"data:{normalized_type};base64,{b64}"
 
     tool_fns["comfyui_get_image"] = comfyui_get_image
 
