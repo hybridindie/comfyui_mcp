@@ -153,7 +153,7 @@ class TestGetServerFeatures:
         client, audit, limiter, sanitizer = components
         respx.get("http://test:8188/features").mock(return_value=httpx.Response(200, json={}))
         mcp = FastMCP("test")
-        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+        register_discovery_tools(mcp, client, audit, limiter, sanitizer)
         tool = await mcp.get_tool("comfyui_get_server_features")
         description = tool.description or ""
         for key in ("assets", "node_replacements", "max_upload_size"):
