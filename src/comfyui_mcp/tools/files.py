@@ -155,10 +155,36 @@ def register_file_tools(
 
         Defaults to ComfyUI's input directory (the destination workflows read from).
         Set destination='output' or 'temp' only if you have a specific reason.
+        Payload size is checked against ComfyUI's reported ``max_upload_size``
+        (from ``/features``) before the request is sent, so oversized uploads get
+        a precise local error instead of an opaque HTTP 413. When the server
+        doesn't report the feature, only the configured limit applies.
         """
         clean_name = sanitizer.validate_filename(filename)
         clean_subfolder = sanitizer.validate_subfolder(subfolder)
         raw = base64.b64decode(image_data)
+
+        try:
+            features = await client.get_features()
+        except Exception:
+            features = {}  # older servers may not expose /features
+        server_max = features.get("max_upload_size")
+        if isinstance(server_max, (int, float)) and server_max > 0 and len(raw) > server_max:
+            await audit.async_log(
+                tool="upload_image",
+                action="upload_rejected",
+                extra={
+                    "filename": clean_name,
+                    "size_bytes": len(raw),
+                    "max_upload_size_bytes": int(server_max),
+                },
+            )
+            raise ValueError(
+                f"Payload is {len(raw)} bytes but this ComfyUI server's max_upload_size "
+                f"is {int(server_max)} bytes. Reduce the image size (e.g. downscale or "
+                "re-encode) before uploading."
+            )
+
         sanitizer.validate_size(len(raw))
         await audit.async_log(
             tool="upload_image",
