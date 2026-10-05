@@ -30,9 +30,7 @@
     "graphify": {
       "type": "local",
       "command": [
-        "python3",
-        "-m",
-        "graphify.serve",
+        "graphify-mcp",
         "graphify-out/graph.json",
         "--transport",
         "stdio"
