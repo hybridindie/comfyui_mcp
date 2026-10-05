@@ -6,6 +6,7 @@ import copy
 from typing import Any
 
 from comfyui_mcp.workflow.types import Workflow
+from comfyui_mcp.workflow.validation import _link_source
 
 
 def _next_node_id(workflow: Workflow) -> str:
@@ -45,12 +46,8 @@ def _apply_remove_node(workflow: Workflow, op: dict[str, Any]) -> None:
         inputs = node_data.get("inputs", {})
         to_remove = []
         for key, value in inputs.items():
-            if (
-                isinstance(value, list)
-                and len(value) == 2
-                and isinstance(value[0], str)
-                and value[0] == node_id
-            ):
+            source = _link_source(value)
+            if source is not None and source == node_id:
                 to_remove.append(key)
         for key in to_remove:
             del inputs[key]

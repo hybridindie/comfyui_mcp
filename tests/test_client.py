@@ -40,6 +40,44 @@ class TestComfyUIClient:
         assert result["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
     @respx.mock
+    async def test_post_prompt_partial_execution_targets(self, client):
+        """partial_execution_targets reaches the /prompt body (#112)."""
+        route = respx.post("http://test-comfyui:8188/prompt").mock(
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
+        )
+        await client.post_prompt(
+            {"1": {"class_type": "KSampler", "inputs": {}}},
+            partial_execution_targets=["1"],
+        )
+        import json as _json
+
+        body = _json.loads(route.calls.last.request.content)
+        assert body["partial_execution_targets"] == ["1"]
+
+    @respx.mock
+    async def test_post_prompt_partial_targets_omitted_by_default(self, client):
+        """No partial_execution_targets key when the param is not passed —
+        request body byte-identical to the historical shape."""
+        route = respx.post("http://test-comfyui:8188/prompt").mock(
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
+        )
+        await client.post_prompt({"1": {"class_type": "KSampler", "inputs": {}}})
+        import json as _json
+
+        body = _json.loads(route.calls.last.request.content)
+        assert "partial_execution_targets" not in body
+
+    async def test_post_prompt_rejects_empty_partial_targets(self, client):
+        with pytest.raises(ValueError, match="partial_execution_targets"):
+            await client.post_prompt(
+                {"1": {"class_type": "X", "inputs": {}}}, partial_execution_targets=[]
+            )
+
+    @respx.mock
     async def test_get_models(self, client):
         respx.get("http://test-comfyui:8188/models/checkpoints").mock(
             return_value=httpx.Response(200, json=["model_v1.safetensors", "model_v2.safetensors"])

@@ -23,7 +23,7 @@ from comfyui_mcp.workflow.templates import create_from_template as _create_from_
 from comfyui_mcp.workflow.types import Workflow
 from comfyui_mcp.workflow.validation import INPUT_NODE_TYPES as _INPUT_NODE_TYPES
 from comfyui_mcp.workflow.validation import SAMPLER_NODE_TYPES as _SAMPLER_NODE_TYPES
-from comfyui_mcp.workflow.validation import WorkflowAnalysis
+from comfyui_mcp.workflow.validation import WorkflowAnalysis, _link_source
 from comfyui_mcp.workflow.validation import analyze_workflow as _analyze_workflow
 
 MAX_WIDTH = 4096
@@ -152,6 +152,7 @@ async def _submit_workflow(
     model_checker: ModelChecker | None = None,
     inspect_extra: dict[str, Any] | None = None,
     ctx: Context | None = None,
+    partial_execution_targets: list[str] | None = None,
 ) -> dict[str, Any]:
     """Inspect, submit, and optionally wait for a workflow.
 
@@ -245,7 +246,11 @@ async def _submit_workflow(
 
     should_use_ws = wait or stream_events
     ws_client_id = progress.new_client_id() if should_use_ws and progress is not None else None
-    response = await client.post_prompt(wf, client_id=ws_client_id)
+    response = await client.post_prompt(
+        wf,
+        client_id=ws_client_id,
+        partial_execution_targets=partial_execution_targets,
+    )
     prompt_id_raw = response.get("prompt_id")
     if not isinstance(prompt_id_raw, str) or not prompt_id_raw:
         # An empty / missing / non-string prompt_id means the upstream POST
@@ -512,12 +517,11 @@ def _format_mermaid(analysis: WorkflowAnalysis) -> str:
     for node in analysis["flow"]:
         child_graph_id = f"n{node['node_id']}"
         for input_name, value in node["inputs"].items():
-            if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
-                parent_id = value[0]
-                if parent_id in node_ids:
-                    parent_graph_id = f"n{parent_id}"
-                    label = _edge_label_for_input(input_name)
-                    lines.append(f"    {parent_graph_id} -->|{label}| {child_graph_id}")
+            parent_id = _link_source(value)
+            if parent_id and parent_id in node_ids:
+                parent_graph_id = f"n{parent_id}"
+                label = _edge_label_for_input(input_name)
+                lines.append(f"    {parent_graph_id} -->|{label}| {child_graph_id}")
 
     lines.extend(
         [
@@ -558,7 +562,21 @@ def register_generation_tools(
         )
     )
     async def comfyui_run_workflow(
-        workflow: str, wait: bool = False, ctx: Context | None = None
+        workflow: str,
+        wait: bool = False,
+        partial_execution_targets: Annotated[
+            list[str] | None,
+            Field(
+                description=(
+                    "Optional node IDs to (re)execute; everything not listed is served "
+                    "from ComfyUI's execution cache — use for cheap iterative re-runs "
+                    "after tweaking a subset of nodes. Node IDs come from the workflow "
+                    "JSON keys. Older servers without partial-execution support will "
+                    "reject this; omit it for full runs."
+                ),
+            ),
+        ] = None,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         """Submit an arbitrary ComfyUI workflow for execution.
 
@@ -573,6 +591,10 @@ def register_generation_tools(
                   immediately with just the prompt_id.
         """
         wf = _validate_workflow_json(workflow)
+        if partial_execution_targets:
+            unknown = [nid for nid in partial_execution_targets if nid not in wf]
+            if unknown:
+                raise ValueError(f"partial_execution_targets reference unknown node IDs: {unknown}")
 
         return await _submit_workflow(
             wf=wf,
@@ -586,6 +608,7 @@ def register_generation_tools(
             stream_events=False,
             model_checker=model_checker,
             ctx=ctx,
+            partial_execution_targets=partial_execution_targets,
         )
 
     tool_fns["comfyui_run_workflow"] = comfyui_run_workflow
@@ -599,7 +622,17 @@ def register_generation_tools(
         )
     )
     async def comfyui_run_workflow_stream(
-        workflow: str, ctx: Context | None = None
+        workflow: str,
+        partial_execution_targets: Annotated[
+            list[str] | None,
+            Field(
+                description=(
+                    "Optional node IDs to (re)execute; the rest is served from "
+                    "ComfyUI's execution cache (partial execution). Omit for full runs."
+                ),
+            ),
+        ] = None,
+        ctx: Context | None = None,
     ) -> dict[str, Any]:
         """Submit a ComfyUI workflow and return websocket stream events plus final status.
 
@@ -618,6 +651,10 @@ def register_generation_tools(
             workflow: JSON string of a ComfyUI workflow (API format).
         """
         wf = _validate_workflow_json(workflow)
+        if partial_execution_targets:
+            unknown = [nid for nid in partial_execution_targets if nid not in wf]
+            if unknown:
+                raise ValueError(f"partial_execution_targets reference unknown node IDs: {unknown}")
 
         return await _submit_workflow(
             wf=wf,
@@ -631,6 +668,7 @@ def register_generation_tools(
             stream_events=True,
             model_checker=model_checker,
             ctx=ctx,
+            partial_execution_targets=partial_execution_targets,
         )
 
     tool_fns["comfyui_run_workflow_stream"] = comfyui_run_workflow_stream

@@ -131,10 +131,30 @@ class ComfyUIClient:
         r = await self._request("get", "/queue")
         return r.json()
 
-    async def post_prompt(self, workflow: dict, *, client_id: str | None = None) -> dict:
+    async def post_prompt(
+        self,
+        workflow: dict,
+        *,
+        client_id: str | None = None,
+        partial_execution_targets: list[str] | None = None,
+    ) -> dict:
+        """POST /prompt — submit a workflow for execution (#112).
+
+        Args:
+            workflow: The prompt graph (node_id -> node).
+            client_id: Optional websocket client id for progress routing.
+            partial_execution_targets: Optional node ids to execute; the rest
+                of the graph is served from the execution cache (upstream
+                "partial execution"). Empty list is rejected — upstream
+                requires a non-empty subset.
+        """
+        if partial_execution_targets is not None and not partial_execution_targets:
+            raise ValueError("partial_execution_targets must be a non-empty list when provided")
         payload: dict = {"prompt": workflow}
         if client_id is not None:
             payload["client_id"] = client_id
+        if partial_execution_targets is not None:
+            payload["partial_execution_targets"] = partial_execution_targets
         r = await self._request("post", "/prompt", json=payload)
         return r.json()
 

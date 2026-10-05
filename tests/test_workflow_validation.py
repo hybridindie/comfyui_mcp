@@ -190,6 +190,82 @@ class TestLoopNodeValidation:
         assert any("accumulate" in e.lower() for e in result["errors"])
 
 
+class TestV3ObjectInfoParsing:
+    """Issue #114: /object_info payload shapes produced by V3-schema nodes
+    (CORE V3 migration) must flow through validate/analyze without errors.
+
+    V1-info of V3 nodes: display_name can be None, output_matchtypes is a
+    list or None, DynamicCombo expands into {option: (type, config)} entries,
+    inputs tuples carry config dicts instead of bare type strings.
+    """
+
+    _V3_OBJECT_INFO: ClassVar[dict[str, dict[str, Any]]] = {
+        "StartLoop": {
+            "input": {
+                "required": {
+                    "mode": {
+                        "simple": [["INT", {"default": 4, "min": 0}]],
+                        "For": [["INT", {"default": 0}]],
+                    },
+                }
+            },
+            "input_order": {"required": ["mode"]},
+            "is_input_list": True,
+            "output": ["start_loop_output"],
+            "output_is_list": [True],
+            "output_name": ["start_loop_output"],
+            "output_tooltips": [None],
+            "output_matchtypes": None,
+            "name": "StartLoop",
+            "display_name": None,  # V3 nodes can omit display names
+            "description": "",
+            "python_module": "comfy_extras.nodes_loop",
+            "category": "utilities/looping",
+            "output_node": False,
+            "search_aliases": [],
+            "essentials_category": None,
+        },
+        "EndLoop": {
+            "input": {
+                "required": {
+                    "accumulate": ["BOOLEAN", {"default": False}],
+                },
+                "optional": {
+                    "value": ["start_loop_output", {}],
+                },
+            },
+            "input_order": {"required": ["accumulate"], "optional": ["value"]},
+            "is_input_list": True,
+            "output": ["output_value", "carry"],
+            "output_is_list": [True, False],
+            "output_name": ["output_value", "carry"],
+            "output_tooltips": [None, None],
+            "output_matchtypes": ["output_value", "carry"],
+            "name": "EndLoop",
+            "display_name": "End Loop",
+            "category": "utilities/looping",
+            "output_node": False,
+        },
+    }
+
+    @respx.mock
+    async def test_v3_object_info_validates_loop_workflow(self, client, inspector):
+        _mock_node_replacements()
+        respx.get("http://test:8188/object_info").mock(
+            return_value=httpx.Response(200, json=self._V3_OBJECT_INFO)
+        )
+        wf = {
+            "1": {
+                "class_type": "StartLoop",
+                "inputs": {"mode": ["simple", {"num_iterations": 4}]},
+            },
+            "2": {"class_type": "EndLoop", "inputs": {"accumulate": False, "value": ["1", 0]}},
+        }
+        result = await validate_workflow(wf, client, inspector)
+        assert result["valid"] is True
+        assert result["errors"] == []
+
+
 class TestServerValidation:
     @respx.mock
     async def test_missing_node_type_is_error(self, client, inspector):
