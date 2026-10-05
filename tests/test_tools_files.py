@@ -297,6 +297,126 @@ class TestGetImage:
             await tools["comfyui_get_image"](filename="../../../etc/shadow.png")
 
 
+class TestGetImageContentTypes:
+    @respx.mock
+    async def test_svg_response_rejected(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"<svg xmlns='http://www.w3.org/2000/svg'></svg>",
+                headers={"content-type": "image/svg+xml"},
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="non-image"):
+            await tools["comfyui_get_image"](filename="out.png")
+
+    @respx.mock
+    async def test_svg_with_charset_param_rejected(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"<svg/>",
+                headers={"content-type": "image/svg+xml; charset=utf-8"},
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="non-image"):
+            await tools["comfyui_get_image"](filename="out.png")
+
+    @respx.mock
+    async def test_html_response_rejected(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"<html><script>alert(1)</script></html>",
+                headers={"content-type": "text/html; charset=utf-8"},
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="non-image"):
+            await tools["comfyui_get_image"](filename="out.png")
+
+    @respx.mock
+    async def test_unknown_content_type_rejected(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"opaque-bytes",
+                headers={"content-type": "application/octet-stream"},
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="non-image"):
+            await tools["comfyui_get_image"](filename="out.png")
+
+    @respx.mock
+    async def test_missing_content_type_rejected(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(200, content=b"mystery-bytes")
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="non-image"):
+            await tools["comfyui_get_image"](filename="out.png")
+
+    @respx.mock
+    async def test_video_content_type_rejected(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"video-bytes",
+                headers={"content-type": "video/mp4"},
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="non-image"):
+            await tools["comfyui_get_image"](filename="out.png")
+
+    @respx.mock
+    async def test_case_insensitive_image_allowlist(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"png-bytes",
+                headers={"content-type": "IMAGE/PNG"},
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        result = await tools["comfyui_get_image"](filename="out.png")
+        assert result.startswith("data:image/png;base64,")
+
+    @respx.mock
+    async def test_rejection_audit_logged(self, components, tmp_path):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/view").mock(
+            return_value=httpx.Response(
+                200,
+                content=b"<svg/>",
+                headers={"content-type": "image/svg+xml"},
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="non-image"):
+            await tools["comfyui_get_image"](filename="out.png")
+        entries = (tmp_path / "audit.log").read_text().splitlines()
+        assert any("content_type_rejected" in line for line in entries)
+
+
 class TestGetImagePreview:
     @respx.mock
     async def test_data_uri_with_webp_preview(self, components):
