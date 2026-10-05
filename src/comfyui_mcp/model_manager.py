@@ -21,7 +21,7 @@ class ModelManagerDetector:
     and provides the folder list in a single round-trip.
     """
 
-    _INSTALL_URL = "https://github.com/hayden-fr/ComfyUI-Model-Manager"
+    _INSTALL_URL = "https://github.com/hayden-cn/ComfyUI-Model-Manager"
 
     def __init__(self, client: ComfyUIClient) -> None:
         self._client = client

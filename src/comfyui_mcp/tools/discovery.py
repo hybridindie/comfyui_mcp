@@ -394,10 +394,22 @@ def register_discovery_tools(
     async def comfyui_get_server_features() -> dict[str, Any]:
         """Get the feature flags advertised by the ComfyUI server.
 
-        Returns the raw ``/features`` response — typically a dict of
-        {feature_name: bool}. Useful for capability-based branching, e.g.
-        checking ``supports_preview_metadata`` before requesting preview-format
-        images via ``comfyui_get_image``.
+        Returns the raw ``/features`` response. Useful for capability-based
+        branching, e.g. checking ``supports_preview_metadata`` before
+        requesting preview-format images via ``comfyui_get_image``.
+
+        Keys on recent ComfyUI (v0.38+):
+          - ``supports_preview_metadata``: preview-format thumbnails via
+            ``comfyui_get_image(preview_format=...)`` are available
+          - ``supports_model_type_tags``: model entries carry type tags
+          - ``max_upload_size``: upload byte budget enforced by
+            ``comfyui_upload_image`` (bytes)
+          - ``node_replacements``: server ships a node replacement map
+            (see ``comfyui_get_node_replacements`` if installed)
+          - ``assets``: the SQLite asset catalogue is enabled server-side
+            (``--enable-assets``); when on, large output trees are indexed
+            server-side
+          - ``extension.manager.supports_v4``: ComfyUI-Manager v4 API support
         """
         return await client.get_features()
 

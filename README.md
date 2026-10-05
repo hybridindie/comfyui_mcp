@@ -324,7 +324,7 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | `comfyui_get_node_info` | Get detailed info about a specific node type. |
 | `comfyui_list_workflows` | List saved workflow templates. |
 | `comfyui_list_extensions` | List available ComfyUI extensions. |
-| `comfyui_get_server_features` | Get ComfyUI server features and capabilities. |
+| `comfyui_get_server_features` | Get ComfyUI server features and capabilities (`/features`): `supports_preview_metadata`, `supports_model_type_tags`, `max_upload_size`, `node_replacements`, `assets`, `extension.manager.supports_v4`. |
 | `comfyui_list_model_folders` | List available model folder types. |
 | `comfyui_get_model_metadata` | Get metadata for a specific model file. |
 | `comfyui_audit_dangerous_nodes` | Scan all installed nodes to identify potentially dangerous ones. |
@@ -357,13 +357,28 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | Tool | Description |
 |------|-------------|
 | `comfyui_search_models` | Search HuggingFace or CivitAI for models. Returns name, download URL, size, and stats. |
-| `comfyui_download_model` | Download a model via [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager). URL and extension validated. |
+| `comfyui_download_model` | Download a model via [ComfyUI-Model-Manager](https://github.com/hayden-cn/ComfyUI-Model-Manager). URL and extension validated. |
 | `comfyui_get_download_tasks` | Check status of active model downloads (progress, speed, status). |
 | `comfyui_cancel_download` | Cancel or clean up a model download task. |
 | `comfyui_get_model_presets` | Return recommended sampler/scheduler/steps/CFG defaults for a model family. |
 | `comfyui_get_prompting_guide` | Return model-family prompt engineering tips and negative prompt guidance. |
 
-> **Requires:** [ComfyUI-Model-Manager](https://github.com/hayden-fr/ComfyUI-Model-Manager) installed in your ComfyUI instance. Download tools are gated behind lazy detection — if Model Manager is not installed, these tools return a helpful error message. `comfyui_search_models` works without it.
+> **Requires:** [ComfyUI-Model-Manager](https://github.com/hayden-cn/ComfyUI-Model-Manager) installed in your ComfyUI instance. Download tools are gated behind lazy detection — if Model Manager is not installed, these tools return a helpful error message. `comfyui_search_models` works without it.
+
+### Server capability flags (`comfyui_get_server_features`)
+
+ComfyUI (v0.38+) advertises its capabilities at `GET /features`. Meaningful keys:
+
+| Key | Meaning |
+|-----|---------|
+| `supports_preview_metadata` | Server-rendered preview thumbnails (webp/jpeg) available via `comfyui_get_image(preview_format=...)` |
+| `supports_model_type_tags` | Model listings carry type tags |
+| `max_upload_size` | Maximum upload payload in **bytes** (enforced locally by `comfyui_upload_image` before the request) |
+| `node_replacements` | Server exposes a node replacement map (`/node_replacements`) |
+| `assets` | The SQLite asset catalogue is enabled (`--enable-assets`); when on, output/model trees are indexed server-side |
+| `extension.manager.supports_v4` | ComfyUI-Manager exposes its v4 API |
+
+Older servers may omit keys — always treat them as optional. ComfyUI run-mode flags worth knowing (upstream, v0.38+): `--offline` (no outbound calls at all), `--disable-partner-nodes` (deprecates `--disable-api-nodes`; gates third-party API nodes like BFL/Ideogram/HeyGen).
 
 #### Model Manager download lifecycle
 

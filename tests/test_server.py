@@ -1,8 +1,10 @@
 """Tests for server initialization and tool registration."""
 
+import httpx
 import pytest
+import respx
 
-from comfyui_mcp.config import ComfyUISettings, Settings
+from comfyui_mcp.config import ComfyUISettings, LoggingSettings, Settings
 from comfyui_mcp.middleware import SecurityMiddleware
 from comfyui_mcp.server import _build_server, _select_image_view_base_url
 
@@ -33,6 +35,43 @@ class TestServerSetup:
             "SecurityMiddleware not registered — per-tool rate limit + audit "
             "boilerplate cannot be dropped without it (security rules 3, 4)"
         )
+
+    @respx.mock
+    async def test_lifespan_records_server_features_in_audit_log(self, tmp_path):
+        """On server startup the features dict is captured once into the
+        audit trail, so runs against capability-differing servers are
+        distinguishable in the audit log."""
+        import json as _json
+
+        import comfyui_mcp.server as server_mod
+
+        audit_file = tmp_path / "audit.log"
+        respx.get("http://test:8188/features").mock(
+            return_value=httpx.Response(200, json={"assets": True, "node_replacements": True})
+        )
+        # _lifespan uses module-level singletons; point them at the test config
+        original_client = server_mod._client
+        try:
+            _, _, test_client, _ = _build_server(
+                Settings(
+                    comfyui=ComfyUISettings(url="http://test:8188"),
+                    logging=LoggingSettings(audit_file=str(audit_file)),
+                )
+            )
+            server_mod._client = test_client
+            from comfyui_mcp.audit import AuditLogger
+
+            test_audit = AuditLogger(audit_file=audit_file)
+            async with server_mod._lifespan(None, audit=test_audit):
+                pass
+            entries = [
+                _json.loads(line) for line in audit_file.read_text().splitlines() if line.strip()
+            ]
+            features_entries = [e for e in entries if e.get("action") == "server_features"]
+            assert features_entries, "no server_features audit entry at startup"
+            assert features_entries[0]["extra"]["features"]["assets"] is True
+        finally:
+            server_mod._client = original_client
 
 
 class TestImageViewBaseUrlSelection:
