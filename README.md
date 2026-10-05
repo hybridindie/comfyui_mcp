@@ -378,7 +378,7 @@ ComfyUI (v0.38+) advertises its capabilities at `GET /features`. Meaningful keys
 | `assets` | The SQLite asset catalogue is enabled (`--enable-assets`); when on, output/model trees are indexed server-side |
 | `extension.manager.supports_v4` | ComfyUI-Manager exposes its v4 API |
 
-Older servers may omit keys — always treat them as optional. Note: upstream deprecated `--disable-api-nodes` in favor of `--disable-partner-nodes` (the same flag gates third-party API nodes).
+Older servers may omit keys — always treat them as optional. ComfyUI run-mode flags worth knowing (upstream, v0.38+): `--offline` (no outbound calls at all), `--disable-partner-nodes` (deprecates `--disable-api-nodes`; gates third-party API nodes like BFL/Ideogram/HeyGen).
 
 #### Model Manager download lifecycle
 
