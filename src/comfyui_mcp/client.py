@@ -39,6 +39,7 @@ def _validate_path_segment(value: str, *, label: str = "value") -> str:
 
 class ComfyUIClient:
     _OBJECT_INFO_TTL = 300.0
+    _FEATURES_TTL = 300.0
 
     def __init__(
         self,
@@ -56,6 +57,8 @@ class ComfyUIClient:
         self._init_lock = asyncio.Lock()
         self._object_info_cache: dict | None = None
         self._object_info_ts: float = 0.0
+        self._features_cache: dict | None = None
+        self._features_ts: float = 0.0
 
     @property
     def base_url(self) -> str:
@@ -364,8 +367,20 @@ class ComfyUIClient:
         return r.json()
 
     async def get_features(self) -> dict:
+        """GET /features — server feature flags, cached for _FEATURES_TTL.
+
+        A failed fetch is not cached: the next call retries so a transient
+        error never sticks.
+        """
+        now = time.monotonic()
+        cache_age = now - self._features_ts
+        if self._features_cache is not None and cache_age < self._FEATURES_TTL:
+            return self._features_cache
         r = await self._request("get", "/features")
-        return r.json()
+        data: dict = r.json()
+        self._features_cache = data
+        self._features_ts = now
+        return data
 
     async def get_settings(self) -> dict:
         """GET /settings — read ComfyUI server settings (#142)."""

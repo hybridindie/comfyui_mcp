@@ -565,6 +565,38 @@ class TestComfyUIClient:
         assert result1 == result2
         assert route.call_count == 1
 
+    @respx.mock
+    async def test_get_features_cache_returns_cached_within_ttl(self, client):
+        route = respx.get("http://test-comfyui:8188/features").mock(
+            return_value=httpx.Response(200, json={"max_upload_size": 100})
+        )
+        result1 = await client.get_features()
+        result2 = await client.get_features()
+        assert result1 == result2
+        assert route.call_count == 1
+
+    @respx.mock
+    async def test_get_features_refetches_after_ttl(self, client):
+        route = respx.get("http://test-comfyui:8188/features").mock(
+            return_value=httpx.Response(200, json={"max_upload_size": 100})
+        )
+        await client.get_features()
+        client._features_ts = -1.0  # force cache expiry
+        await client.get_features()
+        assert route.call_count == 2
+
+    @respx.mock
+    async def test_get_features_failed_fetch_not_cached(self, client):
+        # A failed fetch must not poison the cache: the next call retries.
+        route = respx.get("http://test-comfyui:8188/features").mock(
+            side_effect=[httpx.Response(500), httpx.Response(200, json={"ok": True})]
+        )
+        with pytest.raises(httpx.HTTPStatusError):
+            await client.get_features()
+        result = await client.get_features()
+        assert result == {"ok": True}
+        assert route.call_count == 2
+
     def test_build_image_url_rejects_javascript_scheme(self, client):
         with pytest.raises(ValueError, match="http or https"):
             client.build_image_url("test.png", base_url="javascript:alert(1)")
