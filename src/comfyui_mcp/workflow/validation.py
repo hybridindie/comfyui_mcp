@@ -56,14 +56,28 @@ class WorkflowAnalysis(TypedDict):
 
 
 def _is_link(value: Any) -> bool:
-    """True when an input value is a node link [node_id, output_slot]."""
-    return isinstance(value, list) and len(value) == 2 and isinstance(value[0], str)
+    """True when an input value is a node link [node_id, output_slot].
+
+    Matches upstream comfy_execution.graph_utils.is_link: the slot must be an
+    int/float. V3 nodes (DynamicCombo et al.) use list values with non-slot
+    second elements — those are widget payloads, not links. Exported for the
+    operation/summarize code paths that classify input values the same way.
+    """
+    return (
+        isinstance(value, list)
+        and len(value) == 2
+        and isinstance(value[0], str)
+        and isinstance(value[1], (int, float))
+    )
 
 
 def _link_source(value: Any) -> str | None:
     """The node id an input link points at, or None if not a link."""
     if _is_link(value):
-        return str(value[0])
+        source = value[0]
+        # isinstance check inside _is_link guarantees a str, but mypy needs
+        # the explicit narrow over the NodeInputValue union.
+        return source if isinstance(source, str) else None
     return None
 
 
@@ -296,11 +310,10 @@ def analyze_workflow(
         }
 
         for value in inputs.values():
-            if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
-                parent_id = value[0]
-                if parent_id in workflow:
-                    deps[node_id].add(parent_id)
-                    deps.setdefault(parent_id, set())
+            source = _link_source(value)
+            if source is not None and source in workflow:
+                deps[node_id].add(source)
+                deps.setdefault(source, set())
 
     sorter = graphlib.TopologicalSorter(deps)
     try:
@@ -404,13 +417,12 @@ async def validate_workflow(
             )
             continue
         for input_name, value in inputs.items():
-            if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
-                ref_id = value[0]
-                if ref_id not in workflow:
-                    errors.append(
-                        f"Node '{node_id}' input '{input_name}':"
-                        f" references non-existent node '{ref_id}'"
-                    )
+            ref_id = _link_source(value)
+            if ref_id and ref_id not in workflow:
+                errors.append(
+                    f"Node '{node_id}' input '{input_name}':"
+                    f" references non-existent node '{ref_id}'"
+                )
 
     # Cycle detection
     deps: dict[str, set[str]] = {}

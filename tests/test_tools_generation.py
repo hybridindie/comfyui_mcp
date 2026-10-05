@@ -92,6 +92,43 @@ class TestRunWorkflow:
         assert result["prompt_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
     @respx.mock
+    async def test_partial_execution_targets_reach_body(self, components):
+        """#112: run_workflow(partial_execution_targets=[...]) lands in the
+        /prompt body."""
+        client, audit, limiter, inspector, sanitizer = components
+        route = respx.post("http://test:8188/prompt").mock(
+            return_value=httpx.Response(
+                200, json={"prompt_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
+        workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
+        result = await tools["comfyui_run_workflow"](
+            workflow=json.dumps(workflow), partial_execution_targets=["1"]
+        )
+        assert result["status"] == "submitted"
+        import json as _json
+
+        body = _json.loads(route.calls.last.request.content)
+        assert body["partial_execution_targets"] == ["1"]
+
+    async def test_partial_execution_targets_unknown_node_rejected(self, components):
+        """#112: node IDs not in the workflow are rejected locally."""
+        client, audit, limiter, inspector, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_generation_tools(
+            mcp, client, audit, limiter, inspector, sanitizer=sanitizer
+        )
+        workflow = {"1": {"class_type": "KSampler", "inputs": {}}}
+        with pytest.raises(ValueError, match="unknown node IDs"):
+            await tools["comfyui_run_workflow"](
+                workflow=json.dumps(workflow), partial_execution_targets=["99"]
+            )
+
+    @respx.mock
     async def test_audit_mode_logs_dangerous_nodes(self, components):
         client, audit, limiter, inspector, sanitizer = components
         respx.post("http://test:8188/prompt").mock(
