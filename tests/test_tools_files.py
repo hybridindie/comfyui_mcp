@@ -114,6 +114,105 @@ class TestUploadImage:
             await tools["comfyui_upload_image"](filename="malicious.py", image_data=image_b64)
 
 
+class TestUploadImageMaxUploadSize:
+    @respx.mock
+    async def test_upload_over_server_limit_rejected_locally(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/features").mock(
+            return_value=httpx.Response(200, json={"max_upload_size": 10})  # 10 bytes
+        )
+        upload_route = respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(200, json={"name": "big.png"})
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="max_upload_size"):
+            await tools["comfyui_upload_image"](
+                filename="big.png", image_data=base64.b64encode(b"x" * 50).decode()
+            )
+        assert not upload_route.calls  # rejected before hitting ComfyUI
+
+    @respx.mock
+    async def test_upload_within_server_limit_succeeds(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/features").mock(
+            return_value=httpx.Response(200, json={"max_upload_size": 1000})
+        )
+        respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(200, json={"name": "ok.png"})
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        result = await tools["comfyui_upload_image"](
+            filename="ok.png", image_data=base64.b64encode(b"x" * 100).decode()
+        )
+        assert "Uploaded" in result
+
+    @respx.mock
+    async def test_upload_exactly_at_limit_succeeds(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/features").mock(
+            return_value=httpx.Response(200, json={"max_upload_size": 50})
+        )
+        respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(200, json={"name": "edge.png"})
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        await tools["comfyui_upload_image"](
+            filename="edge.png", image_data=base64.b64encode(b"x" * 50).decode()
+        )
+
+    @respx.mock
+    async def test_features_unavailable_falls_back_to_config(self, components):
+        # /features failing (e.g. old ComfyUI) must not break uploads;
+        # sanitizer's configured max still applies.
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/features").mock(
+            return_value=httpx.Response(404, text="not found")
+        )
+        respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(200, json={"name": "small.png"})
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        result = await tools["comfyui_upload_image"](
+            filename="small.png", image_data=base64.b64encode(b"x" * 10).decode()
+        )
+        assert "Uploaded" in result
+
+    @respx.mock
+    async def test_rejection_audit_logged(self, components, tmp_path):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/features").mock(
+            return_value=httpx.Response(200, json={"max_upload_size": 10})
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="max_upload_size"):
+            await tools["comfyui_upload_image"](
+                filename="big.png", image_data=base64.b64encode(b"x" * 50).decode()
+            )
+        entries = (tmp_path / "audit.log").read_text().splitlines()
+        assert any("upload_rejected" in line for line in entries)
+
+    @respx.mock
+    async def test_features_without_max_upload_size_key_skips_check(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/features").mock(
+            return_value=httpx.Response(200, json={"supports_preview_metadata": True})
+        )
+        respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(200, json={"name": "ok.png"})
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        result = await tools["comfyui_upload_image"](
+            filename="ok.png", image_data=base64.b64encode(b"x" * 10).decode()
+        )
+        assert "Uploaded" in result
+
+
 class TestUploadImageDestination:
     @respx.mock
     async def test_upload_to_output_dir(self, components):
