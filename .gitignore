@@ -30,3 +30,21 @@ graphify-out/
 
 # Eval run reports (per-run snapshots, not source)
 evals/*.md
+evidence/raw/
+.obsidian/
+.DS_Store
+
+# Dropped-harness instruction files (wf tooling re-creates them per detected
+# harness; this project is opencode-only — rules live in .opencode/, entry in
+# AGENTS.md). See #121/#123 and the 2026-10 repo-cleanup.
+/CLAUDE.md
+/PI.md
+/.claude/
+/.codex/
+/.cursor/
+/.aider*
+/.rules
+/GEMINI.md
+/CONVENTIONS.md
+/.github/copilot-instructions.md
+/.env.wiki-fabric
