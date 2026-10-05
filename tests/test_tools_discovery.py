@@ -146,6 +146,19 @@ class TestGetServerFeatures:
         result = await tools["comfyui_get_server_features"]()
         assert result["supports_preview_metadata"] is True
 
+    @respx.mock
+    async def test_get_server_features_docstring_documents_new_keys(self, components):
+        """The tool docstring tells the LLM what the /features keys mean —
+        including the assets flag, node_replacements and max_upload_size."""
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/features").mock(return_value=httpx.Response(200, json={}))
+        mcp = FastMCP("test")
+        tools = register_discovery_tools(mcp, client, audit, limiter, sanitizer)
+        tool = await mcp.get_tool("comfyui_get_server_features")
+        description = tool.description or ""
+        for key in ("assets", "node_replacements", "max_upload_size"):
+            assert key in description, f"docstring missing {key!r}"
+
 
 class TestListModelFolders:
     @respx.mock

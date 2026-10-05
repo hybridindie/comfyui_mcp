@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import functools
+import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -303,7 +305,7 @@ def _build_server(
             "for warnings about dangerous nodes or suspicious inputs. If warnings are present, "
             "inform the user and ask for confirmation before proceeding with execution."
         ),
-        "lifespan": _lifespan,
+        "lifespan": functools.partial(_lifespan, audit=audit),
         # Phase 3: mask internal error details from clients — only ToolError
         # messages (which we control) include details. Generic exceptions get
         # a masked message rather than an internal traceback.
@@ -371,9 +373,26 @@ def _build_server(
 
 
 @contextlib.asynccontextmanager
-async def _lifespan(app: FastMCP) -> AsyncIterator[None]:
-    """Manage async resource lifecycle for the MCP server."""
+async def _lifespan(app: FastMCP, *, audit: AuditLogger | None = None) -> AsyncIterator[None]:
+    """Manage async resource lifecycle for the MCP server.
+
+    On startup, record the ComfyUI server's feature flags once into the audit
+    trail (action=server_features) so runs against capability-differing
+    servers are distinguishable in the audit log. Failures are non-fatal:
+    the server still serves tools when /features is unreachable.
+    """
     try:
+        if audit is not None:
+            try:
+                features = await _client.get_features()
+                await audit.async_log(
+                    tool="server", action="server_features", extra={"features": features}
+                )
+            except Exception as exc:
+                # Older/unreachable servers don't expose /features — startup proceeds.
+                logging.getLogger(__name__).debug(
+                    "Feature flags unavailable at startup (non-fatal): %s", exc
+                )
         yield
     finally:
         with contextlib.suppress(Exception):
