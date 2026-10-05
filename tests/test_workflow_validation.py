@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 import pytest
@@ -95,6 +95,99 @@ class TestStructuralValidation:
         result = await validate_workflow(wf, client, inspector)
         assert result["valid"] is False
         assert any("cycle" in e.lower() for e in result["errors"])
+
+
+class TestLoopNodeValidation:
+    """Loop-boundary awareness (upstream CORE-14, Generic Loops)."""
+
+    _OBJECT_INFO: ClassVar[dict[str, dict[str, Any]]] = {
+        "StartLoop": {"display_name": "Start Loop", "category": "utilities/looping"},
+        "EndLoop": {"display_name": "End Loop", "category": "utilities/looping"},
+        "EmptyLatentImage": {"display_name": "Empty Latent"},
+        "KSampler": {"display_name": "KSampler"},
+        "SaveImage": {"display_name": "Save Image"},
+    }
+
+    def _mock_server(self, object_info=None):
+        _mock_node_replacements()
+        respx.get("http://test:8188/object_info").mock(
+            return_value=httpx.Response(200, json=object_info or self._OBJECT_INFO)
+        )
+
+    @respx.mock
+    async def test_paired_loop_passes(self, client, inspector):
+        self._mock_server()
+        # Legal pair mirroring upstream test_accepts_accumulate_control_from_outside_loop:
+        # body flows into EndLoop via 'value'; accumulate is driven from OUTSIDE the loop
+        # (the initial-carry pattern); output consumes the EndLoop result.
+        wf = {
+            "1": {"class_type": "StartLoop", "inputs": {"num_iterations": 4}},
+            "2": {"class_type": "EmptyLatentImage", "inputs": {}},
+            "3": {
+                "class_type": "KSampler",
+                "inputs": {"latent_image": ["2", 0], "model": ["1", 0]},
+            },
+            "4": {"class_type": "EndLoop", "inputs": {"value": ["3", 0], "accumulate": ["2", 0]}},
+            "5": {"class_type": "SaveImage", "inputs": {"images": ["4", 0]}},
+        }
+        result = await validate_workflow(wf, client, inspector)
+        assert result["valid"] is True
+        assert not any("loop" in e.lower() for e in result["errors"])
+
+    @respx.mock
+    async def test_orphan_end_loop_is_error(self, client, inspector):
+        self._mock_server()
+        wf = {"1": {"class_type": "EndLoop", "inputs": {}}}
+        result = await validate_workflow(wf, client, inspector)
+        assert result["valid"] is False
+        assert any("End Loop" in e and "Start Loop" in e for e in result["errors"])
+
+    @respx.mock
+    async def test_orphan_start_loop_is_error(self, client, inspector):
+        self._mock_server()
+        wf = {
+            "1": {"class_type": "StartLoop", "inputs": {"num_iterations": 4}},
+            "2": {"class_type": "EmptyLatentImage", "inputs": {}},
+        }
+        result = await validate_workflow(wf, client, inspector)
+        assert result["valid"] is False
+        assert any("Start Loop" in e and "End Loop" in e for e in result["errors"])
+
+    @respx.mock
+    async def test_loop_escape_is_error(self, client, inspector):
+        """A loop body node linked outside the loop without passing EndLoop
+        (upstream 'loop_escape') is an error."""
+        self._mock_server()
+        wf = {
+            "1": {"class_type": "StartLoop", "inputs": {"num_iterations": 4}},
+            "2": {"class_type": "EmptyLatentImage", "inputs": {}},
+            "3": {
+                "class_type": "KSampler",
+                "inputs": {"latent_image": ["2", 0], "model": ["1", 0]},
+            },
+            "4": {"class_type": "EndLoop", "inputs": {"accumulate": ["3", 0]}},
+            "5": {"class_type": "SaveImage", "inputs": {"images": ["3", 0]}},
+        }
+        result = await validate_workflow(wf, client, inspector)
+        assert result["valid"] is False
+        assert any("escape" in e.lower() for e in result["errors"])
+
+    @respx.mock
+    async def test_loop_accumulate_from_body_is_error(self, client, inspector):
+        """EndLoop.accumulate driven by a node inside its own loop body is an
+        error upstream (loop_accumulate_from_body)."""
+        self._mock_server()
+        wf = {
+            "1": {"class_type": "StartLoop", "inputs": {"num_iterations": 4}},
+            "2": {"class_type": "EmptyLatentImage", "inputs": {}},
+            "3": {
+                "class_type": "KSampler",
+                "inputs": {"latent_image": ["2", 0], "model": ["1", 0]},
+            },
+            "4": {"class_type": "EndLoop", "inputs": {"accumulate": ["3", 0]}},
+        }
+        result = await validate_workflow(wf, client, inspector)
+        assert any("accumulate" in e.lower() for e in result["errors"])
 
 
 class TestServerValidation:

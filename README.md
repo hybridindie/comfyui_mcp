@@ -297,7 +297,7 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | `comfyui_create_workflow` | Create a workflow from templates including txt2img/img2img/upscale/inpaint, txt2vid_animatediff/txt2vid_wan, controlnet_canny/controlnet_depth/controlnet_openpose, ip_adapter, lora_stack, face_restore, flux_txt2img, and sdxl_txt2img. |
 | `comfyui_modify_workflow` | Apply batch operations (add_node, remove_node, set_input, connect, disconnect) to a workflow. |
 | `comfyui_analyze_workflow` | Return a structured analysis of a workflow as a dict (`node_count`, `class_types`, `flow`, `models`, `parameters`, `pipeline`, `prompt_nodes`, `negative_nodes`). Use this when you want to read fields like `pipeline` programmatically; use `comfyui_summarize_workflow` for a human-readable text or Mermaid rendering. |
-| `comfyui_validate_workflow` | Validate workflow structure, server compatibility, and security. |
+| `comfyui_validate_workflow` | Validate workflow structure, server compatibility, security, and loop integrity (paired Start/End Loops, no escapes, no accumulate-from-body errors — mirrors upstream Core Loops validation). |
 
 ### Job Management
 

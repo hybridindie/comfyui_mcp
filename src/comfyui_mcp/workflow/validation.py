@@ -22,6 +22,24 @@ _SINGLE_FIELD_LOADERS = get_single_field_loaders()
 
 INPUT_NODE_TYPES = {"LoadImage", "LoadImageMask", "EmptyLatentImage"}
 SAMPLER_NODE_TYPES = {"KSampler", "KSamplerAdvanced", "SamplerCustom"}
+# Core output nodes used to identify terminal nodes for loop-escape analysis.
+OUTPUT_NODE_TYPES = {
+    "SaveImage",
+    "SaveImageWebsocket",
+    "SaveAnimatedWEBP",
+    "SaveAnimatedPNG",
+    "VHS_VideoCombine",
+    "SaveVIDEO",
+    "SaveAudio",
+}
+
+# Loop-boundary node types (upstream Generic Loops, CORE-14 —
+# comfy_extras/nodes_loop.py). The upstream schema carries loop_boundary on
+# Schema, but /object_info does not expose it; these four class_types are the
+# complete set shipped by core. Detecting by name keeps the check working on
+# servers that predate the schema plumbing.
+LOOP_START_TYPES = frozenset({"StartLoop"})
+LOOP_END_TYPES = frozenset({"EndLoop"})
 
 
 class WorkflowAnalysis(TypedDict):
@@ -35,6 +53,204 @@ class WorkflowAnalysis(TypedDict):
     pipeline: str
     prompt_nodes: list[str]
     negative_nodes: list[str]
+
+
+def _is_link(value: Any) -> bool:
+    """True when an input value is a node link [node_id, output_slot]."""
+    return isinstance(value, list) and len(value) == 2 and isinstance(value[0], str)
+
+
+def _link_source(value: Any) -> str | None:
+    """The node id an input link points at, or None if not a link."""
+    if _is_link(value):
+        return str(value[0])
+    return None
+
+
+def _parent_map(workflow: Workflow) -> dict[str, set[str]]:
+    parents: dict[str, set[str]] = {node_id: set() for node_id in workflow}
+    for node_id, node_data in workflow.items():
+        if not isinstance(node_data, dict):
+            continue
+        parents.setdefault(node_id, set())
+        inputs = node_data.get("inputs", {})
+        if not isinstance(inputs, dict):
+            continue
+        for value in inputs.values():
+            source = _link_source(value)
+            if source is not None and source in workflow:
+                parents[node_id].add(source)
+    return parents
+
+
+def _walk(
+    start_ids: set[str],
+    edges: dict[str, set[str]],
+    *,
+    stops: set[str] | frozenset[str] = frozenset(),
+) -> set[str]:
+    """Reachable node ids from start_ids via edges, stopping at stops."""
+    found: set[str] = set()
+    pending = list(start_ids)
+    while pending:
+        node_id = pending.pop()
+        if node_id in found:
+            continue
+        found.add(node_id)
+        if node_id in stops:
+            continue
+        pending.extend(edges.get(node_id, ()))
+    return found
+
+
+def _collect_loop_classes(
+    workflow: Workflow, object_info: dict[str, Any] | None
+) -> tuple[set[str], set[str]]:
+    """(start_ids, end_ids) for loop-boundary nodes present in the workflow.
+
+    Preferred source is the server's loop_boundary metadata when present
+    (newer object_info); falls back to the known core loop classes.
+    """
+    starts: set[str] = set()
+    ends: set[str] = set()
+    for node_id, node_data in workflow.items():
+        if not isinstance(node_data, dict):
+            continue
+        ct = node_data.get("class_type", "")
+        info = (object_info or {}).get(ct) or {}
+        boundary = info.get("loop_boundary")
+        if boundary == "start":
+            starts.add(node_id)
+        elif boundary == "end":
+            ends.add(node_id)
+        elif ct in LOOP_START_TYPES and (object_info is None or ct in object_info):
+            starts.add(node_id)
+        elif ct in LOOP_END_TYPES and (object_info is None or ct in object_info):
+            ends.add(node_id)
+    return starts, ends
+
+
+def validate_loop_structure(
+    workflow: Workflow,
+    starts: set[str],
+    ends: set[str],
+    output_ids: set[str],
+) -> list[str]:
+    """Loop-structure validation, a port of upstream
+    comfy_execution.validation.validate_loops (CORE-14) to error strings.
+
+    Errors (mirroring upstream loop_error_type values):
+    - ``loop_end_without_start``: an EndLoop with no ancestor StartLoop, or an
+      EndLoop reached after its Start was already paired
+    - ``loop_start_without_end``: a StartLoop that cannot pair with an EndLoop
+    - ``ambiguous_loop_nesting``: an EndLoop that multiple unrelated StartLoops
+      could close
+    - ``loop_escape``: a loop body that reaches another EndLoop, an unpaired
+      boundary, or a terminal output without passing through its own EndLoop
+    - ``loop_accumulate_from_body``: EndLoop.accumulate driven by a node inside
+      its own body (or by the StartLoop itself)
+    """
+    errors: list[str] = []
+    if not starts and not ends:
+        return errors
+
+    parents: dict[str, set[str]] = _parent_map(workflow)
+    children: dict[str, set[str]] = {node_id: set() for node_id in workflow}
+    for node_id, node_parents in parents.items():
+        for parent_id in node_parents:
+            children.setdefault(parent_id, set()).add(node_id)
+
+    terminal_outputs = {node_id for node_id in output_ids if not children.get(node_id)}
+
+    # Start DAG: descendants of each Start, stopping at other Starts.
+    start_dag = {start_id: _walk(children[start_id], children, stops=starts) for start_id in starts}
+    start_descendants = {start_id: _walk(start_dag[start_id], start_dag) for start_id in starts}
+
+    # End DAG (reverse direction): ancestors of each End, stopping at other
+    # Ends. Its leaves are the innermost Ends and pair first.
+    end_dag = {end_id: _walk(parents[end_id], parents, stops=ends) for end_id in ends}
+
+    pairs: dict[str, str] = {}
+    remaining_starts = set(starts)
+    remaining_ends = set(ends)
+    while remaining_ends:
+        # Innermost unpaired end: no other unpaired end among its ancestors.
+        end_id = next(
+            node_id for node_id in sorted(remaining_ends) if not end_dag[node_id] & remaining_ends
+        )
+
+        candidates = _walk(parents[end_id], parents, stops=remaining_starts) & remaining_starts
+        if not candidates:
+            errors.append(f"Node '{end_id}': End Loop has no Start Loop (loop_end_without_start)")
+            remaining_ends.discard(end_id)
+            continue
+
+        closest = {
+            candidate
+            for candidate in candidates
+            if all(
+                other == candidate or candidate in start_descendants[other] for other in candidates
+            )
+        }
+        if len(closest) != 1:
+            errors.append(
+                f"Node '{end_id}': End Loop can close multiple unrelated Start Loops: "
+                f"{', '.join(sorted(candidates))} (ambiguous_loop_nesting)"
+            )
+            remaining_ends.discard(end_id)
+            continue
+
+        start_id = closest.pop()
+        pairs[start_id] = end_id
+        remaining_starts.discard(start_id)
+        remaining_ends.discard(end_id)
+
+        # Escape check: previously paired Ends (none remain) may be crossed; an
+        # unpaired End, a terminal output, or the loop's own End stops the
+        # walk. Anything reached and stopped that isn't the paired End is an
+        # escape; anything reached but NOT stopped reached past all stops.
+        escaped = _walk(
+            children[start_id],
+            children,
+            stops=remaining_ends | terminal_outputs | {end_id},
+        )
+        escapes = (escaped & terminal_outputs) | (escaped & (ends - {end_id} - remaining_ends))
+        if escapes:
+            errors.append(
+                f"Node '{start_id}': loop body escapes via {', '.join(sorted(escapes))} "
+                f"without passing through End Loop '{end_id}' (loop_escape)"
+            )
+
+    for start_id in sorted(remaining_starts):
+        errors.append(f"Node '{start_id}': Start Loop has no End Loop (loop_start_without_end)")
+
+    for start_id, end_id in pairs.items():
+        body = _walk(children[start_id], children, stops={end_id})
+        body.discard(end_id)
+        body.discard(start_id)
+        end_node = workflow.get(end_id)
+        accumulate = (
+            end_node.get("inputs", {}).get("accumulate") if isinstance(end_node, dict) else None
+        )
+        accumulate_source = _link_source(accumulate)
+        if accumulate_source is not None and (
+            accumulate_source == start_id or accumulate_source in body
+        ):
+            errors.append(
+                f"Node '{end_id}': End Loop accumulate is driven by loop node "
+                f"'{accumulate_source}' inside its own loop body "
+                "(loop_accumulate_from_body)"
+            )
+
+    return errors
+
+
+def _reverse(edges: dict[str, set[str]]) -> dict[str, set[str]]:
+    rev: dict[str, set[str]] = {k: set() for k in edges}
+    for src, dsts in edges.items():
+        for dst in dsts:
+            rev.setdefault(dst, set()).add(src)
+    return rev
 
 
 def analyze_workflow(
@@ -279,6 +495,23 @@ async def validate_workflow(
     if not errors:
         with contextlib.suppress(httpx.HTTPError, OSError):
             node_replacements = await client.get_node_replacements()
+
+    # --- Loop structure (upstream Generic Loops, CORE-14) ---
+    if not errors:
+        starts, ends = _collect_loop_classes(workflow, object_info)
+        if starts or ends:
+            output_nodes = {
+                node_id
+                for node_id, node_data in workflow.items()
+                if isinstance(node_data, dict)
+                and (
+                    (object_info or {}).get(node_data.get("class_type", ""), {}).get("output_node")
+                    or node_data.get("class_type") in OUTPUT_NODE_TYPES
+                )
+            }
+            loop_errors = validate_loop_structure(workflow, starts, ends, output_nodes)
+            errors.extend(loop_errors)
+
     try:
         result = inspector.inspect(workflow, node_replacements=node_replacements)
         warnings.extend(result.warnings)
