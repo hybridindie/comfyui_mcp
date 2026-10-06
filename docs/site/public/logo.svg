@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- shield (security) + aperture-ish ComfyUI nod -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b7cf6"/>
+      <stop offset="1" stop-color="#4f8ef7"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 4 8 12v18c0 15.5 10.2 26.6 24 30 13.8-3.4 24-14.5 24-30V12L32 4z"
+        fill="url(#g)"/>
+  <circle cx="32" cy="28" r="10" fill="none" stroke="#fff" stroke-width="3"/>
+  <circle cx="32" cy="28" r="4" fill="#fff"/>
+  <path d="M24 44h16M26 50h12" stroke="#fff" stroke-width="3"
+        stroke-linecap="round" fill="none"/>
+</svg>

@@ -30,6 +30,10 @@ graphify-out/
 
 # Eval run reports (per-run snapshots, not source)
 evals/*.md
+
+# docs site (VitePress)
+docs/site/node_modules/
+docs/site/dist/
 evidence/raw/
 .obsidian/
 .DS_Store
