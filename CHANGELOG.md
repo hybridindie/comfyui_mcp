@@ -5,6 +5,80 @@ All notable changes to **comfyui-mcp-secure** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] — 2026-10-06
+
+Additive minor release. Adds partial execution targets, loop-structure
+validation, upload size enforcement, and a security fix for inline content
+types. Migrates off the FastMCP 4 beta to stable 4.0.11.
+
+### Added
+
+- **Partial execution targets** *(#112)* — `comfyui_run_workflow` and
+  `comfyui_run_workflow_stream` accept an optional `partial_execution_targets`
+  list (native upstream partial execution). Node IDs are validated locally
+  before submit and threaded through the submit envelope; empty lists are
+  rejected and the request body omits the key entirely when unset, so the
+  historical wire shape is unchanged.
+- **Loop-structure validation for Generic Loops** *(#180)* — the workflow
+  validator now ports ComfyUI's server-side loop pairing/escape/accumulate
+  rules (`comfy_execution.validation.validate_loops`), catching orphaned
+  `StartLoop`/`EndLoop` graphs that previously passed validation silently.
+  Detects `loop_end_without_start`, `loop_start_without_end`,
+  `ambiguous_loop_nesting`, `loop_escape`, and `loop_accumulate_from_body`;
+  boundaries are detected via `object_info` loop metadata when the server
+  exposes it, with core class_types as fallback. Zero cost when no loop
+  nodes are present.
+- **`max_upload_size` enforcement in `comfyui_upload_image`** *(#178)* —
+  fetches the server's `/features` limit before posting `/upload/image`,
+  returning a precise local `ValueError` naming the byte budget instead of
+  an opaque HTTP 413. Falls back to the config limit when `/features` is
+  absent, and skips the check when the key isn't reported. Rejections are
+  audit-logged as `upload_rejected`. `/features` responses are cached with a
+  5-minute TTL (never caching failures).
+- **Server capability flags documented + recorded at startup** *(#179)* —
+  the `comfyui_get_server_features` docstring documents the `/features` keys
+  worth reasoning about (`assets`, `node_replacements`, `max_upload_size`,
+  `supports_model_type_tags`, Manager v4). `_lifespan` records the fetched
+  features dict once into the audit trail (`action=server_features`) so runs
+  against capability-differing servers are distinguishable; failures are
+  debug-logged and non-fatal.
+
+### Fixed
+
+- **Content-type allow-list for images inlined from `/view`** *(#177)* —
+  upstream ComfyUI forces renderable/active content types (HTML, JS, CSS,
+  SVG, XML) to download instead of rendering inline
+  (GHSA-779p-m5rp-r4h4). Our `comfyui_get_image` relayed whatever
+  content type the server sent straight into a renderable `data:` URI,
+  making this MCP server the XSS relay upstream had just closed. It now
+  allow-lists raster `image/*` only (blocking `image/svg+xml`, an active
+  XML document type), rejects missing/unknown content types by default,
+  and audit-logs rejections (`action=content_type_rejected`). The
+  client no longer substitutes a synthetic `image/png` when the header is
+  missing. The `response_format=url` path is unchanged.
+- **V3-schema `object_info` link parsing** *(#114)* — V3 payloads with
+  `DynamicCombo` values like `["simple", {...}]` were misclassified as node
+  links, breaking cycle detection and mermaid rendering. `_is_link` now
+  matches upstream `graph_utils.is_link` (slot must be int/float), with the
+  fix centralized across analyze, cycle-check, `remove_node`, and mermaid
+  summarize via a shared `_link_source` helper.
+
+### Changed
+
+- **fastmcp 4.0.0b3 → stable 4.0.11** *(#176)* — off the beta onto the
+  stable 4.x line (`fastmcp[tasks]>=4.0.11,<5`). Also bumped dev
+  dependencies: mypy 1.19.1 → 2.4.0 (no issues across all 37 source
+  files), openai 2.36.0 → 3.24.0 (inspect-ai verified compatible; floor
+  now `>=3.1.0`), plus `inspect-ai>=0.3.276`.
+- **Model Manager URL rename** — upstream repo moved; docs and
+  `ModelManagerDetector` updated from `hayden-fr` → `hayden-cn` (#179).
+
+### Security
+
+- **Content-type allow-list for inline `/view` images** (see *Fixed*,
+  #177) — closes an XSS-relay path by never inlining non-raster content
+  types from the ComfyUI server.
+
 ## [2.2.0] — 2026-08-29
 
 ### Added
@@ -454,6 +528,8 @@ Covers every change since the previous published release ([1.0.1]).
 Last 1.x line release prior to the 2.0.0 cut. See git history (`git log v1.0.0`)
 for changes leading up to this tag.
 
+[2.3.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v2.3.0
+[2.2.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v2.2.0
 [2.1.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v2.1.0
 [2.0.0]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v2.0.0
 [1.0.1]: https://github.com/hybridindie/comfyui_mcp/releases/tag/v1.0.1
