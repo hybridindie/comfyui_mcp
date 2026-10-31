@@ -14,7 +14,7 @@ jobs:
 
   docker:
     needs: [ci]
-    runs-on: [self-hosted, linux, hybridindie]
+    runs-on: hybridindie-comfyui-mcp-linux
     permissions:
       contents: read
       packages: write
