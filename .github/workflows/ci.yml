@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   lint:
-    runs-on: [self-hosted, linux, hybridindie]
+    runs-on: hybridindie-comfyui-mcp-linux
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -30,7 +30,7 @@ jobs:
         run: uv run ruff format --check src/ tests/
 
   type-check:
-    runs-on: [self-hosted, linux, hybridindie]
+    runs-on: hybridindie-comfyui-mcp-linux
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -47,7 +47,7 @@ jobs:
         run: uv run mypy src/comfyui_mcp/
 
   test:
-    runs-on: [self-hosted, linux, hybridindie]
+    runs-on: hybridindie-comfyui-mcp-linux
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
