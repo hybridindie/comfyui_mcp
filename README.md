@@ -2,7 +2,7 @@
 
 A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants to generate images, run workflows, and manage jobs through ComfyUI — with built-in security controls that existing ComfyUI MCP servers lack.
 
-> **Using OpenCode?** This repo ships agent configuration under `.opencode/` — grounding rules (`.opencode/rules/`), a read-only `review` subagent, a `/preflight` command, and a graphify plugin — all pre-wired to the MCP server. See [AGENTS.md](./AGENTS.md) for the entry point. The server itself works with **any** MCP client over stdio or Streamable HTTP.
+> **Using OpenCode or Claude Code?** This repo ships agent configuration under `.opencode/` and `.claude/` — grounding rules (`.claude/rules/`), a read-only `review` subagent, a `/preflight` command, and a graphify plugin — all pre-wired to the MCP server. See [AGENTS.md](./AGENTS.md) for the entry point. The server itself works with **any** MCP client over stdio or Streamable HTTP.
 
 ## Why this exists
 
@@ -218,18 +218,19 @@ The MCP server communicates over stdio. Add one of the following configurations 
 
 > **Note:** `host.docker.internal` routes to your host machine from inside Docker. If ComfyUI runs on a remote server, replace with that server's URL. On Linux, you may need to add `--add-host=host.docker.internal:host-gateway`.
 
-### Agent configuration (OpenCode)
+### Agent configuration (OpenCode and Claude Code)
 
-This repository ships agent configuration under `.opencode/` for [OpenCode](https://opencode.ai) (and any harness that reads `AGENTS.md`). The server itself is harness-agnostic — it works with any MCP client over stdio or Streamable HTTP.
+This repository ships agent configuration under `.opencode/` for [OpenCode](https://opencode.ai) and `.claude/` for Claude Code (and any harness that reads `AGENTS.md`), rendered from the genesis harness. The server itself is harness-agnostic — it works with any MCP client over stdio or Streamable HTTP.
 
 Agent-related files in this repo:
 
 - `AGENTS.md` — harness-agnostic entry point; index of the grounding rules
-- `.opencode/opencode.json` — wires `context7` (MCP/FastMCP/Pydantic/httpx docs), a `review` subagent, a `/preflight` command, the graphify plugin, and a `watcher.ignore`
-- `.opencode/rules/` — path-scoped constitutional rules (security, architecture, tools, testing, workflow, enforcement, graphify); loaded as `instructions` in `opencode.json`
-- `.opencode/agents/review.md` — read-only pre-PR reviewer subagent
-- `.opencode/commands/preflight.md` — `/preflight` command (lint/format/type/tests gate)
-- `.opencode/hooks/check-no-skipped-tests.sh` — zero-skip suite-health gate
+- `CLAUDE.md` / `my-workflows.md` — Claude Code entry (imports `AGENTS.md`) and personal workflow conventions
+- `.claude/rules/` — path-scoped grounding rules (security, architecture, tools, testing, workflow, enforcement, graphify, plus CI, packaging, async, logging and docs), indexed from `AGENTS.md`
+- `.claude/hooks/` — zero-skip, secret-scan and harness-drift gates (`guardrails.sh` runs them together)
+- `.opencode/opencode.json` — wires `context7` (MCP/FastMCP/Pydantic/httpx docs), the graphify plugin, and a `watcher.ignore`; loads `AGENTS.md` and `my-workflows.md`
+- `.claude/agents/review.md`, `.opencode/agents/review.md` — read-only pre-PR reviewer subagent
+- `/preflight`, `/ship-pr`, `/harness-eval` commands in `.claude/commands/` and `.opencode/commands/` (same body)
 - `.opencode/plugins/graphify.js` — knowledge-graph reminder plugin
 - `skills/` — convenience recipes that wrap common multi-tool flows (`gen`, `workflow`, `status`, `progress`, `history`, `models`, `troubleshooting`, `workflows`)
 
