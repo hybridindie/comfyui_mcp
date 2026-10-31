@@ -1,4 +1,5 @@
 ---
+read_when: "Changing server wiring, module layout, middleware, resources/prompts, the Model Manager client, or the dangerous-nodes list"
 paths:
   - "src/comfyui_mcp/**/*.py"
 ---
@@ -106,6 +107,19 @@ alongside tools:
   `mcp.types.PromptMessage` or raw `role`/`content` dicts is not supported on
   FastMCP 4 — use `from fastmcp.prompts import Message` or a plain string.
 
+### Adding a new resource or prompt (checklist)
+
+1. Add the `@mcp.resource("comfyui://...")` function in `resources.py` or the
+   `@mcp.prompt` function in `prompts.py`; register it in `server.py`
+   `_register_all_tools()`.
+2. For a templated resource, anchor the final path against an allowed root and
+   confirm containment before reading (see above).
+3. Resources/prompts use the read-only rate limiter: add a `limiter.check()`
+   call and an `audit.async_log()` entry record, or rely on
+   `SecurityMiddleware`.
+4. Add tests in `tests/test_resources.py` / `tests/test_prompts.py` that call
+   the function directly.
+
 ## Elicitation and background tasks (opt-in)
 
 - **Elicitation** (`ctx.elicit()` on handshake connections, or the
@@ -152,7 +166,8 @@ alongside tools:
 ## Adding a new security check (checklist)
 
 1. Add to the appropriate module in `security/`.
-2. Wire it in `server.py` `_build_server()` and pass to tool registration.
+2. Wire it in `server.py` `_build_server()` and pass to tool registration
+   (or add it to `SecurityMiddleware` if it is a cross-cutting concern).
 3. Add config fields to `config.py` if needed — every field must be read
    somewhere.
 4. Add tests in `tests/test_*.py`.

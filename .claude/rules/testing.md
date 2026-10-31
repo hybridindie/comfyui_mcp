@@ -1,4 +1,5 @@
 ---
+read_when: "Writing or fixing tests, mocks, or the security-invariant tests"
 paths:
   - "tests/**/*.py"
 ---
@@ -35,6 +36,11 @@ paths:
     assert the middleware-based enforcement path for the migrated tools. The
     invariant is "the concern is enforced for every tool call," not "the call
     appears in the tool body."
+
+20. **No unconditional skips.** No `@pytest.mark.skip`, `xfail`, or bare
+    `pytest.skip()` / `pytest.xfail()`; fix the code or delete the test. A
+    `skipif` on a real environment precondition is allowed.
+    `.claude/hooks/check-no-skipped-tests.sh` enforces this.
 
 ## Model Manager mocks
 

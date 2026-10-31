@@ -1,4 +1,5 @@
 ---
+read_when: "Running graphify, editing .graphifyignore or the graphify git hooks, or refreshing the knowledge graph"
 paths:
   - ".env"
   - ".graphifyignore"

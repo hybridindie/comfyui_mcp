@@ -1,3 +1,7 @@
+# The genesis-rendered harness (.claude/, .opencode/) is vendored: it is updated
+# by re-rendering and checked by the harness-guardrails hook below, not by the
+# Python/whitespace hooks.
+exclude: ^\.(claude|opencode)/
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -26,3 +30,12 @@ repos:
           - "types-PyYAML"
         pass_filenames: false
         args: [--config-file, pyproject.toml, src/comfyui_mcp/]
+
+  - repo: local
+    hooks:
+      - id: harness-guardrails
+        name: harness guardrails (secrets, skips, harness drift)
+        entry: bash .claude/hooks/guardrails.sh --staged
+        language: system
+        pass_filenames: false
+        always_run: true

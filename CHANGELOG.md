@@ -59,6 +59,10 @@ server configuration, not only before a workflow runs.
 
 - `register_node_tools()` and `register_settings_tools()` now take the
   security `mode` so the gates follow `security.mode`.
+- **Agent harness** — rules moved from `.opencode/rules/` to `.claude/rules/`
+  (indexed from `AGENTS.md`) and a Claude Code harness (`CLAUDE.md`,
+  `.claude/`) added alongside OpenCode, rendered from genesis (stacks
+  `python`, `mcp`). No change to the server.
 
 ### Fixed
 
@@ -69,6 +73,7 @@ server configuration, not only before a workflow runs.
   the result — so a benign node cannot become a dangerous one after vetting.
   Flags replacement targets absent from `/object_info` as uninspectable, and
   deduplicates repeated warnings.
+
 
 ## [2.3.0] — 2026-10-06
 

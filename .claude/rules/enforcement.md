@@ -1,4 +1,5 @@
 ---
+read_when: "Before committing or opening a PR, or when cutting a release"
 paths:
   - "**/*"
 ---
@@ -35,13 +36,8 @@ not "done."
 
 - [ ] **Workflow**: issue referenced (`closes #N`); test was red before the
       fix; preflight clean; comments resolved
-- [ ] **Security** ([[security]]): no blocked endpoints; file tools sanitized;
-      every tool rate-limited (in-tool OR middleware) and audit-logged
-      (in-tool OR middleware); workflow submits inspected
-- [ ] **Tools** ([[tools]]): typed I/O, `dict[str, Any]` for structured
-      returns, `Field` annotations on 3+ params
-- [ ] **Tests** ([[testing]]): `respx` mocks, no `@pytest.mark.asyncio`, unique
-      method names, calling real tool functions
+- [ ] **Contracts**: the rules in [[security]], [[tools]] and [[testing]]
+      hold for the changed files
 - [ ] **Docs** updated when a tool/contract or structure changes (`README.md`
       Tools table, `CHANGELOG.md`)
 
