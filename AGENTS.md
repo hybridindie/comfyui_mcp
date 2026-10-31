@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Entry point for OpenCode and other agentic clients working in **comfyui_mcp**.
+Entry point for OpenCode, Claude Code and other agentic clients working in **comfyui_mcp**.
 
 ## Independent & harness-agnostic
 
@@ -13,24 +13,27 @@ It has **no dependency on any specific consumer.** The server is the product;
 the `/comfy:*` skills shipped in this repo are convenience recipes that wrap
 multi-tool flows — they are not coupled to any one harness.
 
-The constitutional rules themselves live in [`.opencode/rules/`](./.opencode/rules/),
-loaded as `instructions` in [`opencode.json`](./.opencode/opencode.json), and
-are the source of truth for how to build here:
+The rules in [`.claude/rules/`](./.claude/rules/) are the source of truth for
+how to build here. Claude Code loads them by `paths:`; for any client, read the
+ones whose "Read when" matches the task. When a rule and this file disagree,
+the rule wins. `security.md` holds the security invariants the tests enforce.
 
-- `security.md` — blocked endpoints, PathSanitizer, rate limiter, audit log,
-  workflow inspector (the non-negotiable security invariants)
-- `architecture.md` — layout, `_build_server()`, tool registration contract,
-  Model Manager envelope, dangerous-nodes list maintenance
-- `tools.md` — the `@mcp.tool()` contract and the new-tool checklist
-- `testing.md` — `respx` mocks, `asyncio_mode = auto`, real tool functions
-- `workflow.md` — issue → red test → green → preflight → PR → merge pipeline
-  + the eval-gated change rule (Phase 4 before merge)
-- `enforcement.md` — gates, PR checklist, lint/format/type, release & versioning
-- `graphify.md` — graphify LLM-extraction policy: always run graphify via
-  `scripts/graphify.sh` so the repo `.env` is observed
+## Rule Index
 
-These rules are path-scoped; apply the one(s) matching the files you touch.
-When a rule and this file disagree, the rule wins.
+| Rule file | Read when |
+|---|---|
+| `.claude/rules/architecture.md` | Changing server wiring, module layout, middleware, resources/prompts, the Model Manager client, or the dangerous-nodes list |
+| `.claude/rules/async-patterns.md` | Writing async code, transports, background jobs, or anything with timeouts |
+| `.claude/rules/cicd.md` | Changing CI workflows, build steps, caching, or release automation |
+| `.claude/rules/documentation-standards.md` | Writing a README, ADR, API reference, or agent-facing docs (AGENTS.md included) |
+| `.claude/rules/enforcement.md` | Before committing or opening a PR, or when cutting a release |
+| `.claude/rules/graphify.md` | Running graphify, editing .graphifyignore or the graphify git hooks, or refreshing the knowledge graph |
+| `.claude/rules/logging-observability.md` | Adding logs, metrics, tracing, or debugging a production issue |
+| `.claude/rules/packaging.md` | Changing packaging, entry points, versions, or the Python floor |
+| `.claude/rules/security.md` | Touching client endpoints, file-handling or workflow-submitting tools, rate limiting, audit logging, or dependencies |
+| `.claude/rules/testing.md` | Writing or fixing tests, mocks, or the security-invariant tests |
+| `.claude/rules/tools.md` | Adding or changing an MCP tool, its parameters, docstring, or return shape |
+| `.claude/rules/workflow.md` | Starting or finishing a change, opening a PR, or changing anything an agent sees (tool descriptions, schemas, return shapes) |
 
 ## Project Overview
 
@@ -60,8 +63,8 @@ manage jobs through ComfyUI with built-in security controls:
 
 - **Python**: 3.12
 - **Package Manager**: uv
-- **MCP Framework**: fastmcp[tasks] 4.0.0b1 (standalone FastMCP 4 beta,
-  built on MCP SDK v2)
+- **MCP Framework**: fastmcp[tasks] 4.x (standalone FastMCP 4, built on MCP
+  SDK v2)
 - **HTTP Client**: httpx (async)
 - **Validation**: pydantic
 - **Config**: pyyaml
@@ -128,7 +131,7 @@ uv run mypy src/comfyui_mcp/          # Type check
 uv run pre-commit run --all-files     # Run all pre-commit hooks
 
 # Preflight gate (workflow step 4 before a PR): zero-skip + ruff + format + mypy + pytest
-./.opencode/hooks/check-no-skipped-tests.sh   # zero-skip scan
+bash .claude/hooks/check-no-skipped-tests.sh   # zero-skip scan
 
 # graphify (knowledge graph) — always via the wrapper so .env is observed
 scripts/graphify.sh update .          # AST-only structure refresh (no LLM)
@@ -176,96 +179,48 @@ Key settings:
 
 Environment variables override config: `COMFYUI_URL`, `COMFYUI_SECURITY_MODE`, `COMFYUI_TASKS_ENABLED`, `COMFYUI_TASKS_BACKEND_URL`, etc.
 
-## Testing Notes
+## Checklists
 
-- Uses `pytest-asyncio` with `asyncio_mode = auto`
-- Mock ComfyUI API responses with `respx`
-- Tests mirror `src/comfyui_mcp/` structure
+Step-by-step procedures live with the rule they serve:
 
-## ComfyUI-Model-Manager API notes
+- Adding a new tool — `tools.md`
+- Adding a new client method, security check, resource or prompt — `architecture.md`
+- Model Manager API quirks and maintaining the dangerous-nodes list — `architecture.md`
+- Cutting a release — `enforcement.md`
+- Running the Phase 4 eval before merging a tool-surface change — `workflow.md`
 
-The [ComfyUI-Model-Manager](https://github.com/hayden-cn/ComfyUI-Model-Manager)
-plugin wraps all its responses in a `{"success": bool, "data": <payload>}` envelope. The MCP client normalizes this in `_unwrap_model_manager_response()` before returning data to callers. All `respx` mocks for Model Manager endpoints must use this shape.
+## Harness
 
-Two known quirks discovered against the live API:
+Both harnesses come from genesis (`.claude/harness.json` records the stacks:
+python, mcp). Claude Code reads `CLAUDE.md` (imports this file and
+`my-workflows.md`); OpenCode reads `.opencode/opencode.json`, which loads this
+file, `my-workflows.md` and `.wiki-overlay.md` as `instructions`. Agents,
+commands and skills are mirrored in `.claude/` and `.opencode/` with the same
+body; `python3 .claude/hooks/check-project-drift.py` checks the harness.
 
-1. **`previewFile` is always required** — `POST /model-manager/model` calls `save_model_preview()` server-side regardless. Omitting the field causes the task to be silently deleted with a misleading "Task not found" error. The client always sends `previewFile` (empty string is fine).
-2. **Completed tasks stay as `pause`** — After a download finishes, the task remains in the list with `status: "pause"` and `progress: 100`. This is upstream behavior. Use `cancel_download` (which calls `DELETE /model-manager/download/{task_id}`) to remove it.
+### Commands
 
-## Adding a new tool (checklist)
+- /preflight — the CI checks plus the harness gates, before a PR
+- /ship-pr — open a PR, watch CI and review, merge on request
+- /harness-eval — check the rules still fit the code
 
-1. Add the tool function in the appropriate `tools/*.py`
-2. Use `@mcp.tool()` decorator with a clear docstring
-3. Ensure rate limiting is in effect — in-tool `limiter.check("tool_name")`
-   OR rely on `SecurityMiddleware` (wired in `server.py`); add the tool to
-   `_TOOL_CATEGORIES` if using the middleware path
-4. Ensure audit logging is in effect — in-tool `audit.async_log(...)` OR
-   rely on `SecurityMiddleware` (it writes the `action="called"` entry
-   record; keep lifecycle logs like `submitted`/`completed` in the tool)
-5. If it handles files: validate through `sanitizer`
-6. If it submits workflows: inspect through `inspector` (and pass `ctx` to
-   `_submit_workflow` for the elicitation gate in enforce mode)
-7. Use `Annotated[type, Field(...)]` for parameters with constraints (3+ params)
-8. Return `dict[str, Any]` if all code paths return structured data; use `-> str` only for mixed return paths
-9. Either add the function to the `tool_fns` dict and return it (factory
-   pattern), *or* define it as a module-level decorated function with
-   `Depends()` for DI (see `tools/history_di.py` for the pattern)
-10. Wire it in `server.py` `_register_all_tools()` if it uses the factory
-    pattern and needs new dependencies (module-level decorated functions
-    with `Depends()` skip this — the decorator registers them)
-11. Add tests in `tests/test_tools_*.py` that call the function directly
-12. Update the Tools table in `README.md`
+### Skills
 
-## Adding a new client method (checklist)
+- `ship-pr` — scripts behind the ship-pr command
+- `customize-harness` — tailor the harness after an eval
+- `test-hygiene-scanner` — find weak or skipped tests
 
-1. Verify the ComfyUI endpoint is not on the blocked list (see rule 1)
-2. Add the method to `ComfyUIClient` in `client.py`
-3. Use `self._request(method, path, ...)` — this handles retries on connection errors
-4. Add a test in `test_client.py` with `@respx.mock`
+### Agents
 
-## Adding a new security check (checklist)
+- review — read-only pre-PR review against the gates and contracts
 
-1. Add to the appropriate module in `security/`
-2. Wire it in `server.py` `_build_server()` and pass to tool registration
-   (or add to `SecurityMiddleware` if it is a cross-cutting concern)
-3. Add config fields to `config.py` if needed — every field must be read somewhere
-4. Add tests in `tests/test_*.py`
+### OpenCode extras
 
-## Adding a new resource or prompt (checklist)
-
-1. Add the `@mcp.resource("comfyui://...")` function in `resources.py` (for
-   read-only state) or the `@mcp.prompt` function in `prompts.py` (for
-   workflow recipes). Register in `server.py` `_register_all_tools()`.
-2. Templated resources (`comfyui://.../{param}`) inherit FastMCP 4's
-   path-traversal screening (on by default); still anchor the final path
-   against an allowed root and confirm containment before reading.
-3. Prompts return a plain string (auto-wrapped as a user message) or
-   `list[Message]` for multi-turn — not `mcp.types.PromptMessage` or raw
-   role/content dicts.
-4. Resources/prompts use the read-only rate limiter; add a `limiter.check()`
-   call and an `audit.async_log()` entry record (or rely on
-   `SecurityMiddleware`).
-5. Add tests in `tests/test_resources.py` / `tests/test_prompts.py` that call
-   the function directly.
-
-## Maintaining the dangerous nodes list
-
-The `_DEFAULT_DANGEROUS_NODES` list in `config.py` contains real ComfyUI custom node `class_type` values grouped by threat category (code execution, network access, filesystem access). To audit a new custom node package:
-
-1. Check the package source for calls to `exec`, `eval`, `subprocess`, `os.system`, `open()`, `requests`, `urllib`, or `httpx`
-2. Look for nodes that accept arbitrary file paths, URLs, or code as input
-3. Add confirmed dangerous nodes to the appropriate category in `_DEFAULT_DANGEROUS_NODES` with a comment noting the source package and reason
-4. If the node follows a naming pattern not yet covered, add a regex to `_DANGEROUS_NAME_PATTERNS` in `node_auditor.py`
-5. Add tests for any new patterns
-
-## OpenCode tooling (opt-in)
-
-Project config (`.opencode/opencode.json`) wires `context7` (MCP / FastMCP /
-Pydantic / httpx docs) and `graphify` (live knowledge-graph query server over
-stdio) as MCP servers, a `review` subagent (read-only pre-PR check), a
-`/preflight` command, the graphify plugin, and a `watcher.ignore` that keeps
-the regenerable `graphify-out/`, `.venv`, caches, `uv.lock`, `dist/`, and
-`logs/` off the file watcher.
+`.opencode/opencode.json` also wires `context7` (MCP / FastMCP / Pydantic /
+httpx docs) and `graphify` (live knowledge-graph query server over stdio) as
+MCP servers, the graphify plugin, and a `watcher.ignore` that keeps the
+regenerable `graphify-out/`, `.venv`, caches, `uv.lock`, `dist/`, and `logs/`
+off the file watcher.
 
 Two built-in tools are **off by default** and need an env var to activate —
 uncomment them in [`.env.example`](./.env.example), then

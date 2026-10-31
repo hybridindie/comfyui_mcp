@@ -19,10 +19,12 @@ dist/
 .git.broken-backup/
 
 # Project-internal automation and agent/runtime config — operational, not domain.
-# Keep the grounding rules (.opencode/rules/*.md) indexed: they are durable
-# design rationale the graph wants. .opencode/ as a whole is excluded except
+# Keep the grounding rules (.claude/rules/*.md) indexed: they are durable
+# design rationale the graph wants. .claude/ as a whole is excluded except
 # rules/.
-.opencode/*
-!.opencode/rules/
+.opencode/
+.claude/*
+!.claude/rules/
+.githooks/
 .github/
 .worktrees/

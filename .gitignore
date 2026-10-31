@@ -38,12 +38,12 @@ evidence/raw/
 .obsidian/
 .DS_Store
 
-# Dropped-harness instruction files (wf tooling re-creates them per detected
-# harness; this project is opencode-only — rules live in .opencode/, entry in
-# AGENTS.md). See #121/#123 and the 2026-10 repo-cleanup.
-/CLAUDE.md
+# Unused-harness instruction files (wf tooling re-creates them per detected
+# harness). The project ships OpenCode (.opencode/) and Claude Code (.claude/,
+# CLAUDE.md) harnesses from genesis; rules live in .claude/rules, indexed from
+# AGENTS.md.
 /PI.md
-/.claude/
+/.claude/settings.local.json
 /.codex/
 /.cursor/
 /.aider*

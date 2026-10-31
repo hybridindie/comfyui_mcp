@@ -98,8 +98,8 @@ to use it, and what shape comes back.
 
 ## Optional: OpenCode skills for this repo's development
 
-This repository ships its own agent configuration under `.opencode/` for
-developing the server itself — path-scoped rules, a pre-PR review subagent,
-and `skills/` recipes (`gen`, `workflow`, `status`, `models`, ...) that wrap
+This repository ships its own agent configuration under `.opencode/` and
+`.claude/` for developing the server itself — path-scoped rules, a pre-PR
+review subagent, and `skills/` recipes (`gen`, `workflow`, `status`, `models`, ...) that wrap
 common multi-tool flows. These are for contributing to comfyui_mcp, not
 required for *using* the server — any MCP client gets the full tool surface.

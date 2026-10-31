@@ -1,26 +1,28 @@
 ---
-description: Run the full preflight gate (zero-skip, ruff, ruff format, mypy, pytest) — workflow step 4 before a PR
+description: Run the full preflight gate (zero-skip, harness, ruff, ruff format, mypy, pytest) — workflow step 4 before a PR
 agent: build
 ---
 
-Run the project's preflight gate — the exact sequence CI runs
-(`.github/workflows/ci.yml`) and workflow step 4 requires before a PR. Run each
-check in order and stop at the first failure.
+Run the project's preflight gate — the sequence CI runs
+(`.github/workflows/ci.yml`) plus the local harness gates, required by workflow
+step 4 before a PR. Run each check in order and stop at the first failure.
 
 Execute, in order, and report each result:
 
-1. **Zero-skip gate** — `./.opencode/hooks/check-no-skipped-tests.sh`
-2. **Lint** — `uv run ruff check src/ tests/`
-3. **Format check** — `uv run ruff format --check src/ tests/`
-4. **Type check** — `uv run mypy src/comfyui_mcp/`
-5. **Tests** — `uv run pytest -v`
-6. **Coverage** — `uv run pytest -v --cov=src/comfyui_mcp --cov-report=term-missing --cov-fail-under=90` (CI's threshold)
+1. **Zero-skip gate** — `bash .claude/hooks/check-no-skipped-tests.sh`
+2. **Harness** — `python3 .claude/hooks/check-project-drift.py --quiet` and
+   `python3 .claude/hooks/check-secrets.py --all --quiet`
+3. **Lint** — `uv run ruff check src/ tests/`
+4. **Format check** — `uv run ruff format --check src/ tests/`
+5. **Type check** — `uv run mypy src/comfyui_mcp/`
+6. **Tests** — `uv run pytest -v`
+7. **Coverage** — `uv run pytest -v --cov=src/comfyui_mcp --cov-report=term-missing --cov-fail-under=90` (CI's threshold)
 
 Rules:
 - Run the checks yourself with bash; do not ask the user to run them.
 - Stop at the first failing check and surface its output verbatim — do not
   continue to later gates (each step gates the next, per
-  `@.opencode/rules/enforcement.md`).
+  `.claude/rules/enforcement.md`).
 - If all checks pass, report "Preflight clean — ready for PR (workflow step 4)"
   and stop. Do not open a PR unless explicitly asked.
 - If a check fails, diagnose the failure against the relevant rule

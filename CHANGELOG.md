@@ -5,6 +5,15 @@ All notable changes to **comfyui-mcp-secure** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Agent harness** — rules moved from `.opencode/rules/` to `.claude/rules/`
+  (indexed from `AGENTS.md`) and a Claude Code harness (`CLAUDE.md`,
+  `.claude/`) added alongside OpenCode, rendered from genesis (stacks
+  `python`, `mcp`). No change to the server.
+
 ## [2.3.0] — 2026-10-06
 
 Additive minor release. Adds partial execution targets, loop-structure

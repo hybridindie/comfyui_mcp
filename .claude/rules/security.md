@@ -1,4 +1,5 @@
 ---
+read_when: "Touching client endpoints, file-handling or workflow-submitting tools, rate limiting, audit logging, or dependencies"
 paths:
   - "src/comfyui_mcp/security/**/*.py"
   - "src/comfyui_mcp/client.py"
@@ -29,7 +30,7 @@ Do not add any other callers of `get_system_stats()`.
 
 Every tool that accepts a filename or subfolder parameter must call
 `sanitizer.validate_filename()` and/or `sanitizer.validate_subfolder()` before
-passing values to the client. No exceptions. URL path segments on discovery
+passing values to the client. URL path segments on discovery
 tools (`comfyui_list_models`, `comfyui_get_model_metadata`) are also sanitized
 to prevent folder/filename injection.
 

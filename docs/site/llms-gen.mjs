@@ -177,7 +177,7 @@ index.push(
   '## Optional',
   '',
   `- [README (source of truth)](https://github.com/hybridindie/comfyui_mcp/blob/main/README.md): the full tool tables and configuration reference`,
-  `- [Security rules](https://github.com/hybridindie/comfyui_mcp/blob/main/.opencode/rules/security.md): the non-negotiable security invariants as enforced by tests`,
+  `- [Security rules](https://github.com/hybridindie/comfyui_mcp/blob/main/.claude/rules/security.md): the non-negotiable security invariants as enforced by tests`,
   `- [Raw markdown sources](${REPO_RAW}): every page above, fetchable without the site`,
   '',
 )
