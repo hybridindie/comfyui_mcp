@@ -110,6 +110,7 @@ export default withMermaid(defineConfig({
       {
         text: 'Guides',
         items: [
+          { text: 'Which interface?', link: '/guides-which-tool' },
           { text: 'Generate images', link: '/guides-generate' },
           { text: 'Work with custom workflows', link: '/guides-custom-workflows' },
           { text: 'Manage models', link: '/guides-manage-models' },

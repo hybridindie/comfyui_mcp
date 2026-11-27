@@ -329,7 +329,10 @@ def _build_server(
             "IMPORTANT: Before running custom workflows with run_workflow, always check the "
             "response "
             "for warnings about dangerous nodes or suspicious inputs. If warnings are present, "
-            "inform the user and ask for confirmation before proceeding with execution."
+            "inform the user and ask for confirmation before proceeding with execution. "
+            "If ComfyUI is local and the user needs launch/stop/update, logs, or node-pack "
+            "lifecycle, prefer the `comfy` CLI; this server is for policy, audit, and "
+            "URL-based access."
         ),
         "lifespan": functools.partial(_lifespan, audit=audit),
         # Phase 3: mask internal error details from clients — only ToolError

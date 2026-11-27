@@ -88,6 +88,18 @@ Callers must update to read `result["items"]` instead of indexing the response d
 
 Previously these tools returned either a free-form sentence (`wait=False`) or a JSON-serialized string (`wait=True`/stream), forcing callers to try both shapes. Callers that previously parsed the response as text — or via `json.loads()` for `wait=True` — must update to read fields directly off the dict.
 
+## Which interface?
+
+| Need | Use |
+|------|-----|
+| Agent generation, custom workflows, remote or audited access | **This server** |
+| Launch/stop/update ComfyUI, logs, version switch, bulk node updates | **`comfy` CLI** (or the official local server) |
+| Local workstation, widest surface, no policy layer | **Official [`comfy-mcp`](https://github.com/Comfy-Org/comfy-mcp)** |
+| Cloud GPUs, partner models, billing | **Comfy Cloud MCP** |
+| Hand-authoring and visual debugging | **ComfyUI UI** |
+
+See [Which interface?](./docs/site/guides-which-tool.md) for the full task-by-task guide and boundary cases.
+
 ## Quick start
 
 ### Prerequisites
