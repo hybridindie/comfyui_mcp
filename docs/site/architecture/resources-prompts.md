@@ -24,6 +24,8 @@ The LLM can read state without spending a tool call:
 | `comfyui://queue` | Current queue state — running and pending job counts |
 | `comfyui://system` | Whitelisted system info: ComfyUI version, GPU VRAM, queue counts |
 | `comfyui://settings` | ComfyUI server settings read from `GET /settings` |
+| `comfyui://outputs` | Recent history outputs (newest first, bounded to 100) |
+| `comfyui://jobs` | Queue ids and a recent-history summary (bounded to 20) |
 
 Templated resources (`comfyui://models/{folder}`) inherit FastMCP 4's
 built-in path-traversal screening — and the code anchors the final path

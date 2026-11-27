@@ -24,7 +24,7 @@ This server adds five security layers that neither provides:
 
 The server exposes read-only ComfyUI state as **resources** the LLM can browse by URI without a tool call, and **prompts** as reusable workflow-template recipes:
 
-- **Resources**: `comfyui://models/{folder}`, `comfyui://nodes/installed`, `comfyui://queue`, `comfyui://system`, `comfyui://settings`
+- **Resources**: `comfyui://models/{folder}`, `comfyui://nodes/installed`, `comfyui://queue`, `comfyui://jobs`, `comfyui://outputs`, `comfyui://system`, `comfyui://settings`
 - **Prompts**: `txt2img_prompt`, `img2img_prompt`, `inpaint_prompt`, `upscale_prompt`
 
 ### Dependency injection & background tasks (FastMCP 4)
@@ -455,6 +455,8 @@ resources inherit FastMCP 4's built-in path-traversal screening.
 | `comfyui://queue` | Current queue state — running and pending job counts. |
 | `comfyui://system` | Whitelisted system info: ComfyUI version, GPU VRAM, queue counts. Sensitive fields (hostname, OS, CPU, paths) excluded. |
 | `comfyui://settings` | ComfyUI server settings (sampler defaults, UI prefs, feature flags) from `GET /settings`. |
+| `comfyui://outputs` | Recent output files from history, newest first, with prompt/node/kind metadata (bounded to 100). |
+| `comfyui://jobs` | Queue ids plus a recent-history summary with per-prompt status and output counts (bounded to 20). |
 
 ### Prompts
 

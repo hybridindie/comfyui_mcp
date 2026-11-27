@@ -21,6 +21,8 @@ additionally anchors paths against an allowed root.
 | `comfyui://queue` | Current queue state — running and pending job counts. |
 | `comfyui://system` | Whitelisted system info: ComfyUI version, GPU VRAM, queue counts. Sensitive fields (hostname, OS, CPU, paths) excluded. |
 | `comfyui://settings` | ComfyUI server settings (sampler defaults, UI prefs, feature flags) from `GET /settings`. |
+| `comfyui://outputs` | Recent output files from history, newest first, with prompt/node/kind metadata (bounded to 100). |
+| `comfyui://jobs` | Queue ids plus a recent-history summary with per-prompt status and output counts (bounded to 20). |
 
 ## Prompts
 
