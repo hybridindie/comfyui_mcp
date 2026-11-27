@@ -40,6 +40,8 @@ paths, and keeps an audit trail.
 - **[Edit images](guides-edit.md)** — img2img, inpaint a region, or upscale.
 - **[Batch generation](guides-batch.md)** — a prompt/seed matrix without
   flooding the queue.
+- **[Video and audio outputs](guides-media.md)** — find, fetch, and display
+  media that is not an image.
 - **[Work with custom workflows](guides-custom-workflows.md)** — bring a graph
   from the ComfyUI UI.
 - **[Manage models](guides-manage-models.md)** — see what is installed, search
@@ -61,14 +63,24 @@ paths, and keeps an audit trail.
 
 ## What to expect
 
-- **It asks before a risky graph runs.** In enforce mode, a workflow with
-  dangerous nodes pauses for your OK; a decline never reaches ComfyUI.
-- **It previews instead of dumping megabytes.** Images come back as a webp
-  thumbnail by default; full-size is a choice.
-- **It checks the model first.** A wrong checkpoint name fails before the
-  queue is touched.
-- **It tells you when media is too big to inline.** Video/audio over 8 MiB
-  comes back as a `/view` link instead.
+- **Audit mode is the default.** Every workflow is inspected and logged;
+  dangerous nodes produce warnings but do not block. In **enforce mode**
+  (opt-in), a flagged workflow pauses for your OK, and a decline never reaches
+  ComfyUI. Enforce mode only hard-blocks nodes outside `allowed_nodes` when
+  that list is non-empty; otherwise the warning/elicitation gate is the
+  control.
+- **Previews are a choice.** The `gen` skill fetches a ~90 KB webp thumbnail,
+  but a direct `comfyui_get_image` call returns the full image unless
+  `preview_format="webp"` is passed.
+- **The checkpoint is checked on generation.** `comfyui_generate_image`
+  verifies a named checkpoint before touching the queue; the edit tools fail
+  at submission if the name is wrong.
+- **Big media comes back as a link.** `comfyui_get_output` returns a `/view`
+  URL by default. If you ask for `inline`, anything over 8 MiB still comes
+  back as a link.
+- **The `core` tool profile trims the surface.** With `tools.profile: "core"`,
+  `comfyui_generate_batch` and `comfyui_get_output` are hidden. The default
+  `full` profile has them.
 - **It cannot see your screen.** Answer its questions about the image or the
   result; a vision-capable client can look at what it fetched.
 
@@ -76,12 +88,15 @@ paths, and keeps an audit trail.
 
 | What you see | What to do |
 |---|---|
-| "Connection refused" / ComfyUI unreachable | Start ComfyUI, or point `COMFYUI_URL` at the right host. Run `scripts/doctor.py` if you have the repo. |
+| "Connection refused" / ComfyUI unreachable | Start ComfyUI, or point `COMFYUI_URL` at the right host. Run `comfyui-mcp-doctor` (ships with the package). |
 | "Model not found" | Ask it to list your checkpoints; the name must match the file exactly. |
+| Checkpoint list is empty | A fresh ComfyUI has no models. Put a checkpoint in `models/checkpoints/`, or install/download one (Model Manager is optional). |
 | "Workflow has warnings" | Read them; approve only if you trust the node. |
 | "Upload too large" | The server's `max_upload_size` wins — downscale or compress. |
+| Video/audio upload rejected | MCP uploads accept images and JSON only. Put the file in ComfyUI's `input/` folder and pass its filename. |
 | Download tools say Model Manager is missing | Install the ComfyUI-Model-Manager plugin, or download models another way. |
-| Video won't display inline | It is over 8 MiB; use the returned `/view` link. |
+| Batch or video tool missing | `tools.profile: "core"` hides them; switch to the default `full` profile. |
+| Video won't display inline | You asked for `inline` and it is over 8 MiB — use the returned `/view` link. `url` is the default. |
 
 ---
 

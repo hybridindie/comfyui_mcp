@@ -81,8 +81,9 @@ tasks:                             # Optional background tasks (FastMCP 4 TasksE
 
 - `security.mode` — see [audit mode](./security-audit-mode.md) and
   [enforce mode](./security-enforce-mode.md). The default is audit.
-- `security.allowed_nodes` — only consulted in enforce mode. Nodes not in
-  the list are hard-blocked before elicitation.
+- `security.allowed_nodes` — only consulted in enforce mode, and only when
+  non-empty. Nodes outside it are hard-blocked before elicitation; an empty
+  list skips the allowlist check.
 - `security.policy` — declarative rules for enforce mode. `deny_nodes`,
   `max_nodes`, and `allowed_model_folders` hard-block in enforce mode and warn
   in audit mode; `on_warning` decides what a remaining warning means

@@ -35,9 +35,10 @@ server, where the client cannot reach it.
 
 ## The reasoning behind the design
 
-**The server owns security; the client only sees results.** All six controls
-(inspector, sanitizer, rate limiter, audit log, blocked-endpoint list,
-elicitation gate) execute server-side. Invariant tests assert the controls
+**The server owns security; the client only sees results.** The six core
+controls (inspector, sanitizer, rate limiter, audit log, blocked-endpoint list,
+elicitation gate) execute server-side, with optional transport auth and a
+declarative policy layered on top. Invariant tests assert the controls
 fire for *every* tool — a new tool that skips them fails CI, so the guarantee
 does not erode over time.
 

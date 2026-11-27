@@ -94,9 +94,13 @@ invalidates the comparison.
 
 ## Notes
 
-- For a custom graph, use `comfyui_run_workflow` per variant instead of the
-  txt2img batch tool.
+- The batch tool builds the default **txt2img** graph only. It cannot produce
+  video or audio; submit a graph with `comfyui_run_workflow` per variant and
+  fetch with `comfyui_get_output`.
+- For any other custom graph, use `comfyui_run_workflow` per variant instead of
+  the txt2img batch tool.
+- `tools.profile: "core"` hides `comfyui_generate_batch` and
+  `comfyui_get_output`; use the default `full` profile for batches and media
+  outputs.
 - The assistant can follow the [`batch` skill](reference-skills.md) for the
   wave-by-wave procedure.
-- Video/audio variants use the same prompt ids; fetch them with
-  `comfyui_get_output` instead of `comfyui_get_image`.

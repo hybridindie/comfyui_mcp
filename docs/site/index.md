@@ -20,7 +20,7 @@ features:
   - title: Security is the product, not a flag
     details: Every workflow submission goes through the inspector. File operations pass through a path sanitizer. Every tool call is rate-limited and audit-logged. Dangerous ComfyUI endpoints are never proxied — enforced by tests, not convention.
   - title: Two security modes
-    details: Audit mode logs dangerous-node warnings and lets work proceed. Enforce mode blocks unapproved nodes hard, and asks the user to confirm (MCP elicitation) before submitting flagged workflows.
+    details: Audit mode logs dangerous-node warnings and lets work proceed. Enforce mode hard-blocks nodes outside a non-empty allowlist, and asks the user to confirm (MCP elicitation) before submitting flagged workflows.
   - title: 55 tools, a real surface
     details: Generation, workflow authoring, job management, discovery, file operations, model search/download, and custom-node management — all typed with structured returns, not loose strings.
   - title: A creator track, with skills

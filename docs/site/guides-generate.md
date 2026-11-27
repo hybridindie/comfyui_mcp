@@ -1,15 +1,21 @@
 ---
 type: guide
 title: "Generate images"
-description: "The generation loop — model discovery, the five generation tools, thumbnails, and when to use each."
+description: "The generation loop — model discovery, the one-shot generation tools, thumbnails, and when to use each."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Generate images
 
-Five tools cover generation. All accept `wait=True` to block until done;
-all return the uniform envelope (`status`, `prompt_id`, `outputs`, ...).
+Seven tools cover generation. `generate_image`, `transform_image`,
+`inpaint_image`, `upscale_image`, and `run_workflow` share the uniform envelope
+(`status`, `prompt_id`, `outputs`, ...); `generate_batch` returns a variant
+list; `run_workflow_stream` returns the raw event stream.
+
+`wait` defaults to **`False`** on the non-streaming tools, so a call without it
+returns `status: "submitted"` and a prompt id. Pass `wait=True` to block, or
+poll `comfyui_get_progress`.
 
 ## The loop
 
@@ -20,8 +26,10 @@ all return the uniform envelope (`status`, `prompt_id`, `outputs`, ...).
    → { "items": [...], "has_more": false }
    ```
 
-   Model names passed to generation are preflighted — a wrong name fails
-   instantly, no `/prompt` round-trip.
+   `comfyui_generate_image` and `comfyui_generate_batch` preflight a named
+   checkpoint through the models resource — a wrong name fails instantly, no
+   `/prompt` round-trip. `transform`/`inpaint` pass `model` straight into the
+   workflow and fail at submission instead.
 
 2. **Generate**:
 
@@ -50,6 +58,7 @@ all return the uniform envelope (`status`, `prompt_id`, `outputs`, ...).
 | Existing image, restyled | `comfyui_transform_image` (upload first) |
 | Fill a masked region | `comfyui_inpaint_image` (upload image + mask) |
 | Enlarge/clean up | `comfyui_upscale_image` (model-based, `RealESRGAN_x4plus.pth` default) |
+| Several prompt/seed variants | `comfyui_generate_batch` (up to 8; see [Batch generation](guides-batch.md)) |
 | Full control over the graph | `comfyui_run_workflow` / `comfyui_run_workflow_stream` |
 
 ## Payload sanity: thumbnails
@@ -61,7 +70,8 @@ thumbnails for display:
 comfyui_get_image(..., preview_format="webp", preview_quality=80)
 ```
 
-Server-side re-encode → ~90 KB webp. Fetch full-quality only when the user
+Server-side re-encode → ~90 KB webp. The tool default is the full image, so
+pass `preview_format` explicitly. Fetch full-quality only when the user
 actually wants the file. Thumbnails need server support
 (`supports_preview_metadata` on [`/features`](reference-server-features.md)).
 
@@ -84,7 +94,8 @@ locally with the byte budget named, before any HTTP.
 ## Long waits
 
 - `wait=True` blocks the tool call (bounded by the timeout config)
-- `wait=False` returns immediately; poll `comfyui_get_progress(prompt_id)`
+- `wait=False` (the default) returns immediately; poll
+  `comfyui_get_progress(prompt_id)`
 - Streaming: `comfyui_run_workflow_stream` returns the raw event stream
 - Multi-client HTTP deployments: enable [background tasks](./architecture/tasks.md)
   and take a task handle

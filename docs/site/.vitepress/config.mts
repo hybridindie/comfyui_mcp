@@ -73,6 +73,7 @@ export default withMermaid(defineConfig({
           { text: 'Generate images', link: '/guides-generate' },
           { text: 'Edit images', link: '/guides-edit' },
           { text: 'Batch generation', link: '/guides-batch' },
+          { text: 'Video & audio outputs', link: '/guides-media' },
           { text: 'Custom workflows', link: '/guides-custom-workflows' },
           { text: 'Manage models', link: '/guides-manage-models' },
           { text: 'Skills', link: '/reference-skills' }

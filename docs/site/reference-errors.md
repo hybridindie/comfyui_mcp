@@ -39,16 +39,23 @@ known-good loop patterns.
 | Signal | Where | Meaning | Recovery |
 |---|---|---|---|
 | `warnings` array with `dangerous_node` | workflow/generation tools | Inspector flagged node types | Audit mode: proceed informed. Enforce mode: you'll be asked to confirm |
-| `WorkflowBlockedError` | generation tools | Enforce-mode decline or unapproved node | Add the node to `allowed_nodes` if legitimate, or use different nodes |
+| `WorkflowBlockedError` | generation tools | Enforce-mode decline, or a node outside a non-empty `allowed_nodes` | Add the node to `allowed_nodes` if legitimate; an empty list disables this check |
 | `upload_rejected` audit record | audit log | Sanitizer/size rejection | Fix filename/extension/size; see the message fields |
-| content-type rejection | `comfyui_get_image` | Non-raster content (SVG/HTML/unknown) refused | Use `response_format="url"` for such content — no inline render |
+| content-type rejection | `comfyui_get_image` | Non-raster content (SVG/HTML/unknown) refused | Use `comfyui_get_output` for video/audio/other media; `get_image(response_format="url")` only as a last resort |
 
 ## First stop: the doctor
 
-`uv run python scripts/doctor.py` checks the config, audit path, transport
-auth, ComfyUI reachability and `/features`, and the optional plugins. It
-prints a pass/warn/fail table with a next step for each failure; `--json`
-makes it usable in CI.
+`comfyui-mcp-doctor` checks the config, audit path, transport auth, ComfyUI
+reachability and `/features`, and the optional plugins. It prints a
+pass/warn/fail table with a next step for each failure; `--json` makes it
+usable in CI. It ships with the package:
+
+```bash
+comfyui-mcp-doctor
+uvx --from comfyui-mcp-secure comfyui-mcp-doctor --url http://gpu-box:8188
+```
+
+In a repo checkout, `uv run python scripts/doctor.py` is the same command.
 
 ## Missing infrastructure
 

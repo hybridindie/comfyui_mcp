@@ -3,7 +3,7 @@ type: walkthrough
 title: "First session"
 description: "A complete end-to-end first session: list models, generate, fetch the result — with what the server does at each step."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # First session
@@ -41,9 +41,10 @@ The agent first browses or lists models rather than guessing a filename:
   "elapsed_seconds": 14.2, "step": 20, "total_steps": 20 }
 ```
 
-`wait=True` makes the call block until the job finishes (the client can also
-poll with `comfyui_get_progress` instead, or take a task handle over the
-HTTP transport when background tasks are enabled).
+`wait` defaults to `False`, so without it the call returns
+`status: "submitted"` and a prompt id. `wait=True` makes it block until the job
+finishes (the client can also poll with `comfyui_get_progress`, or take a task
+handle over the HTTP transport when background tasks are enabled).
 
 **What the server did silently:** inspected the generated workflow (a clean
 built-in template → no warnings), rate-limited the call under the
@@ -56,13 +57,16 @@ middleware, `submitted` → `completed` from the tool).
 > comfyui_get_image(filename="ComfyUI_00001_.png", subfolder="",
                     preview_format="webp", preview_quality=80)
 
-{ "data_uri": "data:image/webp;base64,UklGR...", "content_type": "image/webp" }
+"data:image/webp;base64,UklGR..."
 ```
 
-The thumbnail is ~90 KB instead of multiple MB — the LLM displays it inline
-without eating the context window. `response_format="url"` returns a direct
-`/view` link instead. Either way, the server has already verified the
-content type is a raster image and the filename passed the sanitizer.
+`comfyui_get_image` returns the data URI as a **plain string**. The thumbnail
+is ~90 KB instead of multiple MB — the LLM displays it inline without eating
+the context window. Without `preview_format` the same call returns the full
+image; `response_format="url"` returns a direct `/view` link instead. Either
+way, the server has already verified the content type is a raster image and
+the filename passed the sanitizer. (`comfyui_get_output` is the dict-shaped
+call — it returns `{data_uri, content_type, size_bytes, …}` for video/audio.)
 
 ## 5. The audit trail
 
