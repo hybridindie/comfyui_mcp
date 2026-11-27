@@ -62,3 +62,28 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -v --cov=src/comfyui_mcp --cov-report=term-missing --cov-fail-under=90
+
+  docs:
+    # Build the same site the Pages deploy publishes, so a broken page or
+    # dead nav/sidebar link fails on the PR instead of after merge.
+    # Skipped when this workflow is called by the docker/pypi release jobs.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs/site/package-lock.json
+
+      - name: Install docs dependencies
+        working-directory: docs/site
+        run: npm ci
+
+      - name: Build docs (VitePress + llms exports + dead-link check)
+        working-directory: docs/site
+        run: npm run build

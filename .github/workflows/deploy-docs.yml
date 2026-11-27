@@ -33,7 +33,7 @@ jobs:
 
       - name: Install deps
         working-directory: docs/site
-        run: npm install
+        run: npm ci
 
       - name: Build VitePress site (+ llms.txt / llms-full.txt, dead-link check)
         working-directory: docs/site
