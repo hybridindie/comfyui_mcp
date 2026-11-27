@@ -45,9 +45,6 @@
       ".obsidian/**"
     ]
   },
-  "plugin": [
-    ".opencode/plugins/graphify.js"
-  ],
   "skills": {
     "paths": [
       ".opencode/skills"
