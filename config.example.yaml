@@ -18,6 +18,9 @@ security:
 
 logging:
   audit_file: "~/.comfyui-mcp/audit.log"
+  # Rotate at this size; 0 disables rotation. Rotated files are audit.log.1..N.
+  max_bytes: 10485760
+  backup_count: 5
 
 transport:
   remote:

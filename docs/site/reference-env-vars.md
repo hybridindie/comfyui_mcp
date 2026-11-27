@@ -20,6 +20,8 @@ CI where files are awkward.
 | `COMFYUI_TIMEOUT_READ` | `comfyui.timeout_read` |
 | `COMFYUI_SECURITY_MODE` | `security.mode` |
 | `COMFYUI_AUDIT_FILE` | `logging.audit_file` |
+| `COMFYUI_AUDIT_MAX_BYTES` | `logging.max_bytes` |
+| `COMFYUI_AUDIT_BACKUP_COUNT` | `logging.backup_count` |
 | `COMFYUI_HUGGINGFACE_TOKEN` | `model_search.huggingface_token` |
 | `COMFYUI_CIVITAI_API_KEY` | `model_search.civitai_api_key` |
 | `COMFYUI_MAX_SEARCH_RESULTS` | `model_search.max_search_results` |

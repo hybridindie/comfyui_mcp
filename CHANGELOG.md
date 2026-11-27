@@ -12,6 +12,10 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- Audit log rotation and retention *(#208)*: `logging.max_bytes` (default
+  10 MiB) and `logging.backup_count` (default 5) rotate `audit.log` through
+  `audit.log.1` … `audit.log.N`. Rotation is atomic under the existing lock
+  and refuses a symlinked backup path; `max_bytes: 0` disables it.
 - Enforce-mode elicitation gates on `comfyui_install_custom_node`,
   `comfyui_uninstall_custom_node`, `comfyui_update_custom_node`, and
   `comfyui_update_settings` *(#205)*. A decline, a cancel, or a missing

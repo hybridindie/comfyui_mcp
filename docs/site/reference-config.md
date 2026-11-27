@@ -49,6 +49,8 @@ model_search:
 
 logging:
   audit_file: "~/.comfyui-mcp/audit.log"
+  max_bytes: 10485760            # rotate at 10 MiB; 0 disables
+  backup_count: 5                # audit.log.1 … audit.log.5
 
 transport:
   remote:
@@ -77,6 +79,9 @@ tasks:                             # Optional background tasks (FastMCP 4 TasksE
 - `security.max_upload_size_mb` — local cap; also cross-checked against the
   server's reported `max_upload_size` when `/features` exposes it (the
   stricter of the two applies, when both are known).
+- `logging.max_bytes` / `logging.backup_count` — size-based audit rotation;
+  `max_bytes: 0` disables it, `backup_count: 0` truncates instead of keeping
+  history. Rotation refuses a symlinked backup path.
 - `comfyui.external_url` — for deployments where the ComfyUI host is
   reachable from the client's browser/sandbox only via a different URL.
 - `transport.remote.*` — Streamable HTTP mode. A non-loopback `host` is
