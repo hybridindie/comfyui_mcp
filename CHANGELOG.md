@@ -66,6 +66,10 @@ server configuration, not only before a workflow runs.
 
 ### Fixed
 
+- Rate-limit categories now resolve for registered `comfyui_*` names *(#238)*.
+  The middleware looked up the map with the prefixed tool name while the map
+  was keyed by the unprefixed name, so every tool fell back to the read bucket;
+  the generation, workflow, and file limits now apply as configured.
 - Workflow inspection now re-inspects the effective graph after ComfyUI's
   server-side node replacements *(#206)*. For every candidate in
   `/node_replacements`, the inspector rewrites the `class_type`, remaps the

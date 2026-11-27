@@ -65,7 +65,14 @@ class SecurityMiddleware(Middleware):
         self._tool_categories = tool_categories
 
     def _limiter_for(self, tool_name: str) -> RateLimiter:
-        category = self._tool_categories.get(tool_name, _DEFAULT_CATEGORY)
+        # Tools are registered as `comfyui_*`; the category map is keyed by the
+        # unprefixed name. Try the full name first (resources/prompts), then the
+        # tool name without its registration prefix (issue #238).
+        category = self._tool_categories.get(tool_name)
+        if category is None and tool_name.startswith("comfyui_"):
+            category = self._tool_categories.get(tool_name.removeprefix("comfyui_"))
+        if category is None:
+            category = _DEFAULT_CATEGORY
         limiter = self._rate_limiters.get(category)
         if limiter is None:
             # Fall back to the read bucket if a category is missing — never
