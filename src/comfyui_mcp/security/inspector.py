@@ -96,6 +96,63 @@ def _check_value_for_suspicious(
     return warnings
 
 
+def _remap_replacement_inputs(
+    submitted: dict[str, Any], replacement: dict[str, Any]
+) -> tuple[dict[str, Any], list[str]]:
+    """Build the inputs the replacement node will actually receive.
+
+    Upstream's ``input_mapping`` describes how the old node's inputs map onto
+    the new node; ``set_value`` entries are constants the server injects.
+    Starting from an empty dict (rather than the submitted inputs) keeps the
+    scan faithful: an input the replacement does not consume is not something
+    the replacement can execute.
+    """
+    mapping = replacement.get("input_mapping")
+    if not isinstance(mapping, list) or not mapping:
+        return dict(submitted), [
+            "replacement has no input mapping — inspecting the submitted inputs as-is"
+        ]
+
+    inputs: dict[str, Any] = {}
+    notes: list[str] = []
+    for entry in mapping:
+        if not isinstance(entry, dict):
+            continue
+        new_id = entry.get("new_id")
+        if not isinstance(new_id, str) or not new_id:
+            continue
+        if "set_value" in entry:
+            inputs[new_id] = entry["set_value"]
+        elif "old_id" in entry:
+            old_id = entry["old_id"]
+            if isinstance(old_id, str) and old_id in submitted:
+                inputs[new_id] = submitted[old_id]
+            else:
+                notes.append(
+                    f"mapped input '{old_id}' is absent from the submitted node — "
+                    "the replacement may fail or behave differently"
+                )
+    return inputs, notes
+
+
+def uses_server_replacement(
+    workflow: dict[str, Any], node_replacements: dict[str, Any] | None
+) -> bool:
+    """True if any node (including inline subgraphs) has a server replacement."""
+    if not node_replacements:
+        return False
+    for _node_id, node_data in workflow.items():
+        if not isinstance(node_data, dict):
+            continue
+        if node_data.get("class_type") in node_replacements:
+            return True
+        if _is_subgraph_class(node_data.get("class_type", "")):
+            sub_nodes = _find_subgraph_node_map(node_data)
+            if sub_nodes is not None and uses_server_replacement(sub_nodes, node_replacements):
+                return True
+    return False
+
+
 class WorkflowInspector:
     def __init__(
         self,
@@ -117,6 +174,7 @@ class WorkflowInspector:
         workflow: dict,
         _depth: int = 0,
         node_replacements: dict[str, Any] | None = None,
+        known_node_types: set[str] | None = None,
     ) -> InspectionResult:
         """Inspect a ComfyUI workflow and return findings.
 
@@ -127,7 +185,10 @@ class WorkflowInspector:
 
         When ``node_replacements`` is provided (from ``GET /node_replacements``),
         warns for any submitted ``class_type`` that the server will silently
-        rewrite — what executes may differ from what was vetted (#111).
+        rewrite and re-inspects the effective node — class and remapped inputs
+        — so what executes is vetted too (#111, #206). ``known_node_types`` (the
+        keys of ``/object_info``) lets the inspector flag a replacement target
+        that is not installed.
         """
         nodes_used: list[str] = []
         warnings: list[str] = []
@@ -157,6 +218,7 @@ class WorkflowInspector:
                             sub_nodes,
                             _depth=_depth + 1,
                             node_replacements=node_replacements,
+                            known_node_types=known_node_types,
                         )
                         nodes_used.extend(sub_result.nodes_used)
                         warnings.extend(sub_result.warnings)
@@ -171,24 +233,64 @@ class WorkflowInspector:
             if node_type in self._dangerous_nodes:
                 warnings.append(f"Dangerous node type: {node_type}")
 
-        # Check for server-side node replacements (#111)
+        # Check for server-side node replacements (#111, #206). Upstream rewrites
+        # class_types after submission, so inspect the effective node too: a
+        # benign class can become a dangerous one, or a replacement can remap a
+        # suspicious value into an input.
         if node_replacements:
-            for node_type in nodes_used:
-                if node_type in node_replacements:
-                    replacements = node_replacements[node_type]
-                    if isinstance(replacements, list) and replacements:
-                        new_ids = [
-                            str(r.get("new_node_id", "?"))
-                            for r in replacements
-                            if isinstance(r, dict)
-                        ]
-                        if new_ids:
-                            replacement_list = ", ".join(new_ids)
-                            warnings.append(
-                                f"Node type '{node_type}' has server-side "
-                                f"replacement(s) -> [{replacement_list}] — what "
-                                f"executes may differ from what was vetted"
-                            )
+            for node_id, node_data in workflow.items():
+                if not isinstance(node_data, dict):
+                    continue
+                node_type = node_data.get("class_type", "")
+                replacements = node_replacements.get(node_type)
+                if not isinstance(replacements, list) or not replacements:
+                    continue
+
+                new_ids = [
+                    str(r.get("new_node_id", "?")) for r in replacements if isinstance(r, dict)
+                ]
+                if new_ids:
+                    warnings.append(
+                        f"Node type '{node_type}' has server-side "
+                        f"replacement(s) -> [{', '.join(new_ids)}] — what "
+                        f"executes may differ from what was vetted"
+                    )
+
+                submitted_inputs = node_data.get("inputs", {})
+                if not isinstance(submitted_inputs, dict):
+                    submitted_inputs = {}
+                for replacement in replacements:
+                    if not isinstance(replacement, dict):
+                        continue
+                    new_type = replacement.get("new_node_id")
+                    if not isinstance(new_type, str) or not new_type:
+                        warnings.append(
+                            f"Node {node_id} ({node_type}) has a malformed "
+                            "server-side replacement — cannot verify what executes"
+                        )
+                        continue
+
+                    if new_type in self._dangerous_nodes:
+                        warnings.append(
+                            "Dangerous node type after server-side replacement: "
+                            f"{new_type} (submitted {node_type}, node {node_id})"
+                        )
+                    if known_node_types is not None and new_type not in known_node_types:
+                        warnings.append(
+                            f"Replacement target '{new_type}' for '{node_type}' is not "
+                            "installed — cannot fully inspect what executes"
+                        )
+
+                    effective_inputs, notes = _remap_replacement_inputs(
+                        submitted_inputs, replacement
+                    )
+                    warnings.extend(
+                        f"Node {node_id} ({node_type} -> {new_type}): {note}" for note in notes
+                    )
+                    for input_key, value in effective_inputs.items():
+                        warnings.extend(
+                            _check_value_for_suspicious(value, node_id, new_type, input_key)
+                        )
 
         # Enforce mode: block unapproved nodes
         if self._mode == "enforce" and self._allowed_nodes:
@@ -200,5 +302,5 @@ class WorkflowInspector:
 
         return InspectionResult(
             nodes_used=nodes_used,
-            warnings=warnings,
+            warnings=list(dict.fromkeys(warnings)),
         )

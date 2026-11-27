@@ -15,7 +15,11 @@ from pydantic import Field
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.progress import WebSocketProgress
-from comfyui_mcp.security.inspector import WorkflowBlockedError, WorkflowInspector
+from comfyui_mcp.security.inspector import (
+    WorkflowBlockedError,
+    WorkflowInspector,
+    uses_server_replacement,
+)
 from comfyui_mcp.security.model_checker import ModelChecker
 from comfyui_mcp.security.rate_limit import RateLimiter
 from comfyui_mcp.security.sanitizer import PathSanitizer
@@ -185,7 +189,18 @@ async def _submit_workflow(
     node_replacements: dict[str, Any] | None = None
     with contextlib.suppress(httpx.HTTPError, OSError):
         node_replacements = await client.get_node_replacements()
-    inspection = inspector.inspect(wf, node_replacements=node_replacements)
+    known_node_types: set[str] | None = None
+    if node_replacements and uses_server_replacement(wf, node_replacements):
+        # Only needed to flag replacement targets that are not installed. The
+        # object_info payload is large, so fetch it only when a replacement
+        # actually applies (and it is cached client-side for 5 minutes).
+        with contextlib.suppress(httpx.HTTPError, OSError):
+            known_node_types = set((await client.get_object_info()).keys())
+    inspection = inspector.inspect(
+        wf,
+        node_replacements=node_replacements,
+        known_node_types=known_node_types,
+    )
     if model_checker is not None:
         model_warnings = await model_checker.check_models(wf, client)
         if model_warnings:

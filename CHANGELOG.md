@@ -30,6 +30,16 @@ server configuration, not only before a workflow runs.
 - `register_node_tools()` and `register_settings_tools()` now take the
   security `mode` so the gates follow `security.mode`.
 
+### Fixed
+
+- Workflow inspection now re-inspects the effective graph after ComfyUI's
+  server-side node replacements *(#206)*. For every candidate in
+  `/node_replacements`, the inspector rewrites the `class_type`, remaps the
+  submitted inputs (`old_id` → `new_id`, plus `set_value` constants), and scans
+  the result — so a benign node cannot become a dangerous one after vetting.
+  Flags replacement targets absent from `/object_info` as uninspectable, and
+  deduplicates repeated warnings.
+
 ## [2.3.0] — 2026-10-06
 
 Additive minor release. Adds partial execution targets, loop-structure

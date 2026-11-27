@@ -145,7 +145,7 @@ class TestInspectorNodeReplacementWarning:
             "2": {"class_type": "DeprecatedSampler", "inputs": {}},
         }
         result = inspector.inspect(workflow, node_replacements=_SAMPLE_REPLACEMENTS)
-        replacement_warnings = [w for w in result.warnings if "replacement" in w.lower()]
+        replacement_warnings = [w for w in result.warnings if "server-side replacement(s)" in w]
         assert len(replacement_warnings) == 2
 
     def test_inspector_subgraph_node_replacement_warning(self):
@@ -182,7 +182,7 @@ class TestInspectorNodeReplacementWarning:
             "1": {"class_type": "AmbiguousNode", "inputs": {}},
         }
         result = inspector.inspect(workflow, node_replacements=_SAMPLE_MULTI_REPLACEMENTS)
-        replacement_warnings = [w for w in result.warnings if "replacement" in w.lower()]
+        replacement_warnings = [w for w in result.warnings if "server-side replacement(s)" in w]
         assert len(replacement_warnings) == 1
         warning = replacement_warnings[0]
         assert "ReplacementA" in warning
