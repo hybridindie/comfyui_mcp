@@ -12,6 +12,11 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- Tool-surface profile *(#212)*: `tools.profile: "core"` exposes the 25-tool
+  generation/jobs/files/discovery loop and hides history, settings, downloads,
+  node packs, subgraphs, presets, and other niche tools. Hidden tools are not
+  listed and a direct call returns `NotFoundError`; prompts and resources are
+  unaffected. `full` remains the default.
 - Declarative workflow policy *(#211)*: `security.policy` adds `deny_nodes`,
   `warn_nodes`, `on_warning` (`elicit` | `block` | `allow`), `max_nodes`, and
   `allowed_model_folders`. Hard rules block in enforce mode and warn in audit

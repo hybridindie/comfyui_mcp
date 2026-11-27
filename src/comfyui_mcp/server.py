@@ -127,6 +127,57 @@ def _build_auth_provider(settings: Settings) -> StaticBearerAuth | None:
     return StaticBearerAuth(tokens)
 
 
+# Core profile (issue #212): the generation, jobs, files, and discovery loop.
+# Everything else is hidden — not listed and not callable by name. Keep this
+# list small; a new tool is not in the core profile unless added here.
+_CORE_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        # generation & workflow
+        "comfyui_generate_image",
+        "comfyui_run_workflow",
+        "comfyui_run_workflow_stream",
+        "comfyui_transform_image",
+        "comfyui_inpaint_image",
+        "comfyui_upscale_image",
+        "comfyui_validate_workflow",
+        "comfyui_create_workflow",
+        "comfyui_modify_workflow",
+        "comfyui_summarize_workflow",
+        "comfyui_analyze_workflow",
+        # jobs
+        "comfyui_get_queue",
+        "comfyui_get_job",
+        "comfyui_get_progress",
+        "comfyui_list_jobs",
+        "comfyui_cancel_job",
+        # files
+        "comfyui_upload_image",
+        "comfyui_upload_mask",
+        "comfyui_get_image",
+        "comfyui_list_outputs",
+        # discovery & system
+        "comfyui_list_models",
+        "comfyui_list_nodes",
+        "comfyui_get_node_info",
+        "comfyui_get_server_features",
+        "comfyui_get_system_info",
+    }
+)
+
+
+def _apply_tool_profile(server: FastMCP, profile: str) -> None:
+    """Hide everything outside the core profile (issue #212).
+
+    ``disable()`` + a later ``enable()`` is FastMCP's visibility model: hidden
+    tools disappear from ``tools/list`` and raise ``NotFoundError`` on a direct
+    call, so "hidden" is a real surface reduction, not a UI hint.
+    """
+    if profile != "core":
+        return
+    server.disable(components={"tool"})
+    server.enable(names=set(_CORE_TOOL_NAMES), components={"tool"})
+
+
 # Tool-name -> rate-limit category. Mirrors the per-register_*_tools() limiter
 # argument wiring so the SecurityMiddleware enforces the same per-category
 # limits without the in-tool limiter.check() boilerplate. Tools not listed
@@ -392,6 +443,8 @@ def _build_server(
         search_http=search_http,
         node_manager=node_manager,
     )
+
+    _apply_tool_profile(server, settings.tools.profile)
 
     # Phase 3: wire the middleware stack. SecurityMiddleware centralizes rate
     # limiting (security rule 3) and entry audit logging (rule 4) so the
