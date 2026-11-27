@@ -134,3 +134,36 @@ class TestPathSegmentValidation:
     def test_newline_blocked(self, sanitizer):
         with pytest.raises(PathValidationError, match="invalid characters"):
             sanitizer.validate_path_segment("check\npoints", "folder")
+
+
+class TestMediaFilename:
+    @pytest.fixture
+    def sanitizer(self):
+        return PathSanitizer(
+            allowed_extensions=[".png"],
+            max_size_mb=50,
+            allowed_media_extensions=[".mp4", ".webm", ".mp3", ".wav"],
+        )
+
+    def test_media_extension_passes(self, sanitizer):
+        assert sanitizer.validate_media_filename("clip.mp4") == "clip.mp4"
+
+    def test_subdirectory_media_passes(self, sanitizer):
+        assert sanitizer.validate_media_filename("refs/clip.webm") == "refs/clip.webm"
+
+    def test_image_extension_rejected_by_media_allowlist(self, sanitizer):
+        with pytest.raises(PathValidationError, match="media extension"):
+            sanitizer.validate_media_filename("still.png")
+
+    def test_executable_rejected(self, sanitizer):
+        with pytest.raises(PathValidationError, match="media extension"):
+            sanitizer.validate_media_filename("payload.sh")
+
+    def test_traversal_blocked(self, sanitizer):
+        with pytest.raises(PathValidationError, match="traversal"):
+            sanitizer.validate_media_filename("../clip.mp4")
+
+    def test_unconfigured_media_allowlist_rejects_everything(self):
+        sanitizer = PathSanitizer(allowed_extensions=[".png"], max_size_mb=50)
+        with pytest.raises(PathValidationError, match="media extension"):
+            sanitizer.validate_media_filename("clip.mp4")

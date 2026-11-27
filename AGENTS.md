@@ -103,7 +103,7 @@ src/comfyui_mcp/
     ├── jobs.py            # get_queue, get_job, cancel_job, interrupt, get_progress
     ├── discovery.py       # list_models, list_nodes, audit_dangerous_nodes, etc.
     ├── history_di.py      # get_history (DI version — Depends())
-    ├── files.py           # upload_image, get_image, list_outputs, upload_mask, get_workflow_from_image
+    ├── files.py           # upload_image, upload_media, get_image, list_outputs, upload_mask
     ├── models.py          # search_models, download_model, get_download_tasks, cancel_download
     └── nodes.py           # search/install/uninstall/update custom nodes
 

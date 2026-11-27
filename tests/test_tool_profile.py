@@ -33,7 +33,8 @@ class TestCoreProfile:
         names = {tool.name for tool in await server.list_tools()}
 
         assert names == set(_CORE_TOOL_NAMES)
-        assert len(names) <= 25
+        assert "comfyui_upload_media" in names
+        assert len(names) <= 26
 
     async def test_hidden_tool_cannot_be_called(self):
         server, *_ = _build_server(settings=Settings(tools=ToolsSettings(profile="core")))

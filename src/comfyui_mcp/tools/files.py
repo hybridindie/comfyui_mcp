@@ -1,4 +1,4 @@
-"""File operation tools: upload_image, get_image, list_outputs, get_workflow_from_image."""
+"""File operation tools: upload_image, upload_media, get_image, get_output, list_outputs."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import base64
 import json
 import struct
 import zlib
+from pathlib import PurePosixPath
 from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
@@ -35,6 +36,27 @@ _INLINE_BLOCKED_TYPES = frozenset({"image/svg+xml"})
 # from blowing up the MCP response. Larger media still gets a /view URL.
 _MAX_INLINE_OUTPUT_BYTES = 8 * 1024 * 1024
 _INLINE_OUTPUT_PREFIXES = ("image/", "video/", "audio/")
+
+# Multipart content type per upload extension. ComfyUI's /upload/image endpoint
+# stores the part as-is and does not inspect the type, but sending the real one
+# keeps proxies and logs honest and avoids presenting a video as image/png.
+_MEDIA_CONTENT_TYPES = {
+    ".mp4": "video/mp4",
+    ".m4v": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".mkv": "video/x-matroska",
+    ".avi": "video/x-msvideo",
+    ".mpg": "video/mpeg",
+    ".mpeg": "video/mpeg",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".flac": "audio/flac",
+    ".ogg": "audio/ogg",
+    ".opus": "audio/ogg",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+}
 
 
 _MAX_TEXT_CHUNK_BYTES = 10 * 1024 * 1024  # 10 MB limit for decompressed text chunks
@@ -117,6 +139,62 @@ def register_file_tools(
     """Register file operation tools."""
     tool_fns: dict[str, Any] = {}
 
+    async def _upload_payload(
+        *,
+        tool: str,
+        clean_name: str,
+        clean_subfolder: str,
+        raw: bytes,
+        destination: str,
+        overwrite: bool,
+        content_type: str,
+        kind: str,
+        size_hint: str,
+    ) -> str:
+        """Shared size check + audit + upload for the image and media tools."""
+        try:
+            features = await client.get_features()
+        except Exception:
+            features = {}  # older servers may not expose /features
+        server_max = features.get("max_upload_size")
+        if isinstance(server_max, (int, float)) and server_max > 0 and len(raw) > server_max:
+            await audit.async_log(
+                tool=tool,
+                action="upload_rejected",
+                extra={
+                    "filename": clean_name,
+                    "size_bytes": len(raw),
+                    "max_upload_size_bytes": int(server_max),
+                },
+            )
+            raise ValueError(
+                f"Payload is {len(raw)} bytes but this ComfyUI server's max_upload_size "
+                f"is {int(server_max)} bytes. Reduce the {kind} size ({size_hint}) "
+                "before uploading."
+            )
+
+        sanitizer.validate_size(len(raw))
+        await audit.async_log(
+            tool=tool,
+            action="uploading",
+            extra={
+                "filename": clean_name,
+                "size_bytes": len(raw),
+                "destination": destination,
+                "overwrite": overwrite,
+            },
+        )
+        result = await client.upload_image(
+            raw,
+            clean_name,
+            clean_subfolder,
+            destination=destination,
+            overwrite=overwrite,
+            content_type=content_type,
+        )
+        await audit.async_log(tool=tool, action="uploaded", extra={"result": result})
+        return f"Uploaded {result.get('name', clean_name)} to ComfyUI {destination} directory"
+
     @mcp.tool(
         annotations=ToolAnnotations(
             read_only_hint=False,
@@ -168,50 +246,88 @@ def register_file_tools(
         clean_name = sanitizer.validate_filename(filename)
         clean_subfolder = sanitizer.validate_subfolder(subfolder)
         raw = base64.b64decode(image_data)
-
-        try:
-            features = await client.get_features()
-        except Exception:
-            features = {}  # older servers may not expose /features
-        server_max = features.get("max_upload_size")
-        if isinstance(server_max, (int, float)) and server_max > 0 and len(raw) > server_max:
-            await audit.async_log(
-                tool="upload_image",
-                action="upload_rejected",
-                extra={
-                    "filename": clean_name,
-                    "size_bytes": len(raw),
-                    "max_upload_size_bytes": int(server_max),
-                },
-            )
-            raise ValueError(
-                f"Payload is {len(raw)} bytes but this ComfyUI server's max_upload_size "
-                f"is {int(server_max)} bytes. Reduce the image size (e.g. downscale or "
-                "re-encode) before uploading."
-            )
-
-        sanitizer.validate_size(len(raw))
-        await audit.async_log(
+        return await _upload_payload(
             tool="upload_image",
-            action="uploading",
-            extra={
-                "filename": clean_name,
-                "size_bytes": len(raw),
-                "destination": destination,
-                "overwrite": overwrite,
-            },
-        )
-        result = await client.upload_image(
-            raw,
-            clean_name,
-            clean_subfolder,
+            clean_name=clean_name,
+            clean_subfolder=clean_subfolder,
+            raw=raw,
             destination=destination,
             overwrite=overwrite,
+            content_type="image/png",
+            kind="image",
+            size_hint="e.g. downscale or re-encode",
         )
-        await audit.async_log(tool="upload_image", action="uploaded", extra={"result": result})
-        return f"Uploaded {result.get('name', clean_name)} to ComfyUI {destination} directory"
 
     tool_fns["comfyui_upload_image"] = comfyui_upload_image
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        )
+    )
+    async def comfyui_upload_media(
+        filename: Annotated[
+            str,
+            Field(description="Name for the uploaded file (e.g. 'clip.mp4')"),
+        ],
+        media_data: Annotated[
+            str,
+            Field(description="Base64-encoded video or audio data"),
+        ],
+        subfolder: Annotated[
+            str,
+            Field(default="", description="Optional subfolder within the destination directory"),
+        ] = "",
+        destination: Annotated[
+            Literal["input", "output", "temp"],
+            Field(
+                default="input",
+                description="Destination directory. 'input' (default) is where workflows "
+                "read user-supplied media from; 'output' and 'temp' are usually only "
+                "useful for testing or scripted setups.",
+            ),
+        ] = "input",
+        overwrite: Annotated[
+            bool,
+            Field(
+                default=False,
+                description="If True, replace any existing file with the same name. If False "
+                "(default), ComfyUI auto-renames by suffixing ' (N)'.",
+            ),
+        ] = False,
+    ) -> str:
+        """Upload a video or audio file to ComfyUI.
+
+        Use this for video-to-video, audio-driven, and VHS/AnimateDiff inputs.
+        ``comfyui_upload_image`` stays raster/JSON-only. The extension must be in
+        ``security.allowed_media_extensions``; the part is sent with its real
+        video/audio content type. The file is stored under ComfyUI's input
+        directory by default and is not transcoded or inspected, so pass a
+        container the workflow's loader can read. Payload size is checked against
+        ComfyUI's reported ``max_upload_size`` and the configured limit before
+        the request is sent.
+        """
+        clean_name = sanitizer.validate_media_filename(filename)
+        clean_subfolder = sanitizer.validate_subfolder(subfolder)
+        raw = base64.b64decode(media_data)
+        suffix = PurePosixPath(clean_name).suffix.lower()
+        content_type = _MEDIA_CONTENT_TYPES.get(suffix, "application/octet-stream")
+        return await _upload_payload(
+            tool="upload_media",
+            clean_name=clean_name,
+            clean_subfolder=clean_subfolder,
+            raw=raw,
+            destination=destination,
+            overwrite=overwrite,
+            content_type=content_type,
+            kind="media",
+            size_hint="e.g. trim or re-encode",
+        )
+
+    tool_fns["comfyui_upload_media"] = comfyui_upload_media
 
     @mcp.tool(
         annotations=ToolAnnotations(

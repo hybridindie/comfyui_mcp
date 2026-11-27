@@ -55,6 +55,7 @@ FILE_HANDLING_TOOLS: frozenset[str] = frozenset(
         "comfyui_list_models",
         "comfyui_get_model_metadata",
         "comfyui_upload_image",
+        "comfyui_upload_media",
         "comfyui_get_image",
         "comfyui_upload_mask",
         "comfyui_get_workflow_from_image",

@@ -308,7 +308,7 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 ### Tool profiles
 
 `tools.profile: "full"` (default) exposes every tool. `"core"` exposes the
-generation, jobs, files, and discovery loop (25 tools) and hides history,
+generation, jobs, files, and discovery loop (26 tools) and hides history,
 settings, downloads, node packs, subgraphs, presets, and other niche tools.
 Hidden tools are not listed in `tools/list` and a direct call by name returns
 `NotFoundError`, so the reduction is enforced server-side. Prompts and resources
@@ -405,7 +405,7 @@ ComfyUI (v0.38+; verified against v0.46.3) advertises its capabilities at `GET /
 |-----|---------|
 | `supports_preview_metadata` | Server-rendered preview thumbnails (webp/jpeg) available via `comfyui_get_image(preview_format=...)` |
 | `supports_model_type_tags` | Model listings carry type tags |
-| `max_upload_size` | Maximum upload payload in **bytes** (enforced locally by `comfyui_upload_image` before the request) |
+| `max_upload_size` | Maximum upload payload in **bytes** (enforced locally by `comfyui_upload_image` and `comfyui_upload_media` before the request) |
 | `node_replacements` | Server exposes a node replacement map (`/node_replacements`) |
 | `assets` | The SQLite asset catalogue is enabled (`--enable-assets`); when on, output/model trees are indexed server-side |
 | `partner_run_gate_enabled` | Upstream gates the local Run button behind sign-in when a graph contains partner (paid) nodes — a second layer beneath the inspector's dangerous-node warnings |
@@ -440,7 +440,8 @@ The `comfyui_download_model` tool always sends a `previewFile` field (required b
 
 | Tool | Description |
 |------|-------------|
-| `comfyui_upload_image` | Upload a base64-encoded image to ComfyUI. Path-sanitized. Params: filename, image_data, subfolder, `destination="input"\|"output"\|"temp"` (default `input`), `overwrite` (default False — ComfyUI auto-renames duplicates). |
+| `comfyui_upload_image` | Upload a base64-encoded image to ComfyUI. Image/JSON allowlist (`security.allowed_extensions`); path-sanitized. Params: filename, image_data, subfolder, `destination="input"\|"output"\|"temp"` (default `input`), `overwrite` (default False — ComfyUI auto-renames duplicates). |
+| `comfyui_upload_media` | Upload base64 video/audio for VHS, AnimateDiff, video-to-video, and audio-driven workflows. Media allowlist (`security.allowed_media_extensions`), real content type, same traversal/size checks. Params: filename, media_data, subfolder, `destination`, `overwrite`. Not transcoded. |
 | `comfyui_get_image` | Download a generated image. `response_format="data_uri"` (default) returns a `data:image/...;base64,...` string of the full image; `response_format="url"` returns a direct `/view` URL. With `data_uri`, optional `preview_format="webp"\|"jpeg"` + `preview_quality=1-100` request a server-rendered thumbnail (smaller payload, lossy). Optional `base_url_override` can override URL host per call. Path-sanitized. Use `comfyui_get_output` for video/audio. |
 | `comfyui_get_output` | Retrieve a video, audio, image, or GIF output. `response_format="url"` (default) returns a `/view` link; `"path"` returns the ComfyUI-relative path; `"inline"` returns a data URI for small, allow-listed media (≤8 MiB) and falls back to a URL otherwise. Path-sanitized. |
 | `comfyui_list_outputs` | List generated output filenames from history. |
@@ -517,6 +518,22 @@ security:
     - ".webp"
     - ".gif"
     - ".json"
+  allowed_media_extensions:        # comfyui_upload_media only; empty disables it
+    - ".mp4"
+    - ".webm"
+    - ".mov"
+    - ".mkv"
+    - ".avi"
+    - ".m4v"
+    - ".mpg"
+    - ".mpeg"
+    - ".mp3"
+    - ".wav"
+    - ".flac"
+    - ".ogg"
+    - ".m4a"
+    - ".aac"
+    - ".opus"
 
 rate_limits:                       # Requests per minute
   workflow: 10

@@ -41,6 +41,13 @@ class TestSettingsDefaults:
     def test_allowed_extensions_default(self):
         s = Settings()
         assert ".png" in s.security.allowed_extensions
+        assert ".mp4" not in s.security.allowed_extensions
+
+    def test_allowed_media_extensions_default(self):
+        s = Settings()
+        assert ".mp4" in s.security.allowed_media_extensions
+        assert ".mp3" in s.security.allowed_media_extensions
+        assert ".png" not in s.security.allowed_media_extensions
 
 
 class TestSettingsFromYAML:
@@ -149,3 +156,8 @@ class TestModelSearchEnvOverrides:
         monkeypatch.setenv("COMFYUI_ALLOWED_DOWNLOAD_DOMAINS", "example.com,other.com")
         data = _apply_env_overrides({})
         assert data["security"]["allowed_download_domains"] == ["example.com", "other.com"]
+
+    def test_allowed_media_extensions_env(self, monkeypatch):
+        monkeypatch.setenv("COMFYUI_ALLOWED_MEDIA_EXTENSIONS", ".mp4, .mkv")
+        data = _apply_env_overrides({})
+        assert data["security"]["allowed_media_extensions"] == [".mp4", ".mkv"]

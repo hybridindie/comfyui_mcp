@@ -94,6 +94,7 @@ def _create_path_sanitizer(settings: Settings) -> PathSanitizer:
     return PathSanitizer(
         allowed_extensions=settings.security.allowed_extensions,
         max_size_mb=settings.security.max_upload_size_mb,
+        allowed_media_extensions=settings.security.allowed_media_extensions,
     )
 
 
@@ -152,6 +153,7 @@ _CORE_TOOL_NAMES: frozenset[str] = frozenset(
         "comfyui_cancel_job",
         # files
         "comfyui_upload_image",
+        "comfyui_upload_media",
         "comfyui_upload_mask",
         "comfyui_get_image",
         "comfyui_list_outputs",
@@ -194,6 +196,7 @@ _TOOL_CATEGORIES: dict[str, str] = {
     "summarize_workflow": "read",  # uses read_limiter in generation.py
     # file tools (rate_limits.file_ops)
     "upload_image": "file",
+    "upload_media": "file",
     "get_image": "file",
     "get_output": "file",
     "list_outputs": "file",

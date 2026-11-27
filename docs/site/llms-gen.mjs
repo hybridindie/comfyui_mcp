@@ -30,7 +30,7 @@ const SITE_URL = 'https://hybridindie.github.io/comfyui_mcp/'
 const TITLE = 'comfyui-mcp-secure'
 const SUMMARY =
   'A secure MCP server for ComfyUI — generate images, run workflows, and manage ' +
-  'models from any AI agent. 55 tools across generation, jobs, discovery, files, ' +
+  'models from any AI agent. 56 tools across generation, jobs, discovery, files, ' +
   'models, and custom nodes, with workflow inspection, path sanitization, rate ' +
   'limiting, and structured audit logging built in.'
 const DETAILS =

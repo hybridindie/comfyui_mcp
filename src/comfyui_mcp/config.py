@@ -203,6 +203,23 @@ _DEFAULT_DANGEROUS_NODES = [
 ]
 
 _DEFAULT_ALLOWED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".json"]
+_DEFAULT_ALLOWED_MEDIA_EXTENSIONS = [
+    ".mp4",
+    ".webm",
+    ".mov",
+    ".mkv",
+    ".avi",
+    ".m4v",
+    ".mpg",
+    ".mpeg",
+    ".mp3",
+    ".wav",
+    ".flac",
+    ".ogg",
+    ".m4a",
+    ".aac",
+    ".opus",
+]
 _DEFAULT_ALLOWED_DOWNLOAD_DOMAINS = ["huggingface.co", "civitai.com"]
 _DEFAULT_ALLOWED_MODEL_EXTENSIONS = [".safetensors", ".ckpt", ".pt", ".pth", ".bin"]
 
@@ -287,6 +304,7 @@ class SecuritySettings(BaseModel):
     dangerous_nodes: list[str] = list(_DEFAULT_DANGEROUS_NODES)
     max_upload_size_mb: int = 50
     allowed_extensions: list[str] = list(_DEFAULT_ALLOWED_EXTENSIONS)
+    allowed_media_extensions: list[str] = list(_DEFAULT_ALLOWED_MEDIA_EXTENSIONS)
     allowed_download_domains: list[str] = list(_DEFAULT_ALLOWED_DOWNLOAD_DOMAINS)
     allowed_model_extensions: list[str] = list(_DEFAULT_ALLOWED_MODEL_EXTENSIONS)
 
@@ -434,6 +452,7 @@ def _apply_env_overrides(data: dict) -> dict:
         "COMFYUI_CIVITAI_API_KEY": ("model_search", "civitai_api_key"),
         "COMFYUI_MAX_SEARCH_RESULTS": ("model_search", "max_search_results"),
         "COMFYUI_ALLOWED_DOWNLOAD_DOMAINS": ("security", "allowed_download_domains"),
+        "COMFYUI_ALLOWED_MEDIA_EXTENSIONS": ("security", "allowed_media_extensions"),
         "COMFYUI_TOOLS_PROFILE": ("tools", "profile"),
         "COMFYUI_TASKS_ENABLED": ("tasks", "enabled"),
         "COMFYUI_TASKS_BACKEND_URL": ("tasks", "backend_url"),
@@ -454,7 +473,7 @@ def _apply_env_overrides(data: dict) -> dict:
                 data[section][key] = int(value)
             elif key in ("tls_verify", "enabled"):
                 data[section][key] = value.lower() in ("true", "1", "yes")
-            elif key == "allowed_download_domains":
+            elif key in ("allowed_download_domains", "allowed_media_extensions"):
                 data[section][key] = [d.strip() for d in value.split(",") if d.strip()]
             else:
                 data[section][key] = value

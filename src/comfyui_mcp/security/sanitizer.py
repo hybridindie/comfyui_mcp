@@ -11,8 +11,14 @@ class PathValidationError(Exception):
 
 
 class PathSanitizer:
-    def __init__(self, allowed_extensions: list[str], max_size_mb: int = 50) -> None:
+    def __init__(
+        self,
+        allowed_extensions: list[str],
+        max_size_mb: int = 50,
+        allowed_media_extensions: list[str] | None = None,
+    ) -> None:
         self._allowed_extensions = {ext.lower() for ext in allowed_extensions}
+        self._allowed_media_extensions = {ext.lower() for ext in (allowed_media_extensions or [])}
         self._max_size_bytes = max_size_mb * 1024 * 1024
 
     def _validate_name(self, filename: str) -> str:
@@ -43,6 +49,22 @@ class PathSanitizer:
         if not suffix or suffix not in self._allowed_extensions:
             raise PathValidationError(
                 f"Disallowed file extension {suffix!r}. Allowed: {sorted(self._allowed_extensions)}"
+            )
+        return normalized
+
+    def validate_media_filename(self, filename: str) -> str:
+        """Validate an uploaded video/audio filename against the media allow-list.
+
+        Kept separate from :meth:`validate_filename` so widening the media
+        surface never widens the image upload surface. An unconfigured media
+        allow-list rejects everything rather than falling back to any type.
+        """
+        normalized = self._validate_name(filename)
+        suffix = PurePosixPath(normalized).suffix.lower()
+        if not suffix or suffix not in self._allowed_media_extensions:
+            raise PathValidationError(
+                f"Disallowed media extension {suffix!r}. "
+                f"Allowed: {sorted(self._allowed_media_extensions)}"
             )
         return normalized
 

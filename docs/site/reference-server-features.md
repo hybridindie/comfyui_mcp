@@ -17,7 +17,7 @@ Meaningful keys:
 |-----|---------|
 | `supports_preview_metadata` | Server-rendered preview thumbnails (webp/jpeg) available via `comfyui_get_image(preview_format=...)` |
 | `supports_model_type_tags` | Model listings carry type tags |
-| `max_upload_size` | Maximum upload payload in **bytes** — enforced locally by `comfyui_upload_image` before the request |
+| `max_upload_size` | Maximum upload payload in **bytes** — enforced locally by `comfyui_upload_image` and `comfyui_upload_media` before the request |
 | `node_replacements` | Server exposes a node replacement map (`/node_replacements`) — the inspector warns on submissions containing to-be-replaced nodes |
 | `assets` | The SQLite asset catalogue is enabled (`--enable-assets`); output/model trees are indexed server-side |
 | `partner_run_gate_enabled` | Upstream gates the local Run button behind sign-in when a graph contains partner (paid) nodes — a second layer beneath the inspector's dangerous-node warnings |

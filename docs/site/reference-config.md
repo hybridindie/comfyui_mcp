@@ -41,6 +41,22 @@ security:
     - ".webp"
     - ".gif"
     - ".json"
+  allowed_media_extensions:        # comfyui_upload_media only; empty disables it
+    - ".mp4"
+    - ".webm"
+    - ".mov"
+    - ".mkv"
+    - ".avi"
+    - ".m4v"
+    - ".mpg"
+    - ".mpeg"
+    - ".mp3"
+    - ".wav"
+    - ".flac"
+    - ".ogg"
+    - ".m4a"
+    - ".aac"
+    - ".opus"
 
 rate_limits:                       # Requests per minute per category
   workflow: 10
@@ -81,6 +97,12 @@ tasks:                             # Optional background tasks (FastMCP 4 TasksE
 
 - `security.mode` — see [audit mode](./security-audit-mode.md) and
   [enforce mode](./security-enforce-mode.md). The default is audit.
+- `security.allowed_extensions` — the upload allowlist for
+  `comfyui_upload_image`, `comfyui_upload_mask`, and mask JSON. Raster images
+  and `.json` only by default.
+- `security.allowed_media_extensions` — the separate allowlist for
+  `comfyui_upload_media` (video/audio). An empty list disables media uploads
+  rather than falling back to the image list.
 - `security.allowed_nodes` — only consulted in enforce mode, and only when
   non-empty. Nodes outside it are hard-blocked before elicitation; an empty
   list skips the allowlist check.
@@ -108,7 +130,7 @@ tasks:                             # Optional background tasks (FastMCP 4 TasksE
   scopes per-identity rate limits. Startup fails closed if no configured
   variable is set. OIDC/TLS stay at the reverse proxy.
 - `tools.profile` — `full` (default) exposes every tool; `core` exposes the
-  generation, jobs, files, and discovery loop (25 tools) and hides the rest.
+  generation, jobs, files, and discovery loop (26 tools) and hides the rest.
   Hidden tools are neither listed nor callable by name. Prompts/resources are
   unaffected.
 - `tasks.*` — off by default; see [background tasks](./architecture/tasks.md).
