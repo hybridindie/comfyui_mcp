@@ -1,14 +1,14 @@
 # comfyui-mcp-secure
 
-A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants to generate images, run workflows, and manage jobs through ComfyUI — with built-in security controls that existing ComfyUI MCP servers lack.
+A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants to generate images, run workflows, and manage jobs through ComfyUI — with server-side security controls that other ComfyUI MCP servers leave out, including Comfy's own first-party [`comfy-mcp`](https://github.com/Comfy-Org/comfy-mcp).
 
 > **Using OpenCode?** This repo ships agent configuration under `.opencode/` — grounding rules (`.opencode/rules/`), a read-only `review` subagent, a `/preflight` command, and a graphify plugin — all pre-wired to the MCP server. See [AGENTS.md](./AGENTS.md) for the entry point. The server itself works with **any** MCP client over stdio or Streamable HTTP.
 
 ## Why this exists
 
-Every existing ComfyUI MCP server is a thin passthrough to ComfyUI's API with no security guardrails. They allow arbitrary workflow execution (including malicious custom nodes that run `eval`/`exec`), have no input validation, no file path sanitization, no rate limiting, and no audit trail.
+ComfyUI now has two first-party MCP servers: the hosted **Comfy Cloud MCP** (`cloud.comfy.org/mcp` — remote HTTP, OAuth, execution on Comfy Cloud GPUs) and the local **[`comfy-mcp`](https://github.com/Comfy-Org/comfy-mcp)** (`stdio`, 42 tools, built on `comfy-cli`). The local server is a careful, well-documented wrapper — but it is deliberately a convenience layer, not a policy layer. Its threat model accepts arbitrary workflow execution, unrestricted file access as the user, and lifecycle control by a prompt-injected agent, and it adds no per-call rate limiting or audit trail. Community servers are thinner still and vary in rigor.
 
-This server adds five security layers between the AI assistant and ComfyUI:
+This server adds five security layers that neither provides:
 
 | Layer | What it does |
 |-------|-------------|
@@ -17,6 +17,8 @@ This server adds five security layers between the AI assistant and ComfyUI:
 | **SecurityMiddleware** | Centralized rate-limit checks + entry audit logging across every tool call via the FastMCP 4 `on_call_tool` hook. Sensitive tool arguments (`token`, `password`, `api_key`) are redacted before the audit record is written. |
 | **Audit Logger** | Structured JSON logging of every operation with automatic redaction of sensitive fields (tokens, passwords). |
 | **Selective API Surface** | Only exposes safe ComfyUI endpoints. Dangerous endpoints (`/userdata`, `/free`, `/users`) are never proxied. `/system_stats` is called internally by `comfyui_get_system_info` but only a strict whitelist (GPU VRAM, queue counts, version) is returned. |
+
+[How it compares](./docs/site/comparison.md) has the full side-by-side against the official server — including the areas where `comfy-mcp` is the better pick.
 
 ### Resources & Prompts (FastMCP 4)
 
@@ -344,7 +346,7 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 | `comfyui_update_custom_node` | Queue update for a custom node pack by `node_id`; optional restart and post-update security audit. |
 | `comfyui_get_custom_node_status` | Get custom node queue status (pending/running/completed). |
 
-> **Requires:** ComfyUI-Manager available on the target ComfyUI server. If unavailable, node-management tools return a helpful error.
+> **Requires:** ComfyUI-Manager. It is bundled with current ComfyUI releases behind `--enable-manager` (verified on v0.46.3); older installs need the standalone [ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager) plugin. If unavailable, node-management tools return a helpful error.
 
 ### History
 
@@ -367,7 +369,7 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 
 ### Server capability flags (`comfyui_get_server_features`)
 
-ComfyUI (v0.38+) advertises its capabilities at `GET /features`. Meaningful keys:
+ComfyUI (v0.38+; verified against v0.46.3) advertises its capabilities at `GET /features`. Meaningful keys:
 
 | Key | Meaning |
 |-----|---------|
@@ -376,7 +378,14 @@ ComfyUI (v0.38+) advertises its capabilities at `GET /features`. Meaningful keys
 | `max_upload_size` | Maximum upload payload in **bytes** (enforced locally by `comfyui_upload_image` before the request) |
 | `node_replacements` | Server exposes a node replacement map (`/node_replacements`) |
 | `assets` | The SQLite asset catalogue is enabled (`--enable-assets`); when on, output/model trees are indexed server-side |
+| `partner_run_gate_enabled` | Upstream gates the local Run button behind sign-in when a graph contains partner (paid) nodes — a second layer beneath the inspector's dangerous-node warnings |
+| `partner_node_token` | Local API-node prompts are queued with a renewable partner-node token instead of the workspace token |
+| `local_web_sso` | ComfyUI offers browser sign-in (Cloud OAuth + PKCE) on `localhost`/`127.0.0.1`, so the local UI/API has an auth surface |
+| `deploy_to_cloud` | This install can deploy workflows to Comfy Cloud — network egress beyond the local box |
 | `extension.manager.supports_v4` | ComfyUI-Manager exposes its v4 API |
+| `extension.manager.supports_csrf_post` | ComfyUI-Manager 4.2.1+ accepts CSRF-protected POST state mutations (absence means an older manager) |
+
+The same payload also carries frontend flags (`show_signin_button`, `enable_telemetry`); the server exposes them but does not act on them.
 
 Older servers may omit keys — always treat them as optional. ComfyUI run-mode flags worth knowing (upstream, v0.38+): `--offline` (no outbound calls at all), `--disable-partner-nodes` (deprecates `--disable-api-nodes`; gates third-party API nodes like BFL/Ideogram/HeyGen).
 
@@ -790,6 +799,13 @@ flowchart TB
 | Download Validator | `security/download_validator.py` | URL domain/path and extension validation for downloads |
 | Model Checker | `security/model_checker.py` | Proactive missing model detection in workflows |
 | Model Manager | `model_manager.py` | Lazy detection of ComfyUI-Model-Manager availability |
+
+## Roadmap
+
+Planned work lives in [ROADMAP.md](./ROADMAP.md) and is tracked under the
+[2026-11 roadmap tracker](https://github.com/hybridindie/comfyui_mcp/issues/214).
+The near-term focus is policy enforcement, HTTP auth, and compatibility
+automation — not feature parity with the official server.
 
 ## Development
 

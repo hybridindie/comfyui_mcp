@@ -3,7 +3,7 @@ type: guide
 title: "Manage models"
 description: "Search, download, and curate models — HF/CivitAI search, the Model-Manager download lifecycle, presets, and metadata."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Manage models
@@ -73,6 +73,7 @@ HuggingFace models or auth-only CivitAI access — see
 ## Custom nodes are a similar flow
 
 Searching/installing/updating *custom nodes* goes through ComfyUI-Manager
-(`comfyui_search_custom_nodes` → `comfyui_install_custom_node` → optional
-restart + post-install security audit) — see
+(bundled with current ComfyUI releases behind `--enable-manager`) —
+`comfyui_search_custom_nodes` → `comfyui_install_custom_node` → optional
+restart + post-install security audit — see
 [the tools reference](./reference-tools.md#custom-node-management).

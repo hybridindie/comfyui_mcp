@@ -3,7 +3,7 @@ type: reference
 title: "Tools"
 description: "All 53 comfyui_* tools, grouped by module, with parameters and return shapes."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Tools
@@ -66,8 +66,9 @@ the pagination envelope `{items, total, offset, limit, has_more}`.
 
 ## Custom node management
 
-> Requires ComfyUI-Manager on the target server; without it these tools
-> return a helpful error.
+> Requires ComfyUI-Manager — bundled with current ComfyUI releases behind
+> `--enable-manager` (verified on v0.46.3), or the standalone plugin on older
+> installs. Without it these tools return a helpful error.
 
 | Tool | Description |
 |------|-------------|
