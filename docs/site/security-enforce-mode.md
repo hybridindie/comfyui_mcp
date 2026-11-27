@@ -48,6 +48,12 @@ Allow submission? [y/N]
 - **Confirm** → the workflow proceeds to ComfyUI.
 - **Decline/cancel** → `WorkflowBlockedError`; `post_prompt` is never called.
 
+On **sessionless 2026-07-28+** connections there is no server-initiated
+back-channel, so `ctx.elicit()` is unavailable. The gate returns an
+`InputRequiredResult` carrying a boolean approval request instead; the client
+fulfills it and retries the call with the answer, which the gate reads from
+`ctx.input_responses`. A decline still blocks, and both eras fail closed.
+
 The gate covers `comfyui_run_workflow`, `comfyui_generate_image`,
 `comfyui_transform_image`, `comfyui_inpaint_image`, and
 `comfyui_upscale_image`.

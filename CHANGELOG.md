@@ -12,6 +12,11 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- Sessionless-protocol elicitation *(#210)*: enforce-mode gates on 2026-07-28+
+  connections return an `InputRequiredResult` with a boolean approval request
+  and read the answer from `ctx.input_responses`, because `ctx.elicit()` has no
+  back-channel there. Handshake connections are unchanged; both eras fail
+  closed on decline.
 - Audit log rotation and retention *(#208)*: `logging.max_bytes` (default
   10 MiB) and `logging.backup_count` (default 5) rotate `audit.log` through
   `audit.log.1` … `audit.log.N`. Rotation is atomic under the existing lock
