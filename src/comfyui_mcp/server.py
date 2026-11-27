@@ -187,6 +187,7 @@ _TOOL_CATEGORIES: dict[str, str] = {
     "run_workflow": "generation",
     "run_workflow_stream": "generation",
     "generate_image": "generation",
+    "generate_batch": "generation",
     "transform_image": "generation",
     "inpaint_image": "generation",
     "upscale_image": "generation",

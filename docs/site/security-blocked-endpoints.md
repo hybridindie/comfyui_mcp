@@ -31,5 +31,5 @@ The same tests assert that a `/system_stats` caller beyond
 
 This is the design principle the whole project follows: **the client cannot
 make the server proxy something the server does not implement.** A malicious
-or confused LLM can only pick from the 53 tools that exist — and every one
+or confused LLM can only pick from the 54 tools that exist — and every one
 of those has passed the [security model](./security-model.md) checks.

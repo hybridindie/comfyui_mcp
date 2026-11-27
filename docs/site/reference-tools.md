@@ -1,14 +1,14 @@
 ---
 type: reference
 title: "Tools"
-description: "All 53 comfyui_* tools, grouped by module, with parameters and return shapes."
+description: "All 54 comfyui_* tools, grouped by module, with parameters and return shapes."
 created: 2026-10-06
 updated: 2026-11-27
 ---
 
 # Tools
 
-All 53 tools. Generation/workflow/job tools return a uniform envelope
+All 54 tools. Generation/workflow/job tools return a uniform envelope
 (`status`, `prompt_id`, `outputs`, ...) — see the
 [workflow pipeline](./architecture/workflow-pipeline.md). List tools return
 the pagination envelope `{items, total, offset, limit, has_more}`.
@@ -18,6 +18,7 @@ the pagination envelope `{items, total, offset, limit, has_more}`.
 | Tool | Description |
 |------|-------------|
 | `comfyui_generate_image` | Text-to-image using a built-in workflow. Params: prompt, negative_prompt, width, height, steps, cfg, model. Set `wait=True` to block until complete and return outputs. Preflights the named model and fails fast (no `/prompt` round-trip) when absent. |
+| `comfyui_generate_batch` | Generate a bounded prompt/seed matrix (max 8 variants) with one rate-limit token; returns prompt ids and per-variant errors. Fetch with `comfyui_get_image` after polling progress. |
 | `comfyui_transform_image` | Image-to-image transformation. Params: image (filename), prompt, negative_prompt, strength (0.0–1.0), steps, cfg, model. Input must be uploaded via `comfyui_upload_image` first. |
 | `comfyui_inpaint_image` | Inpaint masked regions of an image. Params: image, mask (filenames), prompt, negative_prompt, strength, steps, cfg, model. Both files must be uploaded first. |
 | `comfyui_upscale_image` | Upscale an image using a model-based upscaler. Params: image (filename), upscale_model (default: `RealESRGAN_x4plus.pth`). |

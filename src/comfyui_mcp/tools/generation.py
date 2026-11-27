@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import json
+import random
 from typing import Annotated, Any, Literal
 
 import httpx
@@ -36,6 +37,7 @@ MAX_HEIGHT = 4096
 MIN_DIMENSION = 64
 
 _MAX_WORKFLOW_JSON_BYTES = 10 * 1024 * 1024  # 10 MB
+_MAX_BATCH_SIZE = 8
 
 
 def _validate_steps(steps: int) -> None:
@@ -795,6 +797,131 @@ def register_generation_tools(
         )
 
     tool_fns["comfyui_generate_image"] = comfyui_generate_image
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
+        )
+    )
+    async def comfyui_generate_batch(
+        prompts: Annotated[
+            list[str],
+            Field(
+                min_length=1,
+                max_length=_MAX_BATCH_SIZE,
+                description="Prompts to render. Each becomes one variant, or one row "
+                "of a prompt x seed matrix when `seeds` is provided.",
+            ),
+        ],
+        seeds: Annotated[
+            list[int] | None,
+            Field(
+                default=None,
+                max_length=_MAX_BATCH_SIZE,
+                description="Optional seeds. When set, the batch is prompts x seeds; "
+                "when omitted, each prompt gets one random seed.",
+            ),
+        ] = None,
+        negative_prompt: NegativePromptField = "bad quality, blurry",
+        width: WidthField = 512,
+        height: HeightField = 512,
+        steps: StepsField = 20,
+        cfg: CfgField = 7.0,
+        model: ModelNameField = "",
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        """Generate a bounded prompt/seed matrix with one default txt2img workflow each.
+
+        Submits asynchronously and returns the prompt ids, so the caller can poll
+        `comfyui_get_progress`/`comfyui_list_jobs` and fetch with
+        `comfyui_get_image`. Capped at 8 variants per call; the generation rate
+        limit counts the batch as one call, so submit another batch only after
+        this one finishes.
+        """
+        if not MIN_DIMENSION <= width <= MAX_WIDTH:
+            raise ValueError(f"width must be between {MIN_DIMENSION} and {MAX_WIDTH}")
+        if not MIN_DIMENSION <= height <= MAX_HEIGHT:
+            raise ValueError(f"height must be between {MIN_DIMENSION} and {MAX_HEIGHT}")
+        _validate_steps(steps)
+        _validate_cfg(cfg)
+
+        cleaned = [prompt.strip() for prompt in prompts]
+        if any(not prompt for prompt in cleaned):
+            raise ValueError("prompts must be non-empty strings")
+        if seeds is not None:
+            if not seeds:
+                raise ValueError("seeds must be non-empty when provided")
+            if any(seed < 0 for seed in seeds):
+                raise ValueError("seeds must be >= 0")
+
+        if seeds is None:
+            rng = random.SystemRandom()
+            pairs = [(prompt, rng.randint(0, 2**31 - 1)) for prompt in cleaned]
+        else:
+            pairs = [(prompt, seed) for prompt in cleaned for seed in seeds]
+        if len(pairs) > _MAX_BATCH_SIZE:
+            raise ValueError(
+                f"batch size {len(pairs)} exceeds the limit of {_MAX_BATCH_SIZE} variants"
+            )
+
+        if model:
+            await _validate_model_via_resource(folder="checkpoints", model=model, ctx=ctx)
+
+        variants: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        for prompt, seed in pairs:
+            wf = _build_txt2img_workflow(prompt, negative_prompt, width, height, steps, cfg, model)
+            wf["3"]["inputs"]["seed"] = seed
+            try:
+                result = await _submit_workflow(
+                    wf=wf,
+                    tool_name="generate_batch",
+                    success_message="Batch image generation started.",
+                    wait=False,
+                    client=client,
+                    audit=audit,
+                    inspector=inspector,
+                    progress=progress,
+                    stream_events=False,
+                    model_checker=model_checker,
+                    inspect_extra={"prompt": prompt, "seed": seed, "batch": True},
+                    ctx=ctx,
+                )
+            except WorkflowBlockedError as exc:
+                errors.append({"prompt": prompt, "seed": seed, "error": f"blocked: {exc}"})
+                break
+            except Exception as exc:
+                errors.append(
+                    {"prompt": prompt, "seed": seed, "error": f"{type(exc).__name__}: {exc}"}
+                )
+                continue
+            variant = {
+                "prompt": prompt,
+                "seed": seed,
+                "prompt_id": result.get("prompt_id"),
+                "status": result.get("status"),
+            }
+            if result.get("warnings"):
+                variant["warnings"] = result["warnings"]
+            variants.append(variant)
+
+        status = "submitted" if not errors else ("partial" if variants else "error")
+        await audit.async_log(
+            tool="generate_batch",
+            action="batch_completed",
+            extra={"count": len(variants), "errors": len(errors)},
+        )
+        return {
+            "status": status,
+            "count": len(variants),
+            "variants": variants,
+            "errors": errors,
+        }
+
+    tool_fns["comfyui_generate_batch"] = comfyui_generate_batch
 
     @mcp.tool(
         annotations=ToolAnnotations(
