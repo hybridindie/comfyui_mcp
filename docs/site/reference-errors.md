@@ -43,6 +43,13 @@ known-good loop patterns.
 | `upload_rejected` audit record | audit log | Sanitizer/size rejection | Fix filename/extension/size; see the message fields |
 | content-type rejection | `comfyui_get_image` | Non-raster content (SVG/HTML/unknown) refused | Use `response_format="url"` for such content — no inline render |
 
+## First stop: the doctor
+
+`uv run python scripts/doctor.py` checks the config, audit path, transport
+auth, ComfyUI reachability and `/features`, and the optional plugins. It
+prints a pass/warn/fail table with a next step for each failure; `--json`
+makes it usable in CI.
+
 ## Missing infrastructure
 
 | Signal | Meaning | Recovery |

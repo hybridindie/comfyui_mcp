@@ -1016,6 +1016,18 @@ git push origin v2.1.0
 
 The GitHub Actions workflow in `.github/workflows/pypi.yml` builds the sdist and wheel, verifies the metadata, and publishes to PyPI using GitHub Trusted Publishing on tag push. The GitHub Release is created manually after the workflow succeeds (`gh release create v<x.y.z>`). Before the first release, create the `comfyui-mcp-secure` project on PyPI, configure a trusted publisher for this repository in the PyPI project settings, and use the `pypi` GitHub environment.
 
+### Doctor
+
+`scripts/doctor.py` checks the config, audit-path writability, transport/auth,
+ComfyUI reachability and `/features`, and the optional Manager/Model-Manager
+plugins. It prints a pass/warn/fail table with the next step for each failure:
+
+```bash
+uv run python scripts/doctor.py
+uv run python scripts/doctor.py --url http://gpu-box:8188
+uv run python scripts/doctor.py --json
+```
+
 ### Smoke test against a live instance
 
 Verify connectivity, Model Manager availability, and download lifecycle against a running ComfyUI server:
