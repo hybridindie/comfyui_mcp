@@ -256,7 +256,11 @@ The `skills/` directory contains pre-authored recipes that wrap common multi-too
 | Skill | What it does |
 |---|---|
 | `gen <prompt>` | Generate an image. Picks a model via `comfyui_list_models`, calls `comfyui_generate_image(wait=True)`, fetches the result via `comfyui_get_image`. |
+| `edit <request>` | Route img2img vs inpaint vs upscale, upload the input, choose strength/model, fetch the result. |
 | `workflow <description>` | Build a workflow from a built-in template, validate it, then offer to run or modify. |
+| `batch <matrix>` | Generate a prompt/seed matrix in waves, respecting the generation limit, then collect the results. |
+| `security-review` | Audit dangerous nodes, derive an allowlist from the audit log, choose a warning policy, switch to enforce. |
+| `connect <client>` | Wire the server into Claude Code/Desktop, Cursor, OpenCode, or another client over stdio or HTTP. |
 | `workflows` | Knowledge skill — auto-applied when the conversation involves building/modifying workflows. Covers workflow JSON format, common node chains (txt2img/img2img/ControlNet/LoRA), and the key node reference. |
 | `status` | Show queue state (running + pending jobs). |
 | `progress <prompt_id>` | Per-job execution progress (current node, step X of Y, status). |
