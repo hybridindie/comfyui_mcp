@@ -38,7 +38,7 @@ class TestGetSettings:
             )
         )
         mcp = FastMCP("test")
-        tools = register_settings_tools(mcp, client, audit, limiter, sanitizer)
+        tools = register_settings_tools(mcp, client, audit, limiter, sanitizer, mode="audit")
         result = await tools["comfyui_get_settings"]()
         assert result["default_sampler"] == "euler"
         assert result["feature_flags"] == {"x": True}
@@ -52,7 +52,7 @@ class TestUpdateSettings:
             return_value=httpx.Response(200, json={})
         )
         mcp = FastMCP("test")
-        tools = register_settings_tools(mcp, client, audit, limiter, sanitizer)
+        tools = register_settings_tools(mcp, client, audit, limiter, sanitizer, mode="audit")
         await tools["comfyui_update_settings"](settings={"default_sampler": "dpmpp_2m"})
         assert route.called
         import json
@@ -68,6 +68,6 @@ class TestUpdateSettings:
     async def test_update_settings_rejects_empty_dict(self, components):
         client, audit, limiter, sanitizer = components
         mcp = FastMCP("test")
-        tools = register_settings_tools(mcp, client, audit, limiter, sanitizer)
+        tools = register_settings_tools(mcp, client, audit, limiter, sanitizer, mode="audit")
         with pytest.raises(ValueError, match="empty"):
             await tools["comfyui_update_settings"](settings={})

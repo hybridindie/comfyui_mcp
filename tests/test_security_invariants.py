@@ -160,6 +160,7 @@ def all_tools(tmp_path: Path) -> Iterator[dict[str, Any]]:
             read_limiter=rl_read,
             node_manager=node_manager,
             node_auditor=node_auditor,
+            mode="audit",
         )
     )
     try:
