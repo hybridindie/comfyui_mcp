@@ -11,7 +11,7 @@ updated: 2026-10-06
 Authoritative tables for the surface. The source of truth is the code +
 `README.md` in the repo — these pages are the readable map.
 
-- [Tools](reference-tools.md) — all 54, grouped by module
+- [Tools](reference-tools.md) — all 55, grouped by module
 - [Resources & prompts](reference-resources-prompts.md) — the `comfyui://` URIs and the 4 recipes
 - [Configuration](reference-config.md) — every config field with defaults
 - [Environment variables](reference-env-vars.md) — every override

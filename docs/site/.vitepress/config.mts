@@ -136,7 +136,7 @@ export default withMermaid(defineConfig({
       text: 'Edit this page on GitHub'
     },
     footer: {
-      message: '54 tools · 7 resources · 4 prompts · MIT Licensed',
+      message: '55 tools · 7 resources · 4 prompts · MIT Licensed',
       copyright: 'MIT Licensed. Copyright © 2026 hybridindie'
     }
   },

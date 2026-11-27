@@ -31,6 +31,11 @@ _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _INLINE_SAFE_PREFIX = "image/"
 _INLINE_BLOCKED_TYPES = frozenset({"image/svg+xml"})
 
+# Inline outputs may also be video or audio; the size cap keeps a data URI
+# from blowing up the MCP response. Larger media still gets a /view URL.
+_MAX_INLINE_OUTPUT_BYTES = 8 * 1024 * 1024
+_INLINE_OUTPUT_PREFIXES = ("image/", "video/", "audio/")
+
 
 _MAX_TEXT_CHUNK_BYTES = 10 * 1024 * 1024  # 10 MB limit for decompressed text chunks
 _MAX_TOTAL_METADATA_BYTES = 50 * 1024 * 1024  # 50 MB total
@@ -256,6 +261,9 @@ def register_file_tools(
     ) -> str:
         """Download a generated image from ComfyUI or return a direct view URL.
 
+        Use ``comfyui_get_output`` for video/audio outputs or when you need
+        media metadata; this tool stays raster-image-only and supports previews.
+
         Returns:
             Base64-encoded image data with content type prefix, or a direct image URL.
             When response_format='data_uri' and preview_format is set, ComfyUI re-encodes
@@ -329,6 +337,130 @@ def register_file_tools(
         return f"data:{normalized_type};base64,{b64}"
 
     tool_fns["comfyui_get_image"] = comfyui_get_image
+
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=True,
+        )
+    )
+    async def comfyui_get_output(
+        filename: Annotated[
+            str,
+            Field(description="Output filename (video, audio, image, gif, etc.)"),
+        ],
+        subfolder: Annotated[
+            str,
+            Field(description="Subfolder within ComfyUI's output directory."),
+        ] = "",
+        response_format: Annotated[
+            Literal["url", "path", "inline"],
+            Field(
+                description="'url' (default) returns a /view link; 'path' returns the "
+                "ComfyUI-relative path; 'inline' returns a data URI for small, "
+                "allow-listed media and falls back to a URL otherwise."
+            ),
+        ] = "url",
+        base_url_override: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "Optional override for URL responses; falls back to the configured base URL"
+                )
+            ),
+        ] = None,
+    ) -> dict[str, Any]:
+        """Retrieve a video, audio, image, or GIF output produced by ComfyUI.
+
+        Use this for non-image outputs or when you need media metadata; use
+        `comfyui_get_image` for raster images with preview thumbnails.
+
+        Returns:
+            `{status, filename, subfolder, content_type?, size_bytes?, url?,
+            data_uri?, path?, note?}`. `inline` falls back to a URL when the
+            type is not allow-listed or the file exceeds the 8 MiB cap.
+        """
+        clean_name = sanitizer.validate_output_filename(filename)
+        clean_subfolder = sanitizer.validate_subfolder(subfolder)
+        await audit.async_log(
+            tool="get_output",
+            action="downloading",
+            extra={
+                "filename": clean_name,
+                "subfolder": clean_subfolder,
+                "response_format": response_format,
+            },
+        )
+
+        base_url = base_url_override or image_view_base_url
+        url = client.build_image_url(clean_name, clean_subfolder, base_url=base_url)
+
+        if response_format == "url":
+            return {
+                "status": "url",
+                "filename": clean_name,
+                "subfolder": clean_subfolder,
+                "url": url,
+            }
+
+        if response_format == "path":
+            path = f"{clean_subfolder}/{clean_name}".lstrip("/")
+            return {
+                "status": "path",
+                "filename": clean_name,
+                "subfolder": clean_subfolder,
+                "path": path,
+                "note": "Relative to ComfyUI's output directory on the server, not the MCP host.",
+            }
+
+        if response_format != "inline":
+            raise ValueError("response_format must be 'url', 'path', or 'inline'")
+
+        data, content_type = await client.get_image(clean_name, clean_subfolder)
+        normalized_type = (content_type or "").strip().lower().split(";")[0]
+        result: dict[str, Any] = {
+            "filename": clean_name,
+            "subfolder": clean_subfolder,
+            "content_type": normalized_type or None,
+            "size_bytes": len(data),
+            "url": url,
+        }
+
+        if (
+            not normalized_type.startswith(_INLINE_OUTPUT_PREFIXES)
+            or normalized_type in _INLINE_BLOCKED_TYPES
+        ):
+            await audit.async_log(
+                tool="get_output",
+                action="content_type_rejected",
+                extra={
+                    "filename": clean_name,
+                    "content_type": content_type or "<missing>",
+                },
+            )
+            result["status"] = "not_inlined"
+            result["note"] = (
+                f"Content type {content_type or '<missing>'!r} is not allow-listed for "
+                "inline media; use the URL instead."
+            )
+            return result
+
+        if len(data) > _MAX_INLINE_OUTPUT_BYTES:
+            result["status"] = "too_large"
+            result["note"] = (
+                f"Output is {len(data)} bytes; the inline cap is "
+                f"{_MAX_INLINE_OUTPUT_BYTES} bytes. Use the URL instead."
+            )
+            return result
+
+        b64 = base64.b64encode(data).decode()
+        result["status"] = "inline"
+        result["data_uri"] = f"data:{normalized_type};base64,{b64}"
+        return result
+
+    tool_fns["comfyui_get_output"] = comfyui_get_output
 
     @mcp.tool(
         annotations=ToolAnnotations(

@@ -16,7 +16,7 @@ updated: 2026-11-27
 | Workflow safety | Trusts the client | Inspected server-side; enforce mode elicits the human |
 | Paths | Raw trust | Sanitized (traversal/null-byte/encoded/extension) |
 | Request volume | Unlimited | Token-bucket per category |
-| API knowledge the agent needs | Full — every endpoint, every quirk | 54 documented tools with typed results |
+| API knowledge the agent needs | Full — every endpoint, every quirk | 55 documented tools with typed results |
 | Model-Manager envelope quirks | Yours to handle | Normalized in the client |
 | Progress | Raw WebSocket protocol | Typed progress events + notifications |
 
@@ -56,7 +56,7 @@ accepted capabilities.
 | Rate limiting | Token bucket per tool category | No per-tool request throttling — internal timeouts, output caps and single-flight locks only |
 | Audit trail | Structured JSON per call, sensitive args redacted | Opt-in debug failure log, not an operation audit |
 | System info | Whitelisted — `/system_stats` filtered to VRAM, queue counts, version | Full passthrough, including ComfyUI's `argv` and Python version |
-| MCP surface | 54 tools, 7 resources, 4 prompts, `outputSchema` on structured-returning tools | 42 tools; no resources or prompts (handshake instructions instead) |
+| MCP surface | 55 tools, 7 resources, 4 prompts, `outputSchema` on structured-returning tools | 42 tools; no resources or prompts (handshake instructions instead) |
 | Breadth | Generation, jobs, discovery, nodes, models, history, files | Plus lifecycle (launch/stop/update/version switch), template gallery, slot editing, node-graph routing, partner models + billing, media preview |
 | Spend consent | Flags cloud/partner API nodes as dangerous by default | Per-call elicitation with fail-closed spend gates |
 

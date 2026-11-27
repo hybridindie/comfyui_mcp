@@ -440,6 +440,7 @@ The `comfyui_download_model` tool always sends a `previewFile` field (required b
 |------|-------------|
 | `comfyui_upload_image` | Upload a base64-encoded image to ComfyUI. Path-sanitized. Params: filename, image_data, subfolder, `destination="input"\|"output"\|"temp"` (default `input`), `overwrite` (default False — ComfyUI auto-renames duplicates). |
 | `comfyui_get_image` | Download a generated image. `response_format="data_uri"` (default) returns inline base64; `response_format="url"` returns a direct `/view` URL. With `data_uri`, optional `preview_format="webp"\|"jpeg"` + `preview_quality=1-100` request a server-rendered thumbnail (smaller payload, lossy). Optional `base_url_override` can override URL host per call. Path-sanitized. |
+| `comfyui_get_output` | Retrieve a video, audio, image, or GIF output. `response_format="url"` (default) returns a `/view` link; `"path"` returns the ComfyUI-relative path; `"inline"` returns a data URI for small, allow-listed media (≤8 MiB) and falls back to a URL otherwise. Path-sanitized. |
 | `comfyui_list_outputs` | List generated output filenames from history. |
 | `comfyui_upload_mask` | Upload a mask image to ComfyUI. Path-sanitized. Params: filename, mask_data, original_image, subfolder, original_subfolder, `destination="input"\|"output"\|"temp"` (default `input`), `overwrite` (default False — ComfyUI auto-renames duplicates). |
 | `comfyui_get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |

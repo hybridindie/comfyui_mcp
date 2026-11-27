@@ -12,6 +12,12 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- Media output retrieval *(#228)*: `comfyui_get_output` fetches video,
+  audio, image, or GIF outputs by URL (default), ComfyUI-relative path, or an
+  inline data URI for small allow-listed media. Inline is capped at 8 MiB and
+  falls back to a URL for oversized or active/unknown content types; read-only
+  output names bypass the upload extension allow-list but keep traversal
+  checks.
 - Bounded batch generation *(#229)*: `comfyui_generate_batch` renders a
   prompt x seed matrix (max 8 variants) with one rate-limit token, returns a
   prompt id per variant, and reports partial failures without hiding the

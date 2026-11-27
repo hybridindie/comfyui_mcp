@@ -195,6 +195,7 @@ _TOOL_CATEGORIES: dict[str, str] = {
     # file tools (rate_limits.file_ops)
     "upload_image": "file",
     "get_image": "file",
+    "get_output": "file",
     "list_outputs": "file",
     "upload_mask": "file",
     "get_workflow_from_image": "file",
