@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # graphify wrapper — sources the repo .env (LLM backend/model) and picks the
 # pinned interpreter before invoking the graphify CLI. See
-# .opencode/rules/graphify.md for why .env must be observed.
+# .claude/rules/graphify.md for why .env must be observed.
 #
 # Usage:
 #   scripts/graphify.sh label . --update

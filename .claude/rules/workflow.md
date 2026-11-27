@@ -1,4 +1,5 @@
 ---
+read_when: "Starting or finishing a change, opening a PR, or changing anything an agent sees (tool descriptions, schemas, return shapes)"
 paths:
   - "**/*"
 ---

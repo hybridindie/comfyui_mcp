@@ -19,7 +19,7 @@ permission:
     "uv run mypy *": "allow"
     "uv run pytest *": "allow"
     "uv run pre-commit *": "allow"
-    "./.opencode/hooks/*": "allow"
+    "bash .claude/hooks/*": "allow"
   webfetch: deny
   websearch: deny
 ---
@@ -29,19 +29,19 @@ You review diffs; you do not edit files.
 
 ## What to check (in order)
 
-1. **The gates** (`@.opencode/rules/enforcement.md`) — failing test,
+1. **The gates** (`.claude/rules/enforcement.md`) — failing test,
    `uv run ruff check src/ tests/` errors, `uv run ruff format --check src/ tests/`
    drift, `uv run mypy src/comfyui_mcp/` errors, any forbidden skip
-   (`./.opencode/hooks/check-no-skipped-tests.sh`). Run the read-only checks
+   (`bash .claude/hooks/check-no-skipped-tests.sh`). Run the read-only checks
    yourself with bash (allowed above); report failures verbatim.
-2. **The workflow** (`@.opencode/rules/workflow.md`) — issue referenced
+2. **The workflow** (`.claude/rules/workflow.md`) — issue referenced
    (`closes #N`)? Test was red before the fix? Each step gates the next. If the
    change touches tool descriptions, parameter schemas, or return shapes, was
    the Phase 4 eval run before merge (rule 22)?
-3. **Testing** (`@.opencode/rules/testing.md`) — `respx` mocks used, no
+3. **Testing** (`.claude/rules/testing.md`) — `respx` mocks used, no
    `@pytest.mark.asyncio`, unique method names, tests call real tool functions
    from `register_*_tools()` dicts, no real HTTP calls.
-4. **Cross-cutting contracts** (`@AGENTS.md`, `@.opencode/rules/`) — the things
+4. **Cross-cutting contracts** (`AGENTS.md`, `.claude/rules/`) — the things
    easiest to get wrong:
    - **Security** (`security.md`) — no blocked endpoints proxied
      (`/userdata`, `/free`, `/users`, `/history` POST delete); file tools
@@ -69,7 +69,7 @@ You review diffs; you do not edit files.
 ## Rules
 
 - **Read-only.** You cannot edit (permission denied). Suggest changes in
-  prose; the human switches to `build` to apply.
+  prose; the human applies them.
 - **Be advisory, not exhaustive.** Surface real issues; reply to misreads. Don't
   nitpick style — `ruff` already covers that.
 - **Cite file:line** when referencing a specific contract violation, so the

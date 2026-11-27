@@ -42,7 +42,7 @@ server:
 ## Security rules as governance
 
 The project's own contributions are held to the same model:
-`.opencode/rules/security.md` in the repo encodes the six controls as
+`.claude/rules/security.md` in the repo encodes the six controls as
 non-negotiable rules, and `tests/test_blocked_endpoints.py` /
 `tests/test_security_invariants.py` enforce them mechanically in CI. See
 [the security model](./security-model.md) for how enforcement is structured.

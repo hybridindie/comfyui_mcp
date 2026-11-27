@@ -1,4 +1,5 @@
 ---
+read_when: "Adding or changing an MCP tool, its parameters, docstring, or return shape"
 paths:
   - "src/comfyui_mcp/tools/**/*.py"
   - "src/comfyui_mcp/server.py"
@@ -35,17 +36,21 @@ alternative to in-tool `limiter.check()` / `audit.async_log()` calls.
 
 1. Add the tool function in the appropriate `tools/*.py`.
 2. Use `@mcp.tool()` decorator with a clear docstring.
-3. Ensure rate limiting is in effect (in-tool `limiter.check()` OR
-   `RateLimitingMiddleware`).
-4. Ensure audit logging is in effect (in-tool `audit.async_log()` OR
-   `AuditMiddleware`).
+3. Ensure rate limiting is in effect — in-tool `limiter.check("tool_name")`
+   OR rely on `SecurityMiddleware` (wired in `server.py`); add the tool to
+   `_TOOL_CATEGORIES` if using the middleware path.
+4. Ensure audit logging is in effect — in-tool `audit.async_log(...)` OR rely
+   on `SecurityMiddleware` (it writes the `action="called"` entry record; keep
+   lifecycle logs like `submitted`/`completed` in the tool).
 5. If it handles files: validate through `sanitizer`.
-6. If it submits workflows: inspect through `inspector`.
+6. If it submits workflows: inspect through `inspector` (and pass `ctx` to
+   `_submit_workflow` for the elicitation gate in enforce mode).
 7. Use `Annotated[type, Field(...)]` for parameters with constraints (3+ params).
 8. Return `dict[str, Any]` if all code paths return structured data; use
    `-> str` only for mixed return paths.
 9. Either add the function to the `tool_fns` dict and return it, *or* define
-   it as a module-level decorated function with `Depends()` for DI.
+   it as a module-level decorated function with `Depends()` for DI (see
+   `tools/history_di.py`).
 10. Wire it in `server.py` `_register_all_tools()` if it uses the factory
     pattern and needs new dependencies. (Module-level decorated functions with
     `Depends()` skip this step — the decorator registers them.)

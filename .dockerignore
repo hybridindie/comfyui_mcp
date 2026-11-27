@@ -16,6 +16,8 @@ graphify-out/
 logs/
 .env
 .opencode/
+.claude/
+.githooks/
 skills/
 evals/
 deploy/
