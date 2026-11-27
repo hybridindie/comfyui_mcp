@@ -54,6 +54,19 @@ Sensitive fields — `token`, `password`, `secret`, `api_key`,
 `authorization` — are redacted before the record is written, at both the
 middleware (argument redaction) and logger (payload redaction) layers.
 
+## Turning the log into a policy
+
+`scripts/policy_init.py` reads this file and produces a reviewable
+`security.allowed_nodes` fragment: it counts `nodes_used` per inspected
+workflow, excludes dangerous and policy-denied nodes, and flags allowlist
+entries that were never observed. `--apply` writes the result (keeping a
+`.bak`); nothing changes until `security.mode` is `enforce`.
+
+```bash
+uv run python scripts/policy_init.py
+uv run python scripts/policy_init.py --apply
+```
+
 ## Useful queries
 
 ```bash

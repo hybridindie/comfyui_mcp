@@ -12,6 +12,10 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- `scripts/policy_init.py` *(#230)*: turns the audit log into a reviewable
+  `security.allowed_nodes` allowlist, counting each workflow once, excluding
+  dangerous and policy-denied nodes, and flagging allowlist entries that were
+  never observed. `--apply` writes the config and keeps a `.bak`.
 - Tool-surface profile *(#212)*: `tools.profile: "core"` exposes the 25-tool
   generation/jobs/files/discovery loop and hides history, settings, downloads,
   node packs, subgraphs, presets, and other niche tools. Hidden tools are not
