@@ -57,6 +57,8 @@ server configuration, not only before a workflow runs.
 
 ### Changed
 
+- Agent tooling: track the OpenCode plugin runtime manifest and lockfile, and
+  pin the TasksExtension capability key in the background-task tests.
 - `register_node_tools()` and `register_settings_tools()` now take the
   security `mode` so the gates follow `security.mode`.
 - **Agent harness** — rules moved from `.opencode/rules/` to `.claude/rules/`
