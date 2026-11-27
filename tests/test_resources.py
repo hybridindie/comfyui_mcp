@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 import respx
@@ -157,3 +159,99 @@ class TestRegistration:
         assert "comfyui_installed_nodes" in fns
         assert "comfyui_queue_state" in fns
         assert "comfyui_system_info" in fns
+
+
+class TestOutputsResource:
+    @respx.mock
+    async def test_outputs_are_newest_first_and_typed(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/history", params={"max_items": 50}).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "p1": {
+                        "outputs": {
+                            "9": {
+                                "images": [{"filename": "a.png", "subfolder": "", "type": "output"}]
+                            }
+                        }
+                    },
+                    "p2": {
+                        "outputs": {
+                            "9": {
+                                "videos": [
+                                    {"filename": "b.mp4", "subfolder": "clips", "type": "output"}
+                                ]
+                            }
+                        }
+                    },
+                },
+            )
+        )
+        mcp = FastMCP("test")
+        fns = register_resources(mcp, client, audit, limiter, sanitizer)
+
+        data = json.loads(await fns["comfyui_outputs"]())
+
+        assert [item["filename"] for item in data["items"]] == ["b.mp4", "a.png"]
+        assert data["items"][0]["kind"] == "videos"
+        assert data["items"][0]["subfolder"] == "clips"
+        assert data["truncated"] is False
+
+    @respx.mock
+    async def test_outputs_are_bounded(self, components):
+        client, audit, limiter, sanitizer = components
+        images = [{"filename": f"{index}.png"} for index in range(120)]
+        respx.get("http://test:8188/history", params={"max_items": 50}).mock(
+            return_value=httpx.Response(200, json={"p": {"outputs": {"1": {"images": images}}}})
+        )
+        mcp = FastMCP("test")
+        fns = register_resources(mcp, client, audit, limiter, sanitizer)
+
+        data = json.loads(await fns["comfyui_outputs"]())
+
+        assert data["count"] == 100
+        assert data["truncated"] is True
+
+
+class TestJobsResource:
+    @respx.mock
+    async def test_queue_and_recent_history_summary(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/queue").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "queue_running": [[0, "run-1", {}, {}, {}, {}]],
+                    "queue_pending": [
+                        [1, "pend-1", {}, {}, {}, {}],
+                        [2, "pend-2", {}, {}, {}, {}],
+                    ],
+                },
+            )
+        )
+        respx.get("http://test:8188/history", params={"max_items": 20}).mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "h1": {
+                        "outputs": {"9": {"images": [{"filename": "a.png"}]}},
+                        "status": {"status_str": "success"},
+                    },
+                    "h2": {"outputs": {}, "status": {"status_str": "error"}},
+                },
+            )
+        )
+        mcp = FastMCP("test")
+        fns = register_resources(mcp, client, audit, limiter, sanitizer)
+
+        data = json.loads(await fns["comfyui_jobs"]())
+
+        assert data["queue"]["running_ids"] == ["run-1"]
+        assert data["queue"]["pending_ids"] == ["pend-1", "pend-2"]
+        assert data["queue"]["running"] == 1
+        assert data["queue"]["pending"] == 2
+        assert data["recent"][0]["prompt_id"] == "h2"
+        assert data["recent"][0]["status"] == "error"
+        assert data["recent"][1]["status"] == "success"
+        assert data["recent"][1]["outputs"] == 1

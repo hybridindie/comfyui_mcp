@@ -157,4 +157,112 @@ def register_resources(
 
     resource_fns["comfyui_settings"] = comfyui_settings
 
+    @mcp.resource(
+        "comfyui://outputs",
+        name="ComfyUI Outputs",
+        description="Recent output files from execution history, newest first (bounded to 100).",
+        mime_type="application/json",
+    )
+    async def comfyui_outputs() -> str:
+        """List recent output files recorded in /history (#231)."""
+        limiter.check("resource_outputs")
+        await audit.async_log(tool="resource_outputs", action="called")
+
+        history = await client.get_history(max_items=50)
+        items: list[dict[str, Any]] = []
+        for prompt_id, entry in list(history.items())[::-1]:
+            outputs = (entry or {}).get("outputs") or {}
+            if not isinstance(outputs, dict):
+                continue
+            for node_id, node_output in outputs.items():
+                if not isinstance(node_output, dict):
+                    continue
+                for kind, files in node_output.items():
+                    if not isinstance(files, list):
+                        continue
+                    for file in files:
+                        if not isinstance(file, dict) or not file.get("filename"):
+                            continue
+                        items.append(
+                            {
+                                "prompt_id": prompt_id,
+                                "node_id": str(node_id),
+                                "kind": str(kind),
+                                "filename": str(file["filename"]),
+                                "subfolder": str(file.get("subfolder") or ""),
+                                "type": str(file.get("type") or "output"),
+                            }
+                        )
+
+        truncated = len(items) > 100
+        return _json_str(
+            {"items": items[:100], "count": min(len(items), 100), "truncated": truncated}
+        )
+
+    resource_fns["comfyui_outputs"] = comfyui_outputs
+
+    @mcp.resource(
+        "comfyui://jobs",
+        name="ComfyUI Jobs",
+        description="Queue state plus a recent-history summary (newest first, bounded to 20).",
+        mime_type="application/json",
+    )
+    async def comfyui_jobs() -> str:
+        """Return queue ids and a recent-history summary (#231)."""
+        limiter.check("resource_jobs")
+        await audit.async_log(tool="resource_jobs", action="called")
+
+        queue_raw, history = await asyncio.gather(
+            client.get_queue(),
+            client.get_history(max_items=20),
+        )
+
+        def _ids(entries: object) -> list[str]:
+            if not isinstance(entries, list):
+                return []
+            return [
+                str(entry[1]) for entry in entries if isinstance(entry, list) and len(entry) > 1
+            ]
+
+        running_ids = _ids(queue_raw.get("queue_running"))
+        pending_ids = _ids(queue_raw.get("queue_pending"))
+
+        recent: list[dict[str, Any]] = []
+        for prompt_id, entry in list(history.items())[::-1]:
+            outputs = (entry or {}).get("outputs") or {}
+            status = (entry or {}).get("status")
+            status_str = status.get("status_str") if isinstance(status, dict) else None
+            recent.append(
+                {
+                    "prompt_id": prompt_id,
+                    "status": status_str or ("completed" if outputs else "unknown"),
+                    "outputs": sum(
+                        len(files)
+                        for node_output in (outputs.values() if isinstance(outputs, dict) else [])
+                        if isinstance(node_output, dict)
+                        for files in node_output.values()
+                        if isinstance(files, list)
+                    ),
+                }
+            )
+
+        return _json_str(
+            {
+                "queue": {
+                    "running": len(running_ids),
+                    "pending": len(pending_ids),
+                    "running_ids": running_ids,
+                    "pending_ids": pending_ids,
+                },
+                "recent": recent,
+                "counts": {
+                    "running": len(running_ids),
+                    "pending": len(pending_ids),
+                    "recent": len(recent),
+                },
+            }
+        )
+
+    resource_fns["comfyui_jobs"] = comfyui_jobs
+
     return resource_fns

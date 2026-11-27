@@ -179,10 +179,10 @@ listener on loopback.
 
 ## What the client sees
 
-On connect, the client discovers 53 tools, 5 resources
+On connect, the client discovers 53 tools, 7 resources
 (`comfyui://models/{folder}`, `comfyui://nodes/installed`,
-`comfyui://queue`, `comfyui://system`, `comfyui://settings`), and 4 prompt
-recipes. Tool descriptions are written for agents — what the tool does, when
+`comfyui://queue`, `comfyui://jobs`, `comfyui://outputs`,
+`comfyui://system`, `comfyui://settings`), and 4 prompt recipes. Tool descriptions are written for agents — what the tool does, when
 to use it, and what shape comes back.
 
 ## Optional: OpenCode skills for this repo's development

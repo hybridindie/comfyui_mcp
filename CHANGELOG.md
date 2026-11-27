@@ -12,6 +12,10 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- MCP resources for outputs and jobs *(#231)*: `comfyui://outputs` lists
+  recent history files (newest first, bounded to 100) and `comfyui://jobs`
+  returns queue ids plus a recent-history summary (bounded to 20). Both use the
+  read-only limiter and audit record.
 - `scripts/doctor.py` *(#226)*: config, audit-path, transport/auth, ComfyUI,
   `/features`, Manager, and Model-Manager diagnostics with pass/warn/fail and
   a next step for each failure. `--json` for automation.
