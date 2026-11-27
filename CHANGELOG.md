@@ -20,6 +20,10 @@ server configuration, not only before a workflow runs.
 - `security/consent.py` — shared `require_confirmation()` helper and
   `ConsentDeniedError`. The audit trail records `eliciting_confirmation`,
   `confirmation_unavailable`, `confirmed`, and `elicitation_declined`.
+- `scripts/compat_probe.py` and the nightly **ComfyUI compatibility** workflow
+  *(#209)*: read-only endpoint checks plus a model-free
+  `/prompt` → `/api/jobs` → `/history` → `/view` round trip against upstream
+  `master`, so API drift fails a scheduled job instead of reaching users.
 
 ### Changed
 

@@ -952,6 +952,18 @@ uv run python scripts/smoke_test.py --url http://localhost:8188
 
 The download probe uses a tiny (~520 KB) safetensors file from `hf-internal-testing/tiny-random-bert`. The file is created with a timestamped name and cleaned up automatically on every run.
 
+### Compatibility probe
+
+`scripts/compat_probe.py` checks this client against a live ComfyUI: the read-only endpoints the tools depend on, then a model-free `EmptyImage → SaveImage` round trip through `/prompt`, `/api/jobs`, `/history`, and `/view`. It exits non-zero on the first drift and prints the server version it tested.
+
+```bash
+uv run python scripts/compat_probe.py                    # full probe
+uv run python scripts/compat_probe.py --no-execute       # read-only
+uv run python scripts/compat_probe.py --url http://gpu-box:8188
+```
+
+The same probe runs nightly in the **ComfyUI compatibility** workflow against upstream `master`, so an endpoint or response-shape change fails CI instead of reaching users. The execution probe leaves one small `compat-probe-*` PNG in ComfyUI's output directory; CI containers are ephemeral, and local runs can delete it.
+
 ## Docker
 
 A pre-built Docker image is published to the GitHub Container Registry. No need to clone the repo.
