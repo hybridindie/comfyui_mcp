@@ -3,7 +3,7 @@ type: reference
 title: "Configuration"
 description: "Every config.yaml field with its default — comfyui, security, rate_limits, model_search, logging, transport, tasks."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Configuration
@@ -55,6 +55,11 @@ transport:
     enabled: false                 # true → Streamable HTTP instead of stdio
     host: "127.0.0.1"
     port: 8080
+    allow_unauthenticated: false   # refused for non-loopback binds
+    auth:
+      enabled: false
+      tokens:                      # identity label → token env var name
+        operator: COMFYUI_MCP_HTTP_TOKEN
 
 tasks:                             # Optional background tasks (FastMCP 4 TasksExtension)
   enabled: false
@@ -74,8 +79,14 @@ tasks:                             # Optional background tasks (FastMCP 4 TasksE
   stricter of the two applies, when both are known).
 - `comfyui.external_url` — for deployments where the ComfyUI host is
   reachable from the client's browser/sandbox only via a different URL.
-- `transport.remote.*` — Streamable HTTP mode; keep `host` on localhost
-  unless behind an authenticated TLS reverse proxy.
+- `transport.remote.*` — Streamable HTTP mode. A non-loopback `host` is
+  refused unless `auth.enabled` or `allow_unauthenticated` is set; prefer the
+  former.
+- `transport.remote.auth.tokens` — maps an identity label to the *environment
+  variable name* holding that identity's bearer token. The token is read at
+  startup and never written to config; the label lands in the audit log and
+  scopes per-identity rate limits. Startup fails closed if no configured
+  variable is set. OIDC/TLS stay at the reverse proxy.
 - `tasks.*` — off by default; see [background tasks](./architecture/tasks.md).
 
 Environment variables override any of these — see

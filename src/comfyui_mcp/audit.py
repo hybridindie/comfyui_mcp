@@ -56,6 +56,7 @@ class AuditRecord(BaseModel):
     timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     tool: str
     action: str
+    identity: str = ""
     prompt_id: str = ""
     nodes_used: list[str] = []
     warnings: list[str] = []
@@ -70,6 +71,8 @@ class AuditRecord(BaseModel):
             "tool": self.tool,
             "action": self.action,
         }
+        if self.identity:
+            data["identity"] = self.identity
         if self.prompt_id:
             data["prompt_id"] = self.prompt_id
         if self.nodes_used:

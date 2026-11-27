@@ -3,7 +3,7 @@ type: concept
 title: "The security model"
 description: "The six server-side controls, how they compose, and where enforcement lives."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # The security model
@@ -21,6 +21,12 @@ it. Six controls compose into one pipeline.
 | Audit Logger | `audit.py` | One structured JSON line per call, sensitive fields redacted |
 | Blocked endpoints | `client.py` (by omission) | `/userdata`, `/free`, `/users`, `/history` POST are never proxied — enforced by tests |
 | Elicitation gate | generation tools | Enforce mode: the tool pauses and asks the user before submitting a flagged workflow |
+
+Transport auth is separate from those six: when
+`transport.remote.auth.enabled` is on, the Streamable HTTP listener requires a
+static bearer token, refuses a non-loopback bind without one, records the
+identity label in the audit trail, and gives each identity its own rate-limit
+buckets (`security/auth.py`).
 
 Cross-cutting plumbing: `SecurityMiddleware` (FastMCP 4 `on_call_tool` hook)
 applies rate limiting and the entry audit record to **every** tool call,

@@ -3,7 +3,7 @@ type: guide
 title: "Run securely in production"
 description: "Enforce mode, allowlists, reverse proxy, audit hygiene, and the multi-tenant caveats."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Run securely in production
@@ -41,12 +41,13 @@ Build the allowlist from evidence, not vibes:
 
 ## 2. Transport discipline
 
-- Keep Streamable HTTP on `127.0.0.1` unless behind an **authenticated TLS
-  reverse proxy** (nginx/Traefik: TLS termination + auth + CSP)
+- Keep Streamable HTTP on `127.0.0.1`, or enable
+  [`transport.remote.auth`](./reference-config.md) (static bearer tokens from
+  environment variables) and still terminate TLS at a reverse proxy
 - Keep `tls_verify: true` for remote ComfyUI hosts — disabling it is a
   deliberate, documented choice, not a fix
-- The MCP server performs no auth itself; the proxy layer is the access
-  control
+- Bearer auth is a static gate: use the proxy for OIDC, MFA, and certificate
+  handling
 
 ## 3. Containment outside the server
 

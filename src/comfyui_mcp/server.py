@@ -21,6 +21,7 @@ from comfyui_mcp.node_manager import ComfyUIManagerDetector
 from comfyui_mcp.progress import WebSocketProgress
 from comfyui_mcp.prompts import register_prompts
 from comfyui_mcp.resources import register_resources
+from comfyui_mcp.security.auth import StaticBearerAuth, resolve_bearer_tokens
 from comfyui_mcp.security.download_validator import DownloadValidator
 from comfyui_mcp.security.inspector import WorkflowInspector
 from comfyui_mcp.security.model_checker import ModelChecker
@@ -92,6 +93,26 @@ def _create_rate_limiters(settings: Settings) -> dict[str, RateLimiter]:
         "file": RateLimiter(max_per_minute=settings.rate_limits.file_ops),
         "read": RateLimiter(max_per_minute=settings.rate_limits.read_only),
     }
+
+
+def _build_auth_provider(settings: Settings) -> StaticBearerAuth | None:
+    """Build the HTTP bearer-token provider, or ``None`` when auth is off.
+
+    Fails closed: enabling auth without any of the configured token environment
+    variables set is a configuration error, not an unauthenticated server.
+    """
+    remote = settings.transport.remote
+    if not remote.enabled or not remote.auth.enabled:
+        return None
+
+    tokens = resolve_bearer_tokens(remote.auth.tokens)
+    if not tokens:
+        names = ", ".join(sorted(remote.auth.tokens.values()))
+        raise RuntimeError(
+            "transport.remote.auth.enabled is true but none of the configured "
+            f"token environment variables are set ({names})"
+        )
+    return StaticBearerAuth(tokens)
 
 
 # Tool-name -> rate-limit category. Mirrors the per-register_*_tools() limiter
@@ -258,6 +279,8 @@ def _build_server(
     if settings is None:
         settings = load_settings()
 
+    auth_provider = _build_auth_provider(settings)
+
     client = _create_client(settings)
     audit = _create_audit_logger(settings)
     inspector = _create_workflow_inspector(settings)
@@ -323,6 +346,9 @@ def _build_server(
     # async, so the sync-tool caveat does not apply.
     if settings.tasks.enabled:
         server_kwargs["tasks"] = True
+
+    if auth_provider is not None:
+        server_kwargs["auth"] = auth_provider
 
     # FastMCP 4 moved host/port off the FastMCP() constructor to run()/http_app(),
     # so they no longer belong in server_kwargs. main() passes them to mcp.run().

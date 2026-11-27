@@ -19,6 +19,19 @@ security:
 logging:
   audit_file: "~/.comfyui-mcp/audit.log"
 
+transport:
+  remote:
+    enabled: false
+    host: "127.0.0.1"
+    port: 8080
+    # A non-loopback bind is refused unless auth is enabled or this is true.
+    allow_unauthenticated: false
+    auth:
+      enabled: false
+      # identity label -> env var holding that identity's token
+      tokens:
+        operator: COMFYUI_MCP_HTTP_TOKEN
+
 # Phase 6 (optional): background tasks for long-running workflows.
 # Disabled by default — most useful for the HTTP/remote transport where a
 # long generation can return a task handle instead of holding the request.

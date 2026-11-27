@@ -33,14 +33,20 @@ class _Bucket:
 class RateLimiter:
     def __init__(self, max_per_minute: int) -> None:
         self._max_per_minute = max_per_minute
-        self._buckets: dict[str, _Bucket] = {}
+        self._buckets: dict[tuple[str, str], _Bucket] = {}
 
-    def check(self, tool_name: str) -> None:
-        """Check rate limit for a tool. Raises RateLimitError if over limit."""
-        if tool_name not in self._buckets:
-            self._buckets[tool_name] = _Bucket(self._max_per_minute)
+    def check(self, tool_name: str, identity: str = "") -> None:
+        """Check rate limit for a tool. Raises RateLimitError if over limit.
 
-        if not self._buckets[tool_name].consume():
+        ``identity`` scopes the bucket so authenticated HTTP clients get their
+        own quota instead of sharing one process-wide bucket. Empty (stdio)
+        keeps the historical per-tool bucket.
+        """
+        key = (identity, tool_name)
+        if key not in self._buckets:
+            self._buckets[key] = _Bucket(self._max_per_minute)
+
+        if not self._buckets[key].consume():
             raise RateLimitError(
                 f"Rate limit exceeded for tool '{tool_name}'. "
                 f"Max {self._max_per_minute} requests/minute."
