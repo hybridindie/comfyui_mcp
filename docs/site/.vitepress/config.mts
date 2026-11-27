@@ -37,6 +37,7 @@ export default withMermaid(defineConfig({
   themeConfig: {
     siteTitle: 'comfyui-mcp-secure',
     nav: [
+      { text: 'For creators', link: '/for-creators' },
       { text: 'Guide', link: '/what-why' },
       { text: 'Getting Started', link: '/getting-started-install' },
       { text: 'Security', link: '/security-model' },
@@ -57,19 +58,32 @@ export default withMermaid(defineConfig({
       {
         text: 'Start Here',
         items: [
+          { text: 'Overview', link: '/getting-started' },
+          { text: 'For creators', link: '/for-creators' },
           { text: 'What & why', link: '/what-why' },
           { text: 'Core concepts', link: '/concepts' },
           { text: 'How it compares', link: '/comparison' }
         ]
       },
       {
+        text: 'For creators',
+        items: [
+          { text: 'Set up with your AI agent', link: '/getting-started-with-an-agent' },
+          { text: 'Your first session', link: '/getting-started-first-session' },
+          { text: 'Generate images', link: '/guides-generate' },
+          { text: 'Edit images', link: '/guides-edit' },
+          { text: 'Batch generation', link: '/guides-batch' },
+          { text: 'Custom workflows', link: '/guides-custom-workflows' },
+          { text: 'Manage models', link: '/guides-manage-models' },
+          { text: 'Skills', link: '/reference-skills' }
+        ]
+      },
+      {
         text: 'Getting Started',
         items: [
-          { text: 'Overview', link: '/getting-started' },
           { text: 'Install the server', link: '/getting-started-install' },
           { text: 'Configure', link: '/getting-started-configure' },
-          { text: 'Add to your MCP client', link: '/getting-started-clients' },
-          { text: 'First session', link: '/getting-started-first-session' }
+          { text: 'Add to your MCP client', link: '/getting-started-clients' }
         ]
       },
       {
@@ -110,10 +124,8 @@ export default withMermaid(defineConfig({
       {
         text: 'Guides',
         items: [
+          { text: 'Guides overview', link: '/guides' },
           { text: 'Which interface?', link: '/guides-which-tool' },
-          { text: 'Generate images', link: '/guides-generate' },
-          { text: 'Work with custom workflows', link: '/guides-custom-workflows' },
-          { text: 'Manage models', link: '/guides-manage-models' },
           { text: 'Run securely in production', link: '/guides-production' },
           { text: 'Docker deployment', link: '/guides-docker' }
         ]
