@@ -5,6 +5,27 @@ All notable changes to **comfyui-mcp-secure** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Enforce mode now asks before the server runs third-party code or changes
+server configuration, not only before a workflow runs.
+
+### Added
+
+- Enforce-mode elicitation gates on `comfyui_install_custom_node`,
+  `comfyui_uninstall_custom_node`, `comfyui_update_custom_node`, and
+  `comfyui_update_settings` *(#205)*. A decline, a cancel, or a missing
+  elicitation channel raises `ConsentDeniedError` and never reaches ComfyUI.
+  Audit mode keeps the previous non-blocking behavior.
+- `security/consent.py` — shared `require_confirmation()` helper and
+  `ConsentDeniedError`. The audit trail records `eliciting_confirmation`,
+  `confirmation_unavailable`, `confirmed`, and `elicitation_declined`.
+
+### Changed
+
+- `register_node_tools()` and `register_settings_tools()` now take the
+  security `mode` so the gates follow `security.mode`.
+
 ## [2.3.0] — 2026-10-06
 
 Additive minor release. Adds partial execution targets, loop-structure

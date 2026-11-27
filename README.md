@@ -637,6 +637,8 @@ security:
 
 **Elicitation gate (Phase 5):** when enforce mode is on and the inspector produces warnings (dangerous-node types, suspicious inputs like `eval()`/`exec()`, or missing models), the generation tools (`comfyui_run_workflow`, `comfyui_generate_image`, `comfyui_transform_image`, `comfyui_inpaint_image`, `comfyui_upscale_image`) ask the user to confirm before submitting — `ctx.elicit(..., response_type=bool)`. A decline or cancel raises `WorkflowBlockedError` without calling `post_prompt`. Unapproved-node enforcement (the `allowed_nodes` allowlist) still blocks hard inside the inspector before elicitation; the gate fires on the warning path. Programmatic callers without a live MCP context keep the pre-existing behavior (immediate `WorkflowBlockedError` in enforce mode with warnings).
 
+**Mutation consent gates:** enforce mode also covers operations outside workflow submission. `comfyui_install_custom_node`, `comfyui_uninstall_custom_node`, and `comfyui_update_custom_node` ask before the server runs third-party code — a pack install runs `pip` plus the pack's own install script — and `comfyui_update_settings` asks before merging server config. A decline or cancel raises `ConsentDeniedError` and the ComfyUI call is never made; callers without a live context fail closed in enforce mode. Audit mode keeps the previous non-blocking behavior.
+
 ## Audit log
 
 All tool invocations are logged as JSON lines to `~/.comfyui-mcp/audit.log`:
@@ -658,6 +660,8 @@ Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are
 | Threat | Impact | Mitigation |
 |--------|--------|------------|
 | Arbitrary code execution via workflow nodes | Critical | Workflow inspector (audit/enforce mode) |
+| Third-party code execution via node installs/updates | Critical | Enforce-mode elicitation before install/update/uninstall (`ConsentDeniedError` on decline) |
+| Configuration tampering via settings mutation | Medium | Enforce-mode elicitation before `POST /settings` |
 | Path traversal via file operations | High | Path sanitizer blocks `..`, null bytes, encoded attacks, absolute paths |
 | Denial of service via request flooding | Medium | Token-bucket rate limiter per tool category |
 | Credential leakage in logs | Medium | Automatic redaction of `token`, `password`, `secret`, `api_key`, `authorization` |

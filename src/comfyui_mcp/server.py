@@ -239,8 +239,11 @@ def _register_all_tools(
         read_limiter=rate_limiters["read"],
         node_manager=node_manager,
         node_auditor=node_auditor,
+        mode=inspector.mode,
     )
-    register_settings_tools(server, client, audit, rate_limiters["read"], sanitizer)
+    register_settings_tools(
+        server, client, audit, rate_limiters["read"], sanitizer, mode=inspector.mode
+    )
     # Resources and prompts use the read-only limiter — they mirror discovery
     # tools' cross-cutting concerns (rate limit + audit) but expose state as
     # URIs the LLM can browse without a tool call.

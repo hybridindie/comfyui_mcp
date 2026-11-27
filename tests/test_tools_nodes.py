@@ -52,6 +52,7 @@ def registered_tools(components):
         read_limiter=components["read_limiter"],
         node_manager=components["node_manager"],
         node_auditor=components["node_auditor"],
+        mode="audit",
     )
     return tools
 
@@ -73,6 +74,7 @@ def unavailable_tools(components):
         read_limiter=components["read_limiter"],
         node_manager=components["node_manager"],
         node_auditor=components["node_auditor"],
+        mode="audit",
     )
     return tools
 

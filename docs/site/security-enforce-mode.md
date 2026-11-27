@@ -1,9 +1,9 @@
 ---
 type: concept
 title: "Enforce mode & elicitation"
-description: "Hard blocks, allowlists, and the MCP elicitation gate that asks the human before flagged workflows run."
+description: "Hard blocks, allowlists, and the MCP elicitation gates that ask the human before flagged workflows, node installs, or settings mutations run."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Enforce mode & elicitation
@@ -51,6 +51,22 @@ Allow submission? [y/N]
 The gate covers `comfyui_run_workflow`, `comfyui_generate_image`,
 `comfyui_transform_image`, `comfyui_inpaint_image`, and
 `comfyui_upscale_image`.
+
+## Mutating operations beyond workflows
+
+Enforce mode gates the tools that run code or change configuration outside a
+workflow with the same contract:
+
+| Tool | What the user is asked to approve |
+|---|---|
+| `comfyui_install_custom_node` | Installing a registry pack — runs `pip` plus the pack's install script |
+| `comfyui_update_custom_node` | Updating a pack to its latest version |
+| `comfyui_uninstall_custom_node` | Removing a pack |
+| `comfyui_update_settings` | Merging settings into the ComfyUI config |
+
+Accept proceeds; decline or cancel raises `ConsentDeniedError` and the
+ComfyUI call is never made. Without a live MCP context, enforce mode fails
+closed. Audit mode logs and proceeds, as before.
 
 ## Why elicitation matters
 

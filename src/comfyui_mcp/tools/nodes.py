@@ -7,7 +7,7 @@ import re
 from typing import Annotated, Any
 
 import httpx
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -15,6 +15,7 @@ from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.node_manager import ComfyUIManagerDetector
 from comfyui_mcp.pagination import OffsetField, PaginationEnvelope, paginate
+from comfyui_mcp.security.consent import require_confirmation
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
 
@@ -174,8 +175,13 @@ def register_node_tools(
     read_limiter: RateLimiter,
     node_manager: ComfyUIManagerDetector,
     node_auditor: NodeAuditor,
+    mode: str,
 ) -> dict[str, Any]:
-    """Register custom node management tools."""
+    """Register custom node management tools.
+
+    ``mode`` is ``security.mode``; in ``enforce`` mode install/update/uninstall
+    elicit user confirmation before running third-party code.
+    """
     tool_fns: dict[str, Any] = {}
 
     @mcp.tool(
@@ -310,8 +316,12 @@ def register_node_tools(
                 description="If True, restart ComfyUI after install and run a security audit.",
             ),
         ] = False,
+        ctx: Context | None = None,
     ) -> str:
         """Install a custom node pack from the ComfyUI Manager registry.
+
+        In enforce mode the user is asked to confirm before the pack's code and
+        dependencies are installed; a decline installs nothing.
 
         Args:
             node_id: Node pack ID from the registry (use search_custom_nodes to find IDs).
@@ -324,6 +334,18 @@ def register_node_tools(
         """
         await node_manager.require_available()
         _validate_node_id(node_id)
+        await require_confirmation(
+            ctx,
+            mode=mode,
+            audit=audit,
+            tool="install_custom_node",
+            prompt=(
+                f"Install custom node pack '{node_id}' (version: {version or 'latest'}, "
+                f"restart: {restart})? This runs third-party code and installs its "
+                "Python dependencies."
+            ),
+            extra={"node_id": node_id, "version": version or "latest", "restart": restart},
+        )
 
         await audit.async_log(
             tool="install_custom_node",
@@ -380,8 +402,11 @@ def register_node_tools(
             bool,
             Field(default=False, description="If True, restart ComfyUI after uninstall."),
         ] = False,
+        ctx: Context | None = None,
     ) -> str:
         """Uninstall a custom node pack.
+
+        In enforce mode the user is asked to confirm; a decline removes nothing.
 
         Args:
             node_id: Node pack ID to uninstall.
@@ -392,6 +417,14 @@ def register_node_tools(
         """
         await node_manager.require_available()
         _validate_node_id(node_id)
+        await require_confirmation(
+            ctx,
+            mode=mode,
+            audit=audit,
+            tool="uninstall_custom_node",
+            prompt=f"Uninstall custom node pack '{node_id}' (restart: {restart})?",
+            extra={"node_id": node_id, "restart": restart},
+        )
 
         await audit.async_log(
             tool="uninstall_custom_node",
@@ -445,8 +478,12 @@ def register_node_tools(
                 description="If True, restart ComfyUI after update and run a security audit.",
             ),
         ] = False,
+        ctx: Context | None = None,
     ) -> str:
         """Update a custom node pack to the latest version.
+
+        In enforce mode the user is asked to confirm before the update runs
+        third-party code; a decline changes nothing.
 
         Args:
             node_id: Node pack ID to update.
@@ -458,6 +495,17 @@ def register_node_tools(
         """
         await node_manager.require_available()
         _validate_node_id(node_id)
+        await require_confirmation(
+            ctx,
+            mode=mode,
+            audit=audit,
+            tool="update_custom_node",
+            prompt=(
+                f"Update custom node pack '{node_id}' (restart: {restart})? "
+                "This fetches and runs third-party code."
+            ),
+            extra={"node_id": node_id, "restart": restart},
+        )
 
         await audit.async_log(
             tool="update_custom_node",
