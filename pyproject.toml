@@ -32,6 +32,7 @@ Documentation = "https://github.com/hybridindie/comfyui_mcp#readme"
 
 [project.scripts]
 comfyui-mcp-secure = "comfyui_mcp.server:main"
+comfyui-mcp-doctor = "comfyui_mcp.doctor:main"
 
 [build-system]
 requires = ["hatchling"]

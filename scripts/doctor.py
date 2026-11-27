@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Diagnose a ComfyUI MCP configuration, transport, and install (issue #226).
 
-uv run python scripts/doctor.py
-uv run python scripts/doctor.py --url http://gpu-box:8188
-uv run python scripts/doctor.py --json
+Installed:  comfyui-mcp-doctor [--config PATH] [--url URL] [--json]
+Checkout:   uv run python scripts/doctor.py [same options]
 """
 
 import sys
