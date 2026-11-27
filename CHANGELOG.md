@@ -12,6 +12,8 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- Skills: `edit`, `batch`, `security-review`, and `connect` recipes for the
+  common image-edit, matrix, security-onboarding, and client-setup flows.
 - `scripts/policy_init.py` *(#230)*: turns the audit log into a reviewable
   `security.allowed_nodes` allowlist, counting each workflow once, excluding
   dangerous and policy-denied nodes, and flagging allowlist entries that were
