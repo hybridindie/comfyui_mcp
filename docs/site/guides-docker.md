@@ -1,9 +1,9 @@
 ---
 type: guide
 title: "Docker deployment"
-description: "The GHCR image, stdio wiring, config mounting, and compose."
+description: "The GHCR image, stdio wiring, config mounting, compose, and the authenticated HTTP transport."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Docker deployment
@@ -32,6 +32,23 @@ docker run --rm -i \
 > On Linux, add `--add-host=host.docker.internal:host-gateway` if
 > ComfyUI runs on the host. If ComfyUI is on another server, point
 > `COMFYUI_URL` there directly.
+
+## HTTP transport with bearer auth
+
+The same image can serve Streamable HTTP instead of stdio. The HTTP compose
+file mounts `config.http.example.yaml`, publishes port 8080, and reads the
+bearer token from `COMFYUI_MCP_HTTP_TOKEN`:
+
+```bash
+export COMFYUI_MCP_HTTP_TOKEN=$(openssl rand -hex 32)
+docker compose -f deploy/docker/docker-compose.http.yml up -d
+```
+
+The config binds `0.0.0.0` inside the container — permitted only because auth
+is enabled. Point clients at `http://<host>:8080/mcp` with
+`Authorization: Bearer <token>`; see
+[Add to your MCP client](./getting-started-clients.md#streamable-http-remote-with-bearer-auth).
+TLS and OIDC belong at a reverse proxy in front of the published port.
 
 ## MCP client wiring
 

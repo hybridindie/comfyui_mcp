@@ -1,0 +1,19 @@
+services:
+  comfyui-mcp-secure-http:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: comfyui-mcp-secure:latest
+    container_name: comfyui-mcp-secure-http
+    ports:
+      - "8080:8080"
+    environment:
+      - COMFYUI_URL=${COMFYUI_URL:-http://comfyui:8188}
+      - COMFYUI_MCP_HTTP_TOKEN=${COMFYUI_MCP_HTTP_TOKEN:?set COMFYUI_MCP_HTTP_TOKEN}
+    volumes:
+      - ./config.http.example.yaml:/home/app/.comfyui-mcp/config.yaml:ro
+      - comfyui-mcp-secure-http-data:/home/app/.comfyui-mcp/logs
+    restart: unless-stopped
+
+volumes:
+  comfyui-mcp-secure-http-data:

@@ -57,6 +57,8 @@ server configuration, not only before a workflow runs.
 
 ### Changed
 
+- Documented bearer-auth client setup for Claude Code/Desktop, Cursor, and
+  OpenCode, plus an authenticated HTTP Docker Compose example.
 - Agent tooling: track the OpenCode plugin runtime manifest and lockfile, and
   pin the TasksExtension capability key in the background-task tests.
 - `register_node_tools()` and `register_settings_tools()` now take the
