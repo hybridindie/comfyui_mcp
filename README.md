@@ -242,10 +242,10 @@ Agent-related files in this repo:
 - `CLAUDE.md` / `my-workflows.md` — Claude Code entry (imports `AGENTS.md`) and personal workflow conventions
 - `.claude/rules/` — path-scoped grounding rules (security, architecture, tools, testing, workflow, enforcement, graphify, plus CI, packaging, async, logging and docs), indexed from `AGENTS.md`
 - `.claude/hooks/` — zero-skip, secret-scan and harness-drift gates (`guardrails.sh` runs them together)
-- `.opencode/opencode.json` — wires `context7` (MCP/FastMCP/Pydantic/httpx docs), the graphify plugin, and a `watcher.ignore`; loads `AGENTS.md` and `my-workflows.md`
+- `.opencode/opencode.json` — wires `context7` (MCP/FastMCP/Pydantic/httpx docs) and a `watcher.ignore`; loads `AGENTS.md` and `my-workflows.md`
 - `.claude/agents/review.md`, `.opencode/agents/review.md` — read-only pre-PR reviewer subagent
 - `/preflight`, `/ship-pr`, `/harness-eval` commands in `.claude/commands/` and `.opencode/commands/` (same body)
-- `.opencode/plugins/graphify.js` — knowledge-graph reminder plugin
+- `.opencode/plugins/graphify.js` — knowledge-graph reminder plugin, auto-loaded from `.opencode/plugins/` (no `plugin` entry needed)
 - `skills/` — convenience recipes that wrap common multi-tool flows (`gen`, `workflow`, `status`, `progress`, `history`, `models`, `troubleshooting`, `workflows`)
 
 #### Skills

@@ -218,9 +218,13 @@ body; `python3 .claude/hooks/check-project-drift.py` checks the harness.
 
 `.opencode/opencode.json` also wires `context7` (MCP / FastMCP / Pydantic /
 httpx docs) and `graphify` (live knowledge-graph query server over stdio) as
-MCP servers, the graphify plugin, and a `watcher.ignore` that keeps the
-regenerable `graphify-out/`, `.venv`, caches, `uv.lock`, `dist/`, and `logs/`
-off the file watcher.
+MCP servers and a `watcher.ignore` that keeps the regenerable `graphify-out/`,
+`.venv`, caches, `uv.lock`, `dist/`, and `logs/` off the file watcher.
+
+The `graphify.js` plugin in `.opencode/plugins/` is auto-loaded; it is not
+listed in `opencode.json`. It exports `id` + `setup()` for OpenCode 2 and
+`server()` for OpenCode 1 — keep both branches when editing, since OpenCode 2
+rejects a plugin whose default export lacks `id` and one of `effect`/`setup`.
 
 Two built-in tools are **off by default** and need an env var to activate —
 uncomment them in [`.env.example`](./.env.example), then
