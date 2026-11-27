@@ -2,6 +2,8 @@
 
 A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants to generate images, run workflows, and manage jobs through ComfyUI — with server-side security controls that other ComfyUI MCP servers leave out, including Comfy's own first-party [`comfy-mcp`](https://github.com/Comfy-Org/comfy-mcp).
 
+> **Here to make images, not to run a server?** Start with the [For creators](https://hybridindie.github.io/comfyui_mcp/for-creators.html) track — setup with an AI agent, generation, editing, batches, and the skills that teach the assistant the flows.
+
 > **Using OpenCode or Claude Code?** This repo ships agent configuration under `.opencode/` and `.claude/` — grounding rules (`.claude/rules/`), a read-only `review` subagent, a `/preflight` command, and a graphify plugin — all pre-wired to the MCP server. See [AGENTS.md](./AGENTS.md) for the entry point. The server itself works with **any** MCP client over stdio or Streamable HTTP.
 
 ## Why this exists

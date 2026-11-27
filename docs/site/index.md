@@ -4,11 +4,11 @@ layout: home
 hero:
   name: 'comfyui-mcp-secure'
   text: 'Drive ComfyUI from an AI agent — securely'
-  tagline: 'A security-first MCP server for ComfyUI: generate images, run workflows, and manage models from any MCP client. Workflow inspection, path sanitization, rate limiting, and structured audit logging are built in, not bolted on.'
+  tagline: 'A security-first MCP server for ComfyUI: generate, edit, and batch images from any MCP client — with workflow inspection, path sanitization, rate limiting, and structured audit logging built in.'
   actions:
     - theme: brand
-      text: What & why
-      link: ./what-why
+      text: For creators
+      link: ./for-creators
     - theme: alt
       text: Getting Started
       link: ./getting-started
@@ -23,6 +23,8 @@ features:
     details: Audit mode logs dangerous-node warnings and lets work proceed. Enforce mode blocks unapproved nodes hard, and asks the user to confirm (MCP elicitation) before submitting flagged workflows.
   - title: 55 tools, a real surface
     details: Generation, workflow authoring, job management, discovery, file operations, model search/download, and custom-node management — all typed with structured returns, not loose strings.
+  - title: A creator track, with skills
+    details: Plain-language guides for generating, editing, and batching; installable skills teach the assistant the flows, the parameter judgment, and the security-review sequence.
   - title: An agent can author workflows
     details: Create workflows from 14 built-in templates, modify them with batch graph operations, validate structure and loop integrity, and render Mermaid diagrams of the data flow.
 ---
@@ -79,6 +81,7 @@ model is pinned by invariant tests.
 - **[What & why](./what-why.md)** — the reasoning behind every major design decision
 - **[Core concepts](./concepts.md)** — the vocabulary the rest of the docs assume
 - **[Security model](./security-model.md)** — the six controls and how they compose
-- **[Architecture](./architecture/.md)** — the server, the client, the workflow pipeline
+- **[For creators](./for-creators.md)** — generate, edit, and batch without learning MCP
+- **[Architecture](./architecture/)** — the server, the client, the workflow pipeline
 - **[Reference](./reference.md)** — every tool, resource, config knob, env var
-- **[Guides](./guides-generate.md)** — generate images, author workflows, deploy in production
+- **[Guides](./guides-which-tool.md)** — which interface, production, Docker

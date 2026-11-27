@@ -3,10 +3,12 @@ type: index
 title: "Getting started"
 description: "Install the server, configure it, add it to your MCP client, and hold your first session."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Getting started
+
+> **Here to make images, not to run a server?** The [For creators](./for-creators.md) track is the plain-language path.
 
 Four steps from nothing to a generated image:
 
