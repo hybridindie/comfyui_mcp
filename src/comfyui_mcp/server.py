@@ -239,15 +239,6 @@ _TOOL_CATEGORIES: dict[str, str] = {
     "modify_workflow": "read",
     "analyze_workflow": "read",
     "validate_workflow": "read",
-    # resources and prompts use read
-    "resource_models": "read",
-    "resource_nodes": "read",
-    "resource_queue": "read",
-    "resource_system": "read",
-    "prompt_txt2img": "read",
-    "prompt_img2img": "read",
-    "prompt_inpaint": "read",
-    "prompt_upscale": "read",
 }
 
 
