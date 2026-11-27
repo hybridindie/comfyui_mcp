@@ -26,9 +26,10 @@ server configuration, not only before a workflow runs.
   recent history files (newest first, bounded to 100) and `comfyui://jobs`
   returns queue ids plus a recent-history summary (bounded to 20). Both use the
   read-only limiter and audit record.
-- `scripts/doctor.py` *(#226)*: config, audit-path, transport/auth, ComfyUI,
-  `/features`, Manager, and Model-Manager diagnostics with pass/warn/fail and
-  a next step for each failure. `--json` for automation.
+- Doctor diagnostics *(#226, #259)*: config, audit-path, transport/auth,
+  ComfyUI, `/features`, Manager, and Model-Manager checks with pass/warn/fail
+  and a next step for each failure. Run `comfyui-mcp-doctor` from an installed
+  package (`scripts/doctor.py` in a checkout); `--json` for automation.
 - Skills: `edit`, `batch`, `security-review`, and `connect` recipes for the
   common image-edit, matrix, security-onboarding, and client-setup flows.
 - `scripts/policy_init.py` *(#230)*: turns the audit log into a reviewable
@@ -103,6 +104,18 @@ server configuration, not only before a workflow runs.
   the result — so a benign node cannot become a dangerous one after vetting.
   Flags replacement targets absent from `/object_info` as uninspectable, and
   deduplicates repeated warnings.
+
+### Documentation
+
+- Creator track and skills reference *(#255)*: a plain-language **For creators**
+  section (agent setup, first session, generate, edit, batch, custom workflows,
+  models) and a **Skills** page covering the twelve `skills/` recipes and their
+  install paths. The site nav and home page now lead with the creator track.
+- Docs accuracy pass *(#256–#258, #260, #261)*: correct the `get_image` return
+  shape and the `wait` default, scope the enforce-mode allowlist to a non-empty
+  `allowed_nodes`, state which tools preflight a model, note the tools hidden by
+  `tools.profile: "core"`, and add a video/audio outputs guide with the inline
+  cap and upload limits.
 
 
 ## [2.3.0] — 2026-10-06

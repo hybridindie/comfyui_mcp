@@ -45,9 +45,9 @@ The complete variable table is on the [env vars](./reference-env-vars.md) page.
 **Audit mode (default)** — every workflow is inspected and logged; dangerous
 nodes produce warnings but do not block. Right for development and solo use.
 
-**Enforce mode** — unapproved nodes are blocked hard; flagged workflows
-trigger a user-confirmation gate (MCP elicitation). Right for shared or
-exposed deployments:
+**Enforce mode** — nodes outside a non-empty `allowed_nodes` are blocked hard;
+flagged workflows trigger a user-confirmation gate (MCP elicitation). Right for
+shared or exposed deployments:
 
 ```yaml
 security:

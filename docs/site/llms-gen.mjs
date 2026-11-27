@@ -37,8 +37,9 @@ const DETAILS =
   'comfyui-mcp-secure is a security-first MCP server built on FastMCP 4: every ' +
   'tool call is rate-limited and audit-logged, file operations pass through a ' +
   'path sanitizer, and every workflow submission goes through the inspector ' +
-  '(audit mode logs warnings; enforce mode blocks unapproved nodes and elicits ' +
-  'the user). Start with what-why (the reasoning), concepts (the vocabulary), ' +
+  '(audit mode logs warnings; enforce mode blocks nodes outside a non-empty ' +
+  'allowlist and elicits the user). Start with what-why (the reasoning), ' +
+  'concepts (the vocabulary), ' +
   'and getting-started for setup. Every page below also serves a clean markdown ' +
   'variant at its URL with `.md` appended (e.g. `security-model.html.md`), plus ' +
   '`llms-full.txt` for the whole site in one fetch.'
@@ -48,6 +49,14 @@ const DETAILS =
 // shorter context is needed).
 const SECTIONS = [
   { name: 'Home', sources: ['index.md', 'what-why.md', 'concepts.md'] },
+  {
+    name: 'For creators',
+    sources: [
+      'for-creators.md',
+      'getting-started-with-an-agent.md',
+      'reference-skills.md',
+    ],
+  },
   {
     name: 'Getting started',
     sources: [
@@ -97,6 +106,9 @@ const SECTIONS = [
     sources: [
       'guides.md',
       'guides-generate.md',
+      'guides-edit.md',
+      'guides-batch.md',
+      'guides-media.md',
       'guides-custom-workflows.md',
       'guides-manage-models.md',
       'guides-production.md',

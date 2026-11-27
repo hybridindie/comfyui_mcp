@@ -28,10 +28,11 @@ security:
 
 ## Two distinct gates, in order
 
-**1. The allowlist (hard block).** Any workflow containing a node not in
-`allowed_nodes` is rejected inside the inspector — before anything else, no
-conversation involved. `dangerous_nodes` are always flagged regardless of
-mode.
+**1. The allowlist (hard block).** When `allowed_nodes` is non-empty, any
+workflow containing a node not in the list is rejected inside the inspector —
+before anything else, no conversation involved. An empty `allowed_nodes` (the
+default) skips this check, leaving only the warning/elicitation gate below.
+`dangerous_nodes` are always flagged regardless of mode.
 
 **2. The elicitation gate (the human).** When the inspector produces
 warnings (dangerous-node types, suspicious inputs like `eval()`/`exec()`,

@@ -19,6 +19,7 @@ the agent stalled. New here? Start with
 - [Generate images](guides-generate.md) — the generate loop: model discovery, params, thumbnails
 - [Edit images](guides-edit.md) — img2img, inpaint, upscale
 - [Batch generation](guides-batch.md) — prompt/seed matrices, the 8-variant cap, collecting results
+- [Video and audio outputs](guides-media.md) — find media in history, fetch by URL/path/inline, the 8 MiB cap
 - [Custom workflows](guides-custom-workflows.md) — templates → modify → validate → run, including partial re-execution
 - [Manage models](guides-manage-models.md) — search, download, presets, prompting guidance, and the download lifecycle quirks
 - [Skills](reference-skills.md) — the installable recipes behind these flows

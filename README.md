@@ -2,7 +2,7 @@
 
 A secure MCP (Model Context Protocol) server for [ComfyUI](https://github.com/comfyanonymous/ComfyUI). Enables AI assistants to generate images, run workflows, and manage jobs through ComfyUI — with server-side security controls that other ComfyUI MCP servers leave out, including Comfy's own first-party [`comfy-mcp`](https://github.com/Comfy-Org/comfy-mcp).
 
-> **Here to make images, not to run a server?** Start with the [For creators](https://hybridindie.github.io/comfyui_mcp/for-creators.html) track — setup with an AI agent, generation, editing, batches, and the skills that teach the assistant the flows.
+> **Here to make images, not to run a server?** Start with the [For creators](https://hybridindie.github.io/comfyui_mcp/for-creators.html) track — setup with an AI agent, generation, editing, batches, video/audio outputs, and the skills that teach the assistant the flows.
 
 > **Using OpenCode or Claude Code?** This repo ships agent configuration under `.opencode/` and `.claude/` — grounding rules (`.claude/rules/`), a read-only `review` subagent, a `/preflight` command, and a graphify plugin — all pre-wired to the MCP server. See [AGENTS.md](./AGENTS.md) for the entry point. The server itself works with **any** MCP client over stdio or Streamable HTTP.
 
@@ -441,7 +441,7 @@ The `comfyui_download_model` tool always sends a `previewFile` field (required b
 | Tool | Description |
 |------|-------------|
 | `comfyui_upload_image` | Upload a base64-encoded image to ComfyUI. Path-sanitized. Params: filename, image_data, subfolder, `destination="input"\|"output"\|"temp"` (default `input`), `overwrite` (default False — ComfyUI auto-renames duplicates). |
-| `comfyui_get_image` | Download a generated image. `response_format="data_uri"` (default) returns inline base64; `response_format="url"` returns a direct `/view` URL. With `data_uri`, optional `preview_format="webp"\|"jpeg"` + `preview_quality=1-100` request a server-rendered thumbnail (smaller payload, lossy). Optional `base_url_override` can override URL host per call. Path-sanitized. |
+| `comfyui_get_image` | Download a generated image. `response_format="data_uri"` (default) returns a `data:image/...;base64,...` string of the full image; `response_format="url"` returns a direct `/view` URL. With `data_uri`, optional `preview_format="webp"\|"jpeg"` + `preview_quality=1-100` request a server-rendered thumbnail (smaller payload, lossy). Optional `base_url_override` can override URL host per call. Path-sanitized. Use `comfyui_get_output` for video/audio. |
 | `comfyui_get_output` | Retrieve a video, audio, image, or GIF output. `response_format="url"` (default) returns a `/view` link; `"path"` returns the ComfyUI-relative path; `"inline"` returns a data URI for small, allow-listed media (≤8 MiB) and falls back to a URL otherwise. Path-sanitized. |
 | `comfyui_list_outputs` | List generated output filenames from history. |
 | `comfyui_upload_mask` | Upload a mask image to ComfyUI. Path-sanitized. Params: filename, mask_data, original_image, subfolder, original_subfolder, `destination="input"\|"output"\|"temp"` (default `input`), `overwrite` (default False — ComfyUI auto-renames duplicates). |
@@ -681,7 +681,7 @@ security:
 
 ### Enforce mode
 
-Only explicitly approved nodes can run. Any workflow containing an unapproved node is rejected.
+When `allowed_nodes` is non-empty, only those nodes can run: any workflow containing a node outside the list is rejected before submission. With an empty list (the default), enforce mode relies on warnings plus the elicitation gate.
 
 ```yaml
 security:
@@ -764,7 +764,7 @@ The file rotates at `logging.max_bytes` (default 10 MiB), keeping `logging.backu
 **Workflow Inspector** (`security/inspector.py`)
 - Parses workflow JSON, extracts node types, checks against configurable blocklist
 - Recursive pattern matching for `__import__()`, `eval()`, `exec()`, `os.system()`, `subprocess` in all input values (including nested dicts/lists)
-- Audit mode: logs warnings, allows execution. Enforce mode: blocks unapproved nodes
+- Audit mode: logs warnings, allows execution. Enforce mode: blocks nodes outside a non-empty `allowed_nodes` allowlist, then elicits the user on remaining warnings
 - Limitation: static blocklist can be bypassed with obfuscation or unknown custom nodes
 
 **Path Sanitizer** (`security/sanitizer.py`)
@@ -1024,14 +1024,17 @@ The GitHub Actions workflow in `.github/workflows/pypi.yml` builds the sdist and
 
 ### Doctor
 
-`scripts/doctor.py` checks the config, audit-path writability, transport/auth,
+`comfyui-mcp-doctor` checks the config, audit-path writability, transport/auth,
 ComfyUI reachability and `/features`, and the optional Manager/Model-Manager
-plugins. It prints a pass/warn/fail table with the next step for each failure:
+plugins. It prints a pass/warn/fail table with the next step for each failure.
+It ships with the package; `scripts/doctor.py` is the same command in a
+checkout:
 
 ```bash
-uv run python scripts/doctor.py
-uv run python scripts/doctor.py --url http://gpu-box:8188
-uv run python scripts/doctor.py --json
+comfyui-mcp-doctor
+comfyui-mcp-doctor --url http://gpu-box:8188
+comfyui-mcp-doctor --json
+uvx --from comfyui-mcp-secure comfyui-mcp-doctor
 ```
 
 ### Smoke test against a live instance

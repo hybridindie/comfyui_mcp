@@ -71,7 +71,9 @@ skill directory.
 
 ## The four MCP prompts
 
-These live in the server and work in any client, skills or not:
+These live in the server and work in any client that exposes MCP prompts,
+skills or not. Clients that do not surface prompts are exactly the case the
+skills cover:
 
 | Prompt | Returns |
 |---|---|
