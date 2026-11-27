@@ -9,7 +9,7 @@ Usage:
 
     uv run python scripts/run_multimodel_eval.py \\
         evals/comfyui_mcp_task.py@comfyui_mcp_phase4 \\
-        --models ollama/gpt-oss:120b-cloud,ollama/qwen3-coder:480b-cloud \\
+        --models ollama/gpt-oss:120b-cloud,ollama/glm-5.3-flash:cloud \\
         --log-dir ./logs/phase4-multimodel
 
 The wrapper passes through ``COMFYUI_URL`` (and any other env vars) to the
@@ -38,7 +38,7 @@ def main() -> int:
         required=True,
         help=(
             "Comma-separated list of model IDs, e.g. "
-            "'ollama/gpt-oss:120b-cloud,ollama/qwen3-coder:480b-cloud'"
+            "'ollama/gpt-oss:120b-cloud,ollama/glm-5.3-flash:cloud'"
         ),
     )
     parser.add_argument(

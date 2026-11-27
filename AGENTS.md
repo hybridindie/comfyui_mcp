@@ -143,7 +143,7 @@ uv run python scripts/smoke_test.py --url http://host:8188   # Target a specific
 
 # Run the Phase 4 evaluation against a model
 uv run inspect eval evals/comfyui_mcp_task.py \
-    --model ollama/qwen3-coder:480b-cloud \
+    --model ollama/glm-5.3-flash:cloud \
     --log-dir ./logs/phase4
 uv run inspect view --log-dir ./logs/phase4        # browse traces in the UI
 
@@ -156,7 +156,7 @@ uv run inspect eval evals/comfyui_mcp_task.py@comfyui_mcp_phase5 \
 # (inspect's --model flag is single-value; the wrapper calls eval_set()
 # directly with model=[...] to work around that)
 uv run python scripts/run_multimodel_eval.py evals/comfyui_mcp_task.py@comfyui_mcp_phase4 \
-    --models ollama/gpt-oss:120b-cloud,ollama/qwen3-coder:480b-cloud,anthropic/claude-sonnet-4-6 \
+    --models ollama/gpt-oss:120b-cloud,ollama/glm-5.3-flash:cloud,anthropic/claude-sonnet-4-6 \
     --log-dir ./logs/phase4-cross-model
 
 # Compare two eval runs (or two .eval files) side-by-side
