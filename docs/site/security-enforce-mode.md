@@ -121,7 +121,11 @@ with warnings.
    `comfyui_audit_dangerous_nodes` once.
 2. Work normally; the audit log shows which nodes your workflows actually
    use.
-3. Paste the honest allowlist into `security.allowed_nodes`; switch
-   `mode: "enforce"`.
-4. The elicitation gate now covers everything the allowlist missed —
+3. Generate the allowlist from the audit log:
+   `uv run python scripts/policy_init.py` prints a reviewable fragment;
+   `--apply` writes it to `security.allowed_nodes` (a `.bak` is kept).
+   Dangerous and policy-denied nodes are excluded, and entries already in the
+   allowlist that were never observed are flagged.
+4. Switch `mode: "enforce"`.
+5. The elicitation gate now covers everything the allowlist missed —
    including newly installed custom nodes you haven't reviewed yet.

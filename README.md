@@ -685,7 +685,14 @@ security:
     - "LoraLoader"
 ```
 
-**Tip:** Use `comfyui_audit_dangerous_nodes` to identify dangerous nodes, run workflows in audit mode to see which nodes you use, then switch to enforce mode with that allowlist.
+**Tip:** Run workflows in audit mode, then generate the allowlist from the log:
+
+```bash
+uv run python scripts/policy_init.py            # review the suggestion
+uv run python scripts/policy_init.py --apply    # write security.allowed_nodes
+```
+
+The script counts `nodes_used` per inspected workflow, excludes dangerous and policy-denied nodes, and flags allowlist entries never observed. Use `comfyui_audit_dangerous_nodes` to review what it excluded, then switch to `mode: "enforce"`.
 
 **Elicitation gate (Phase 5):** when enforce mode is on and the inspector produces warnings (dangerous-node types, suspicious inputs like `eval()`/`exec()`, or missing models), the generation tools (`comfyui_run_workflow`, `comfyui_generate_image`, `comfyui_transform_image`, `comfyui_inpaint_image`, `comfyui_upscale_image`) ask the user to confirm before submitting — `ctx.elicit(..., response_type=bool)`. A decline or cancel raises `WorkflowBlockedError` without calling `post_prompt`. Unapproved-node enforcement (the `allowed_nodes` allowlist) still blocks hard inside the inspector before elicitation; the gate fires on the warning path. Programmatic callers without a live MCP context keep the pre-existing behavior (immediate `WorkflowBlockedError` in enforce mode with warnings).
 
