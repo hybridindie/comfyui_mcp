@@ -18,8 +18,7 @@
     ".opencode/rules/testing.md",
     ".opencode/rules/workflow.md",
     ".opencode/rules/enforcement.md",
-    ".opencode/rules/graphify.md",
-    ".wiki-overlay.md"
+    ".opencode/rules/graphify.md"
   ],
   "mcp": {
     "context7": {
@@ -49,22 +48,10 @@
       "uv.lock",
       "dist/**",
       "logs/**",
-      "evidence/raw/**",
       ".obsidian/**"
     ]
   },
   "plugin": [
     ".opencode/plugins/graphify.js"
-  ],
-  "references": {
-    "wiki-fabric": {
-      "path": "~/Development/wiki-fabric",
-      "description": "Global knowledge fabric (evidence-first wiki + cross-project promotion)"
-    }
-  },
-  "skills": {
-    "paths": [
-      "~/Development/wiki-fabric/system/skills"
-    ]
-  }
+  ]
 }
