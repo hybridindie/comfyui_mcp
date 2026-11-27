@@ -13,7 +13,7 @@ The user wants several variants. Request: "$ARGUMENTS".
 
 2. **Fix the settings.** One model, one resolution, one sampler configuration for the whole batch — mixed settings make the results hard to compare. Pick the model from `comfyui_list_models(folder="checkpoints")`.
 
-3. **Submit in waves.** Call `comfyui_generate_image(wait=False)` for at most eight variants at a time and record every `prompt_id`. The generation limiter is 10 requests/minute, so wait for the previous wave to finish before starting the next; do not hold one call open for the whole batch.
+3. **Submit in batches.** Call `comfyui_generate_batch(prompts=..., seeds=...)` with at most eight variants per call. It returns `{status, count, variants, errors}` with a `prompt_id` per variant, and counts as one generation call — wait for the batch to finish before starting another.
 
 4. **Track progress.** Poll `comfyui_get_progress` (or `comfyui_list_jobs` for the wider queue) per prompt ID. A failed variant reports its error through `comfyui_get_job`; stop that variant only.
 
@@ -23,5 +23,5 @@ The user wants several variants. Request: "$ARGUMENTS".
 
 - Warn about GPU time before a large matrix; a 20-image batch is not a quick request.
 - Keep the prompt list and seed list visible in the final report so the run is reproducible.
-- For a custom graph, use `comfyui_run_workflow` per variant instead of `generate_image`.
+- For a custom graph, use `comfyui_run_workflow` per variant instead of `generate_batch`.
 - Enforce mode may ask for confirmation per variant; tell the user before starting a wave.

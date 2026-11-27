@@ -12,6 +12,10 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- Bounded batch generation *(#229)*: `comfyui_generate_batch` renders a
+  prompt x seed matrix (max 8 variants) with one rate-limit token, returns a
+  prompt id per variant, and reports partial failures without hiding the
+  successful submissions.
 - MCP resources for outputs and jobs *(#231)*: `comfyui://outputs` lists
   recent history files (newest first, bounded to 100) and `comfyui://jobs`
   returns queue ids plus a recent-history summary (bounded to 20). Both use the

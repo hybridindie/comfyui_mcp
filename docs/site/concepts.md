@@ -30,7 +30,7 @@ unwraps the Model Manager envelope. Transport details live in one place.
 Three component types, all served over MCP:
 
 - **Tools** (`comfyui_*`) — actions and queries the LLM calls explicitly.
-  53 of them across generation, workflow authoring, jobs, discovery, files,
+  54 of them across generation, workflow authoring, jobs, discovery, files,
   models, and custom nodes. Structured `dict` returns with generated
   `outputSchema`.
 - **Resources** (`comfyui://...`) — read-only state the LLM browses by URI
