@@ -3,7 +3,7 @@ type: concept
 title: "Core concepts"
 description: "The vocabulary the rest of the docs assume — tools, resources, prompts, the inspector, the sanitizer, elicitation."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Core concepts
@@ -55,9 +55,12 @@ inspector parses the graph and checks:
 - **Suspicious inputs** — recursive pattern matching for `__import__()`,
   `eval()`, `exec()`, `os.system()`, `subprocess` in node inputs, including
   nested dicts/lists.
-- **Server-side replacements** — fetches ComfyUI's `/node_replacements` map
-  and warns when a submitted node will be silently rewritten before
-  validation (recursing into subgraphs).
+- **Server-side replacements** — fetches ComfyUI's `/node_replacements` map,
+  warns when a submitted node will be rewritten before validation, then
+  re-inspects the effective node: the replacement class and its remapped
+  inputs (including server-injected `set_value` constants), for every
+  candidate and inside subgraphs. Replacement targets the install does not
+  have are flagged as uninspectable.
 - **Subgraphs** — recurses into embedded subgraph node maps; emits an
   explicit warning when a reference has no inline map and inspection is
   incomplete.

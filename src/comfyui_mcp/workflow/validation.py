@@ -525,7 +525,11 @@ async def validate_workflow(
             errors.extend(loop_errors)
 
     try:
-        result = inspector.inspect(workflow, node_replacements=node_replacements)
+        result = inspector.inspect(
+            workflow,
+            node_replacements=node_replacements,
+            known_node_types=set(object_info) if object_info else None,
+        )
         warnings.extend(result.warnings)
     except WorkflowBlockedError as e:
         errors.append(f"Security: {e}")
