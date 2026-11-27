@@ -76,6 +76,9 @@ server configuration, not only before a workflow runs.
 
 ### Changed
 
+- CI builds the VitePress docs on every PR (same build as the Pages
+  deploy), so a broken page or dead nav/sidebar link fails before merge. The
+  deploy workflow now installs from the lockfile with `npm ci`.
 - Documented bearer-auth client setup for Claude Code/Desktop, Cursor, and
   OpenCode, plus an authenticated HTTP Docker Compose example.
 - Agent tooling: track the OpenCode plugin runtime manifest and lockfile, and
