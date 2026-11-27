@@ -1,14 +1,14 @@
 ---
 type: reference
 title: "Tools"
-description: "All 54 comfyui_* tools, grouped by module, with parameters and return shapes."
+description: "All 55 comfyui_* tools, grouped by module, with parameters and return shapes."
 created: 2026-10-06
 updated: 2026-11-27
 ---
 
 # Tools
 
-All 54 tools. Generation/workflow/job tools return a uniform envelope
+All 55 tools. Generation/workflow/job tools return a uniform envelope
 (`status`, `prompt_id`, `outputs`, ...) — see the
 [workflow pipeline](./architecture/workflow-pipeline.md). List tools return
 the pagination envelope `{items, total, offset, limit, has_more}`.
@@ -106,6 +106,7 @@ the pagination envelope `{items, total, offset, limit, has_more}`.
 |------|-------------|
 | `comfyui_upload_image` | Upload a base64 image. Path-sanitized; size enforced against server `max_upload_size`. Params: filename, image_data, subfolder, `destination="input"\|"output"\|"temp"` (default input), `overwrite` (default False — ComfyUI auto-renames duplicates). |
 | `comfyui_get_image` | Download a generated image. `response_format="data_uri"` (default) returns inline base64 — **raster `image/*` allow-listed** (SVG/unknown/missing content types rejected); `response_format="url"` returns a direct `/view` URL. Optional `preview_format="webp"\|"jpeg"` + `preview_quality=1-100` for server-rendered thumbnails. Optional `base_url_override`. Path-sanitized. |
+| `comfyui_get_output` | Retrieve a video, audio, image, or GIF output. `response_format="url"` (default) returns a `/view` link; `"path"` returns the ComfyUI-relative path; `"inline"` returns a data URI for small, allow-listed media (≤8 MiB) and falls back to a URL otherwise. Path-sanitized. |
 | `comfyui_list_outputs` | List generated output filenames from history. |
 | `comfyui_upload_mask` | Upload a mask image. Path-sanitized. Params: filename, mask_data, original_image, subfolder, original_subfolder, `destination`, `overwrite`. |
 | `comfyui_get_workflow_from_image` | Extract embedded workflow and prompt metadata from a ComfyUI-generated PNG. |

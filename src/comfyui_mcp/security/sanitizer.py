@@ -15,8 +15,8 @@ class PathSanitizer:
         self._allowed_extensions = {ext.lower() for ext in allowed_extensions}
         self._max_size_bytes = max_size_mb * 1024 * 1024
 
-    def validate_filename(self, filename: str) -> str:
-        """Validate and sanitize a filename. Returns the clean filename or raises."""
+    def _validate_name(self, filename: str) -> str:
+        """Traversal and shape checks shared by uploads and read-only outputs."""
         decoded = unquote(filename)
 
         if "\x00" in decoded:
@@ -34,13 +34,27 @@ class PathSanitizer:
         if ".." in parts:
             raise PathValidationError(f"Filename contains path traversal: {filename!r}")
 
+        return normalized
+
+    def validate_filename(self, filename: str) -> str:
+        """Validate and sanitize a filename. Returns the clean filename or raises."""
+        normalized = self._validate_name(filename)
         suffix = PurePosixPath(normalized).suffix.lower()
         if not suffix or suffix not in self._allowed_extensions:
             raise PathValidationError(
                 f"Disallowed file extension {suffix!r}. Allowed: {sorted(self._allowed_extensions)}"
             )
-
         return normalized
+
+    def validate_output_filename(self, filename: str) -> str:
+        """Validate a read-only output name (video/audio included).
+
+        The upload extension allow-list does not apply: ComfyUI's output tree
+        contains media types the server never accepts as uploads. Traversal,
+        null bytes and absolute paths are still rejected, so this stays a
+        read-only path, not a bypass for writes.
+        """
+        return self._validate_name(filename)
 
     def validate_path_segment(self, segment: str, label: str = "segment") -> str:
         """Validate a single URL path segment (e.g. model folder name).
