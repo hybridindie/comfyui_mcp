@@ -24,6 +24,12 @@ server configuration, not only before a workflow runs.
   *(#209)*: read-only endpoint checks plus a model-free
   `/prompt` → `/api/jobs` → `/history` → `/view` round trip against upstream
   `master`, so API drift fails a scheduled job instead of reaching users.
+- Bearer-token auth for the Streamable HTTP transport *(#207)*:
+  `transport.remote.auth.tokens` maps identity labels to environment variable
+  names, non-loopback binds are refused without auth, the identity label is
+  written to the audit trail, and per-identity rate-limit buckets keep clients
+  from sharing a quota. Startup fails closed if auth is enabled but no token
+  variable is set.
 
 ### Changed
 

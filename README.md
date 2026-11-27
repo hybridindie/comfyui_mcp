@@ -504,10 +504,23 @@ transport:
     enabled: false
     host: "127.0.0.1"
     port: 8080
+    allow_unauthenticated: false
+    auth:
+      enabled: false
+      tokens:
+        operator: COMFYUI_MCP_HTTP_TOKEN
 ```
 
-When `transport.remote.enabled` is `true`, the server starts in Streamable HTTP mode and binds to `transport.remote.host` and `transport.remote.port`.
-Keep this bound to localhost unless you are running behind authenticated TLS reverse proxy infrastructure.
+When `transport.remote.enabled` is `true`, the server starts in Streamable HTTP mode and binds to `transport.remote.host` and `transport.remote.port`. A non-loopback bind is refused unless `auth.enabled` or `allow_unauthenticated` is set.
+
+**Bearer auth.** `auth.tokens` maps an identity label to the *name* of the environment variable holding that identity's token, so the secret stays out of the config file:
+
+```bash
+export COMFYUI_MCP_HTTP_TOKEN=$(openssl rand -hex 32)
+COMFYUI_HTTP_AUTH_ENABLED=true uv run comfyui-mcp-secure
+```
+
+Clients send `Authorization: Bearer <token>`. The identity label is recorded in the audit log's `identity` field and scopes per-client rate-limit buckets (two identities do not share a quota). Startup fails closed when auth is enabled but none of the configured token variables are set. TLS and OIDC belong at the reverse proxy; this is a static bearer gate, not an identity provider.
 
 ### Environment variables
 
@@ -528,6 +541,8 @@ Environment variables override config file values:
 | `COMFYUI_ALLOWED_DOWNLOAD_DOMAINS` | `security.allowed_download_domains` |
 | `COMFYUI_TASKS_ENABLED` | `tasks.enabled` (optional background tasks) |
 | `COMFYUI_TASKS_BACKEND_URL` | `tasks.backend_url` (`memory://` or `redis://...`) |
+| `COMFYUI_HTTP_AUTH_ENABLED` | `transport.remote.auth.enabled` |
+| `COMFYUI_ALLOW_UNAUTHENTICATED_HTTP` | `transport.remote.allow_unauthenticated` |
 
 ### HuggingFace and CivitAI API keys
 
@@ -699,6 +714,11 @@ Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are
 - Sensitive tool arguments (`token`, `password`, `api_key`, ...) are redacted by the middleware before the entry audit record is written
 - `mask_error_details=True` on the server constructor masks internal exception tracebacks from clients — only `ToolError` messages (which we control) include details
 - Built-in FastMCP 4 middleware wired alongside `SecurityMiddleware` (see `build_middleware_stack()`): `ResponseCachingMiddleware` (caches read-only tools + the 4 `comfyui://` resources, 30s TTL), `ResponseLimitingMiddleware` (caps `list_nodes`/`list_models`/`get_history` payloads at 500KB), `PingMiddleware` (keeps long-lived HTTP connections alive), `StructuredLoggingMiddleware` (ops/observability, `include_payloads=False` — the AuditLogger already redacts).
+
+**HTTP Auth** (`security/auth.py`)
+- Static bearer tokens resolved at startup from environment variables named in `transport.remote.auth.tokens`; the config never holds a secret
+- A non-loopback bind is refused unless auth (or explicit `allow_unauthenticated`) is configured; enabling auth with no token variable set fails startup
+- Each request's identity label (never the token) is written to the audit trail and scopes per-identity rate-limit buckets
 
 **HTTP Client** (`client.py`)
 - Configurable TLS verification, connect/read timeouts

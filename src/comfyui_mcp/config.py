@@ -9,9 +9,11 @@ from typing import Literal
 from urllib.parse import urlparse
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _logger = logging.getLogger(__name__)
+
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 _DEFAULT_CONFIG_PATH = Path.home() / ".comfyui-mcp" / "config.yaml"
 
@@ -276,24 +278,58 @@ class LoggingSettings(BaseModel):
     audit_file: str = "~/.comfyui-mcp/audit.log"
 
 
+class RemoteAuthSettings(BaseModel):
+    """Static bearer-token auth for the Streamable HTTP transport.
+
+    ``tokens`` maps an identity label to the *name* of the environment variable
+    holding that identity's token. Secrets stay in the environment; the YAML
+    never contains one. The resolved identity is recorded in the audit trail and
+    keys per-identity rate-limit buckets.
+    """
+
+    enabled: bool = False
+    tokens: dict[str, str] = Field(default_factory=lambda: {"default": "COMFYUI_MCP_HTTP_TOKEN"})
+
+
 class RemoteTransportSettings(BaseModel):
     enabled: bool = False
     host: str = "127.0.0.1"
     port: int = 8080
+    allow_unauthenticated: bool = False
+    auth: RemoteAuthSettings = Field(default_factory=RemoteAuthSettings)
 
     @field_validator("host")
     @classmethod
     def warn_non_localhost(cls, v: str) -> str:
-        if v not in ("127.0.0.1", "::1", "localhost"):
-            import logging
-
-            logging.getLogger("comfyui_mcp.config").warning(
-                "Streamable HTTP transport binding to %s — this exposes all MCP "
-                "tools without authentication. Only use behind a reverse proxy "
-                "with auth and TLS.",
+        if v not in _LOOPBACK_HOSTS:
+            _logger.warning(
+                "Streamable HTTP transport binding to %s — enable "
+                "transport.remote.auth (recommended) or allow_unauthenticated "
+                "and put it behind authenticated TLS.",
                 v,
             )
         return v
+
+    @model_validator(mode="after")
+    def require_auth_for_public_bind(self) -> RemoteTransportSettings:
+        if not self.enabled:
+            return self
+        if (
+            self.host not in _LOOPBACK_HOSTS
+            and not self.auth.enabled
+            and not self.allow_unauthenticated
+        ):
+            raise ValueError(
+                "transport.remote.host is not a loopback address; enable "
+                "transport.remote.auth or set transport.remote.allow_unauthenticated=true "
+                "(not recommended)"
+            )
+        if self.auth.enabled and not self.auth.tokens:
+            raise ValueError(
+                "transport.remote.auth.enabled requires at least one "
+                "identity: ENV_VAR entry under transport.remote.auth.tokens"
+            )
+        return self
 
 
 class TransportSettings(BaseModel):
@@ -355,6 +391,25 @@ def _apply_env_overrides(data: dict) -> dict:
                 data[section][key] = [d.strip() for d in value.split(",") if d.strip()]
             else:
                 data[section][key] = value
+
+    # Transport auth is three levels deep, so it is handled separately rather
+    # than widening env_map for every two-level entry.
+    auth_enabled = os.environ.get("COMFYUI_HTTP_AUTH_ENABLED")
+    allow_unauth = os.environ.get("COMFYUI_ALLOW_UNAUTHENTICATED_HTTP")
+    if auth_enabled is not None or allow_unauth is not None:
+        transport = data.setdefault("transport", {}).setdefault("remote", {})
+        if auth_enabled is not None:
+            transport.setdefault("auth", {})["enabled"] = auth_enabled.lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+        if allow_unauth is not None:
+            transport["allow_unauthenticated"] = allow_unauth.lower() in (
+                "true",
+                "1",
+                "yes",
+            )
     return data
 
 

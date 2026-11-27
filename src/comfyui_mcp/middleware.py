@@ -22,6 +22,7 @@ replaces the generic *entry* audit + the rate-limit check.
 from __future__ import annotations
 
 from fastmcp.exceptions import PromptError, ResourceError, ToolError
+from fastmcp.server.dependencies import get_access_token
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 
 from comfyui_mcp.audit import AuditLogger, _redact_sensitive
@@ -30,6 +31,19 @@ from comfyui_mcp.security.rate_limit import RateLimiter, RateLimitError
 # The default category for a tool not in tool_categories. "read" is the
 # least-privileged bucket — safer than defaulting to an uncategorized/unlimited path.
 _DEFAULT_CATEGORY = "read"
+
+
+def _caller_identity() -> str:
+    """Return the authenticated client's identity label, or ``""``.
+
+    ``get_access_token()`` reads the request scope on HTTP transports and
+    returns ``None`` on stdio. Never let auth inspection break a tool call.
+    """
+    try:
+        token = get_access_token()
+    except Exception:  # identity is best-effort, never fatal
+        return ""
+    return (getattr(token, "client_id", "") or "") if token is not None else ""
 
 
 class SecurityMiddleware(Middleware):
@@ -68,13 +82,14 @@ class SecurityMiddleware(Middleware):
         message = context.message
         tool_name = getattr(message, "name", None) or "<unknown>"
         arguments = getattr(message, "arguments", None) or {}
+        identity = _caller_identity()
 
         # Security rule 3: rate limit. A ToolError surfaces to the client as an
         # error result; RateLimitError is caught and converted so the client
         # sees a clean error rather than an internal traceback.
         limiter = self._limiter_for(tool_name)
         try:
-            limiter.check(tool_name)
+            limiter.check(tool_name, identity=identity)
         except RateLimitError as e:
             raise ToolError(str(e)) from e
 
@@ -87,6 +102,7 @@ class SecurityMiddleware(Middleware):
         await self._audit.async_log(
             tool=tool_name,
             action="called",
+            identity=identity,
             extra={"arguments": redacted},
         )
 
@@ -99,16 +115,18 @@ class SecurityMiddleware(Middleware):
         message = context.message
         uri = str(getattr(message, "uri", None) or "<unknown>")
         component_name = f"resource:{uri}"
+        identity = _caller_identity()
 
         limiter = self._limiter_for(component_name)
         try:
-            limiter.check(component_name)
+            limiter.check(component_name, identity=identity)
         except RateLimitError as e:
             raise ResourceError(str(e)) from e
 
         await self._audit.async_log(
             tool=component_name,
             action="called",
+            identity=identity,
             extra={"uri": uri},
         )
         return await call_next(context)
@@ -120,10 +138,11 @@ class SecurityMiddleware(Middleware):
         prompt_name = getattr(message, "name", None) or "<unknown>"
         arguments = getattr(message, "arguments", None) or {}
         component_name = f"prompt:{prompt_name}"
+        identity = _caller_identity()
 
         limiter = self._limiter_for(component_name)
         try:
-            limiter.check(component_name)
+            limiter.check(component_name, identity=identity)
         except RateLimitError as e:
             raise PromptError(str(e)) from e
 
@@ -133,6 +152,7 @@ class SecurityMiddleware(Middleware):
         await self._audit.async_log(
             tool=component_name,
             action="called",
+            identity=identity,
             extra={"arguments": redacted},
         )
         return await call_next(context)

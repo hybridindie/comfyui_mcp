@@ -3,7 +3,7 @@ type: guide
 title: "Configure"
 description: "Point the server at your ComfyUI instance — config file, environment overrides, security mode, remote transport."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Configure
@@ -78,10 +78,22 @@ transport:
     enabled: true
     host: "127.0.0.1"
     port: 8080
+    auth:
+      enabled: true
+      tokens:
+        operator: COMFYUI_MCP_HTTP_TOKEN
 ```
 
-Keep this bound to localhost unless you are running behind an authenticated
-TLS reverse proxy. Background tasks (optional, for long-running workflows over
+Export the token before launching:
+
+```bash
+export COMFYUI_MCP_HTTP_TOKEN=$(openssl rand -hex 32)
+```
+
+A non-loopback bind is refused unless bearer auth is enabled (or
+`allow_unauthenticated` is explicitly set). The identity label appears in the
+audit log and scopes per-client rate limits. Keep the listener behind an
+authenticated TLS reverse proxy for OIDC and certificate handling. Background tasks (optional, for long-running workflows over
 HTTP) are covered in [background tasks](./architecture/tasks.md).
 
 ## Verify

@@ -3,7 +3,7 @@ type: reference
 title: "Environment variables"
 description: "Every env override, with what it maps to."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Environment variables
@@ -26,6 +26,8 @@ CI where files are awkward.
 | `COMFYUI_ALLOWED_DOWNLOAD_DOMAINS` | `security.allowed_download_domains` |
 | `COMFYUI_TASKS_ENABLED` | `tasks.enabled` |
 | `COMFYUI_TASKS_BACKEND_URL` | `tasks.backend_url` (`memory://` or `redis://...`) |
+| `COMFYUI_HTTP_AUTH_ENABLED` | `transport.remote.auth.enabled` |
+| `COMFYUI_ALLOW_UNAUTHENTICATED_HTTP` | `transport.remote.allow_unauthenticated` |
 
 ## Secrets
 
