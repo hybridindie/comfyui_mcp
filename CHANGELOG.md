@@ -12,6 +12,12 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- Declarative workflow policy *(#211)*: `security.policy` adds `deny_nodes`,
+  `warn_nodes`, `on_warning` (`elicit` | `block` | `allow`), `max_nodes`, and
+  `allowed_model_folders`. Hard rules block in enforce mode and warn in audit
+  mode; `on_warning: block` makes enforce usable unattended. Unknown keys are
+  rejected at startup, subgraph nodes count toward the cap, and the fired rule
+  is named in the warning and the audit record's `policy` snapshot.
 - Sessionless-protocol elicitation *(#210)*: enforce-mode gates on 2026-07-28+
   connections return an `InputRequiredResult` with a boolean approval request
   and read the answer from `ctx.input_responses`, because `ctx.elicit()` has no
