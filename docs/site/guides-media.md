@@ -86,19 +86,28 @@ Rule of thumb: if the filename does not end in `.png`, `.jpg`, `.jpeg`, or
 
 ## Video/audio *inputs*
 
-`comfyui_upload_image` uploads through ComfyUI's `/upload/image` endpoint with
-an image MIME type and the image/JSON extension allow-list, so an `.mp4` is
-rejected before it reaches ComfyUI. For video-to-video or audio-driven
-workflows:
+Use **`comfyui_upload_media`**. It accepts base64 video/audio, writes to
+ComfyUI's input directory by default, and sends the real media content type:
 
-1. Put the file in ComfyUI's `input/` directory yourself (or use the ComfyUI
-   UI's upload control).
-2. Pass the **filename** to the tool or workflow exactly as it appears —
-   `comfyui_run_workflow` with a `LoadVideo`-style node, or
-   `comfyui_validate_workflow` first if you are unsure of the graph.
+```text
+comfyui_upload_media(filename="clip.mp4", media_data="<base64>",
+                     destination="input")
+```
 
-The same rule applies to any non-image input: the MCP upload path is for
-images and masks.
+Then pass the filename to the workflow — a `LoadVideo`/VHS-style node — and run
+it with `comfyui_run_workflow`.
+
+- The extension must be in `security.allowed_media_extensions`: by default
+  `.mp4 .webm .mov .mkv .avi .m4v .mpg .mpeg .mp3 .wav .flac .ogg .m4a .aac
+  .opus`. An empty list disables the tool; it does **not** fall back to the
+  image allowlist.
+- The file is not transcoded or inspected. Pass a container the workflow's
+  loader can read; a mislabeled extension fails inside ComfyUI, not at upload.
+- The same `max_upload_size` / `max_upload_size_mb` limits apply.
+
+`comfyui_upload_image` remains image/mask/JSON-only. If media uploads are
+disabled or unavailable, copy the file into ComfyUI's `input/` directory
+yourself and pass the filename instead.
 
 ## Notes
 

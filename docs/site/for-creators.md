@@ -60,6 +60,7 @@ paths, and keeps an audit trail.
 | "four variations of this prompt" | Bounded batch, one prompt id per variant |
 | "what models do I have?" | Lists checkpoints/loras/vae from the live server |
 | "show me the last video" | Fetches a video/audio output by URL or inline if small |
+| "use this clip as input" | Uploads video/audio with `comfyui_upload_media` |
 
 ## What to expect
 
@@ -93,7 +94,7 @@ paths, and keeps an audit trail.
 | Checkpoint list is empty | A fresh ComfyUI has no models. Put a checkpoint in `models/checkpoints/`, or install/download one (Model Manager is optional). |
 | "Workflow has warnings" | Read them; approve only if you trust the node. |
 | "Upload too large" | The server's `max_upload_size` wins — downscale or compress. |
-| Video/audio upload rejected | MCP uploads accept images and JSON only. Put the file in ComfyUI's `input/` folder and pass its filename. |
+| Video/audio upload rejected | The extension is not in `security.allowed_media_extensions`, or media uploads are disabled. Use `comfyui_upload_media`, or place the file in ComfyUI's `input/` folder. |
 | Download tools say Model Manager is missing | Install the ComfyUI-Model-Manager plugin, or download models another way. |
 | Batch or video tool missing | `tools.profile: "core"` hides them; switch to the default `full` profile. |
 | Video won't display inline | You asked for `inline` and it is over 8 MiB — use the returned `/view` link. `url` is the default. |

@@ -76,6 +76,7 @@ def components(tmp_path):
     sanitizer = PathSanitizer(
         allowed_extensions=[".png", ".jpg", ".jpeg", ".webp", ".json"],
         max_size_mb=50,
+        allowed_media_extensions=[".mp4", ".webm", ".mp3", ".wav"],
     )
     return client, audit, limiter, sanitizer
 
@@ -980,3 +981,80 @@ class TestUploadMaskDestination:
         body = route.calls.last.request.content
         assert b'name="type"' not in body
         assert b'name="overwrite"' not in body
+
+
+class TestUploadMedia:
+    @respx.mock
+    async def test_upload_valid_media_sends_media_content_type(self, components):
+        client, audit, limiter, sanitizer = components
+        route = respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(
+                200, json={"name": "clip.mp4", "subfolder": "", "type": "input"}
+            )
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        media_b64 = base64.b64encode(b"fake-mp4-data").decode()
+
+        result = await tools["comfyui_upload_media"](filename="clip.mp4", media_data=media_b64)
+
+        assert "clip.mp4" in result
+        body = route.calls.last.request.content
+        assert b"video/mp4" in body
+
+    async def test_upload_image_extension_rejected_by_media_tool(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(PathValidationError, match="media extension"):
+            await tools["comfyui_upload_media"](
+                filename="still.png", media_data=base64.b64encode(b"x").decode()
+            )
+
+    async def test_upload_executable_rejected_by_media_tool(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(PathValidationError, match="media extension"):
+            await tools["comfyui_upload_media"](
+                filename="payload.exe", media_data=base64.b64encode(b"x").decode()
+            )
+
+    async def test_upload_media_path_traversal_blocked(self, components):
+        client, audit, limiter, sanitizer = components
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(PathValidationError, match="traversal"):
+            await tools["comfyui_upload_media"](
+                filename="../../clip.mp4", media_data=base64.b64encode(b"x").decode()
+            )
+
+    @respx.mock
+    async def test_upload_media_over_server_limit_rejected_locally(self, components):
+        client, audit, limiter, sanitizer = components
+        respx.get("http://test:8188/features").mock(
+            return_value=httpx.Response(200, json={"max_upload_size": 10})
+        )
+        upload_route = respx.post("http://test:8188/upload/image").mock(
+            return_value=httpx.Response(200, json={"name": "big.mp4"})
+        )
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(ValueError, match="max_upload_size"):
+            await tools["comfyui_upload_media"](
+                filename="big.mp4", media_data=base64.b64encode(b"x" * 50).decode()
+            )
+        assert not upload_route.calls
+
+    @respx.mock
+    async def test_upload_media_without_media_allowlist_rejected(self, tmp_path):
+        client = ComfyUIClient(base_url="http://test:8188")
+        audit = AuditLogger(audit_file=tmp_path / "audit.log")
+        limiter = RateLimiter(max_per_minute=60)
+        sanitizer = PathSanitizer(allowed_extensions=[".png"], max_size_mb=50)
+        mcp = FastMCP("test")
+        tools = register_file_tools(mcp, client, audit, limiter, sanitizer)
+        with pytest.raises(PathValidationError, match="media extension"):
+            await tools["comfyui_upload_media"](
+                filename="clip.mp4", media_data=base64.b64encode(b"x").decode()
+            )

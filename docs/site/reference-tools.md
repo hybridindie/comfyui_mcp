@@ -1,14 +1,14 @@
 ---
 type: reference
 title: "Tools"
-description: "All 55 comfyui_* tools, grouped by module, with parameters and return shapes."
+description: "All 56 comfyui_* tools, grouped by module, with parameters and return shapes."
 created: 2026-10-06
 updated: 2026-11-27
 ---
 
 # Tools
 
-All 55 tools. Generation/workflow/job tools return a uniform envelope
+All 56 tools. Generation/workflow/job tools return a uniform envelope
 (`status`, `prompt_id`, `outputs`, ...) — see the
 [workflow pipeline](./architecture/workflow-pipeline.md). List tools return
 the pagination envelope `{items, total, offset, limit, has_more}`.
@@ -104,7 +104,8 @@ the pagination envelope `{items, total, offset, limit, has_more}`.
 
 | Tool | Description |
 |------|-------------|
-| `comfyui_upload_image` | Upload a base64 image. Path-sanitized; size enforced against server `max_upload_size`. Params: filename, image_data, subfolder, `destination="input"\|"output"\|"temp"` (default input), `overwrite` (default False — ComfyUI auto-renames duplicates). |
+| `comfyui_upload_image` | Upload a base64 image. Raster/JSON extension allowlist (`security.allowed_extensions`); path-sanitized; size enforced against server `max_upload_size`. Params: filename, image_data, subfolder, `destination="input"\|"output"\|"temp"` (default input), `overwrite` (default False — ComfyUI auto-renames duplicates). |
+| `comfyui_upload_media` | Upload base64 video/audio for video-to-video, audio, VHS, and AnimateDiff workflows. Uses `security.allowed_media_extensions`, sends the real media content type, and applies the same traversal/size checks as image uploads. Params: filename, media_data, subfolder, `destination`, `overwrite`. Files are stored, not transcoded. |
 | `comfyui_get_image` | Download a generated image. `response_format="data_uri"` (default) returns a **plain `data:image/...;base64,...` string** of the full image — **raster `image/*` allow-listed** (SVG/unknown/missing content types rejected); `response_format="url"` returns a direct `/view` URL. Optional `preview_format="webp"\|"jpeg"` + `preview_quality=1-100` for server-rendered thumbnails. Optional `base_url_override`. Path-sanitized. Use `comfyui_get_output` for video/audio. |
 | `comfyui_get_output` | Retrieve a video, audio, image, or GIF output. `response_format="url"` (default) returns a `/view` link; `"path"` returns the ComfyUI-relative path; `"inline"` returns a data URI for small, allow-listed media (≤8 MiB) and falls back to a URL otherwise. Path-sanitized. |
 | `comfyui_list_outputs` | List generated output filenames from history. |

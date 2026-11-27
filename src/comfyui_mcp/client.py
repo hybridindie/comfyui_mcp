@@ -300,11 +300,16 @@ class ComfyUIClient:
         *,
         destination: str = "input",
         overwrite: bool = False,
+        content_type: str = "image/png",
     ) -> dict:
-        """POST /upload/image — upload an image to ComfyUI.
+        """POST /upload/image — upload a file to ComfyUI.
+
+        ComfyUI's endpoint is named ``/upload/image`` but stores whatever part
+        it receives, so media uploads use the same call with a video/audio
+        ``content_type``.
 
         Args:
-            data: Raw image bytes.
+            data: Raw file bytes.
             filename: Target filename in ComfyUI's storage.
             subfolder: Optional subfolder within the destination.
             destination: Destination type. One of "input" (default), "output", "temp".
@@ -313,12 +318,14 @@ class ComfyUIClient:
             overwrite: If True, replace an existing file with the same name. If False
                 (default), ComfyUI auto-renames by suffixing ``(N)`` when a duplicate
                 exists.
+            content_type: Multipart content type for the uploaded part. Defaults to
+                ``image/png`` for the image/mask tools.
         """
         if destination not in {"input", "output", "temp"}:
             raise ValueError(
                 f"destination must be one of 'input', 'output', 'temp'; got {destination!r}"
             )
-        files = {"image": (filename, data, "image/png")}
+        files = {"image": (filename, data, content_type)}
         form_data: dict[str, str] = {}
         if subfolder:
             form_data["subfolder"] = subfolder

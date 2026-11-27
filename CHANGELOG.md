@@ -18,6 +18,12 @@ server configuration, not only before a workflow runs.
   falls back to a URL for oversized or active/unknown content types; read-only
   output names bypass the upload extension allow-list but keep traversal
   checks.
+- Video/audio uploads *(#264)*: `comfyui_upload_media` accepts base64 media for
+  VHS/AnimateDiff, video-to-video, and audio-driven workflows. It uses a
+  separate `security.allowed_media_extensions` allowlist (empty disables it),
+  sends the real content type instead of `image/png`, and applies the same
+  traversal, size, rate-limit, and audit controls. `comfyui_upload_image` stays
+  image/JSON-only.
 - Bounded batch generation *(#229)*: `comfyui_generate_batch` renders a
   prompt x seed matrix (max 8 variants) with one rate-limit token, returns a
   prompt id per variant, and reports partial failures without hiding the
