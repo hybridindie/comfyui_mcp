@@ -334,7 +334,7 @@ def register_node_tools(
         """
         await node_manager.require_available()
         _validate_node_id(node_id)
-        await require_confirmation(
+        guard = await require_confirmation(
             ctx,
             mode=mode,
             audit=audit,
@@ -346,6 +346,11 @@ def register_node_tools(
             ),
             extra={"node_id": node_id, "version": version or "latest", "restart": restart},
         )
+
+        if guard is not None:
+            # The SDK returns this dual-result union as-is; the
+            # declared return type is the normal-shape schema.
+            return guard  # type: ignore[return-value]
 
         await audit.async_log(
             tool="install_custom_node",
@@ -417,7 +422,7 @@ def register_node_tools(
         """
         await node_manager.require_available()
         _validate_node_id(node_id)
-        await require_confirmation(
+        guard = await require_confirmation(
             ctx,
             mode=mode,
             audit=audit,
@@ -425,6 +430,11 @@ def register_node_tools(
             prompt=f"Uninstall custom node pack '{node_id}' (restart: {restart})?",
             extra={"node_id": node_id, "restart": restart},
         )
+
+        if guard is not None:
+            # The SDK returns this dual-result union as-is; the
+            # declared return type is the normal-shape schema.
+            return guard  # type: ignore[return-value]
 
         await audit.async_log(
             tool="uninstall_custom_node",
@@ -495,7 +505,7 @@ def register_node_tools(
         """
         await node_manager.require_available()
         _validate_node_id(node_id)
-        await require_confirmation(
+        guard = await require_confirmation(
             ctx,
             mode=mode,
             audit=audit,
@@ -506,6 +516,11 @@ def register_node_tools(
             ),
             extra={"node_id": node_id, "restart": restart},
         )
+
+        if guard is not None:
+            # The SDK returns this dual-result union as-is; the
+            # declared return type is the normal-shape schema.
+            return guard  # type: ignore[return-value]
 
         await audit.async_log(
             tool="update_custom_node",

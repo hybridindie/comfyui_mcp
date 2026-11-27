@@ -76,7 +76,7 @@ def register_settings_tools(
         """
         if not settings:
             raise ValueError("settings must be a non-empty dict")
-        await require_confirmation(
+        guard = await require_confirmation(
             ctx,
             mode=mode,
             audit=audit,
@@ -87,6 +87,11 @@ def register_settings_tools(
             ),
             extra={"settings": settings},
         )
+
+        if guard is not None:
+            # The SDK returns this dual-result union as-is; the
+            # declared return type is the normal-shape schema.
+            return guard  # type: ignore[return-value]
         await client.update_settings(settings)
         await audit.async_log(
             tool="update_settings",

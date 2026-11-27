@@ -15,6 +15,7 @@ from pydantic import Field
 from comfyui_mcp.audit import AuditLogger
 from comfyui_mcp.client import ComfyUIClient
 from comfyui_mcp.progress import WebSocketProgress
+from comfyui_mcp.security.consent import read_approval, request_approval, uses_input_required
 from comfyui_mcp.security.inspector import (
     WorkflowBlockedError,
     WorkflowInspector,
@@ -225,31 +226,57 @@ async def _submit_workflow(
     # MCP request). Direct/test callers (ctx=None) keep the pre-existing
     # behavior — WorkflowBlockedError is raised below for enforce + warnings.
     if inspection.warnings and inspector.mode == "enforce":
+        prompt = (
+            f"Workflow has {len(inspection.warnings)} warning(s) in enforce mode: "
+            f"{inspection.warnings}. Proceed with submission?"
+        )
         if ctx is not None:
-            await audit.async_log(
-                tool=tool_name,
-                action="eliciting_confirmation",
-                extra={"warnings": inspection.warnings},
-            )
-            elicit_result = await ctx.elicit(
-                message=(
-                    f"Workflow has {len(inspection.warnings)} warning(s) in "
-                    f"enforce mode: {inspection.warnings}. Proceed with submission?"
-                ),
-                response_type=bool,
-            )
-            action = getattr(elicit_result, "action", None)
-            accepted = action == "accept"
-            data = getattr(elicit_result, "data", None) if accepted else None
-            if not (accepted and data is True):
+            if uses_input_required(ctx):
+                if ctx.input_responses is None:
+                    await audit.async_log(
+                        tool=tool_name,
+                        action="eliciting_confirmation",
+                        extra={"warnings": inspection.warnings, "channel": "input_required"},
+                    )
+                    # The SDK passes an InputRequiredResult through even when the
+                    # tool is annotated with its normal return shape.
+                    return request_approval(prompt)  # type: ignore[return-value]
+                if not read_approval(ctx):
+                    await audit.async_log(
+                        tool=tool_name,
+                        action="elicitation_declined",
+                        extra={"warnings": inspection.warnings, "channel": "input_required"},
+                    )
+                    raise WorkflowBlockedError(
+                        f"Workflow blocked by user — dangerous nodes: {inspection.warnings}"
+                    )
                 await audit.async_log(
                     tool=tool_name,
-                    action="elicitation_declined",
-                    extra={"action": action, "warnings": inspection.warnings},
+                    action="confirmed",
+                    extra={"warnings": inspection.warnings, "channel": "input_required"},
                 )
-                raise WorkflowBlockedError(
-                    f"Workflow blocked by user — dangerous nodes: {inspection.warnings}"
+            else:
+                await audit.async_log(
+                    tool=tool_name,
+                    action="eliciting_confirmation",
+                    extra={"warnings": inspection.warnings},
                 )
+                elicit_result = await ctx.elicit(
+                    message=prompt,
+                    response_type=bool,
+                )
+                action = getattr(elicit_result, "action", None)
+                accepted = action == "accept"
+                data = getattr(elicit_result, "data", None) if accepted else None
+                if not (accepted and data is True):
+                    await audit.async_log(
+                        tool=tool_name,
+                        action="elicitation_declined",
+                        extra={"action": action, "warnings": inspection.warnings},
+                    )
+                    raise WorkflowBlockedError(
+                        f"Workflow blocked by user — dangerous nodes: {inspection.warnings}"
+                    )
         else:
             raise WorkflowBlockedError(f"Workflow blocked — dangerous nodes: {inspection.warnings}")
 
