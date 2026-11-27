@@ -3,7 +3,7 @@ type: reference
 title: "Errors & recovery"
 description: "The failure shapes tools return and how to recover from each."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # Errors & recovery
@@ -48,7 +48,7 @@ known-good loop patterns.
 | Signal | Meaning | Recovery |
 |---|---|---|
 | Model-Manager tools error | ComfyUI-Model-Manager not installed | Install the plugin, or use `comfyui_search_models` (no plugin needed) |
-| Node-management tools error | ComfyUI-Manager not installed | Install ComfyUI-Manager |
+| Node-management tools error | ComfyUI-Manager not enabled, missing, or too old | Relaunch ComfyUI with `--enable-manager` (bundled on current releases), or install the plugin |
 | Model-not-found preflight error | `comfyui_generate_image` named model absent | `comfyui_list_models(folder="checkpoints")` for real names |
 | HTTP 413 on upload | Exceeded server `max_upload_size` (now rejected locally with the byte budget) | Downscale or compress the image |
 
