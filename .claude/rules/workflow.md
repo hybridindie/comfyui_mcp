@@ -33,7 +33,7 @@ model.
 
 ```bash
 uv run inspect eval evals/comfyui_mcp_task.py@comfyui_mcp_phase4 \
-    --model ollama/qwen3-coder:480b-cloud --log-dir ./logs/phase4-pre-merge
+    --model ollama/glm-5.3-flash:cloud --log-dir ./logs/phase4-pre-merge
 ```
 
 Compare eval runs with `scripts/compare_evals.py` — it shows per-sample
