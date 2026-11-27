@@ -1,0 +1,20 @@
+# HTTP transport profile for deploy/docker/docker-compose.http.yml.
+# The bearer token is read from COMFYUI_MCP_HTTP_TOKEN; never put it here.
+comfyui:
+  url: "http://comfyui:8188"
+
+security:
+  mode: "enforce"
+
+transport:
+  remote:
+    enabled: true
+    host: "0.0.0.0"   # allowed only because auth is enabled below
+    port: 8080
+    auth:
+      enabled: true
+      tokens:
+        operator: COMFYUI_MCP_HTTP_TOKEN
+
+logging:
+  audit_file: "/home/app/.comfyui-mcp/logs/audit.log"
