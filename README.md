@@ -246,6 +246,7 @@ Agent-related files in this repo:
 - `.claude/agents/review.md`, `.opencode/agents/review.md` — read-only pre-PR reviewer subagent
 - `/preflight`, `/ship-pr`, `/harness-eval` commands in `.claude/commands/` and `.opencode/commands/` (same body)
 - `.opencode/plugins/graphify.js` — knowledge-graph reminder plugin, auto-loaded from `.opencode/plugins/` (no `plugin` entry needed)
+- `.opencode/package.json`, `.opencode/package-lock.json` — pins `@opencode-ai/plugin` for the plugin runtime; `node_modules/` stays ignored
 - `skills/` — convenience recipes that wrap common multi-tool flows (`gen`, `workflow`, `status`, `progress`, `history`, `models`, `troubleshooting`, `workflows`)
 
 #### Skills

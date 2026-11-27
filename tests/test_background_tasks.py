@@ -13,7 +13,9 @@ HTTP/remote transport where this shines.
 
 from __future__ import annotations
 
-from comfyui_mcp.config import ComfyUISettings, Settings, TasksSettings
+from pathlib import Path
+
+from comfyui_mcp.config import ComfyUISettings, Settings, TasksSettings, load_settings
 from comfyui_mcp.server import _build_server
 
 
@@ -51,6 +53,25 @@ class TestTasksExtensionWiring:
 
         assert not any(isinstance(e, TasksExtension) for e in extensions.values())
 
+    def test_capability_key_present_when_enabled(self):
+        """FastMCP keys the extension under the tasks capability name."""
+        settings = Settings(
+            comfyui=ComfyUISettings(url="http://test:8188"),
+            tasks=TasksSettings(enabled=True),
+        )
+        server, *_ = _build_server(settings)
+
+        assert "io.modelcontextprotocol/tasks" in getattr(server, "_extensions", {})
+
+    def test_capability_key_absent_when_disabled(self):
+        settings = Settings(
+            comfyui=ComfyUISettings(url="http://test:8188"),
+            tasks=TasksSettings(enabled=False),
+        )
+        server, *_ = _build_server(settings)
+
+        assert "io.modelcontextprotocol/tasks" not in getattr(server, "_extensions", {})
+
 
 class TestTasksSettings:
     def test_default_disabled(self):
@@ -75,14 +96,20 @@ class TestTasksSettings:
 class TestTasksEnvOverrides:
     def test_env_enable_flag(self, monkeypatch):
         monkeypatch.setenv("COMFYUI_TASKS_ENABLED", "true")
-        from comfyui_mcp.config import load_settings
 
-        s = load_settings(config_path=__import__("pathlib").Path("/nonexistent"))
+        s = load_settings(config_path=Path("/nonexistent"))
         assert s.tasks.enabled is True
 
     def test_env_backend_url(self, monkeypatch):
         monkeypatch.setenv("COMFYUI_TASKS_BACKEND_URL", "redis://host:6379/1")
-        from comfyui_mcp.config import load_settings
 
-        s = load_settings(config_path=__import__("pathlib").Path("/nonexistent"))
+        s = load_settings(config_path=Path("/nonexistent"))
         assert s.tasks.backend_url == "redis://host:6379/1"
+
+    def test_env_enable_and_backend_together(self, monkeypatch):
+        monkeypatch.setenv("COMFYUI_TASKS_ENABLED", "true")
+        monkeypatch.setenv("COMFYUI_TASKS_BACKEND_URL", "redis://localhost:6379")
+
+        s = load_settings(config_path=Path("/nonexistent"))
+        assert s.tasks.enabled is True
+        assert s.tasks.backend_url == "redis://localhost:6379"
