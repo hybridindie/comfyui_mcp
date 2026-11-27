@@ -677,6 +677,24 @@ security:
 
 **Elicitation gate (Phase 5):** when enforce mode is on and the inspector produces warnings (dangerous-node types, suspicious inputs like `eval()`/`exec()`, or missing models), the generation tools (`comfyui_run_workflow`, `comfyui_generate_image`, `comfyui_transform_image`, `comfyui_inpaint_image`, `comfyui_upscale_image`) ask the user to confirm before submitting — `ctx.elicit(..., response_type=bool)`. A decline or cancel raises `WorkflowBlockedError` without calling `post_prompt`. Unapproved-node enforcement (the `allowed_nodes` allowlist) still blocks hard inside the inspector before elicitation; the gate fires on the warning path. Programmatic callers without a live MCP context keep the pre-existing behavior (immediate `WorkflowBlockedError` in enforce mode with warnings).
 
+**Declarative policy (`security.policy`).** For headless or CI deployments, replace "any warning prompts" with explicit rules:
+
+```yaml
+security:
+  mode: enforce
+  policy:
+    deny_nodes: ["ExecutePython", "Terminal"]
+    warn_nodes: ["SomeRiskyNode"]
+    on_warning: "block"        # elicit (default) | block | allow
+    max_nodes: 200
+    allowed_model_folders: ["checkpoints", "loras"]
+```
+
+- `deny_nodes`, `max_nodes`, and `allowed_model_folders` hard-block in enforce mode and downgrade to warnings in audit mode.
+- `warn_nodes` adds class types to the warning set.
+- `on_warning: block` refuses on any remaining warning without prompting (CI-safe); `allow` logs and proceeds; `elicit` keeps the human gate.
+- Unknown keys are rejected at startup, and every fired rule names itself in the warning text and the audit record's `policy` snapshot.
+
 **Mutation consent gates:** enforce mode also covers operations outside workflow submission. `comfyui_install_custom_node`, `comfyui_uninstall_custom_node`, and `comfyui_update_custom_node` ask before the server runs third-party code — a pack install runs `pip` plus the pack's own install script — and `comfyui_update_settings` asks before merging server config. A decline or cancel raises `ConsentDeniedError` and the ComfyUI call is never made; callers without a live context fail closed in enforce mode. Audit mode keeps the previous non-blocking behavior.
 
 ## Audit log

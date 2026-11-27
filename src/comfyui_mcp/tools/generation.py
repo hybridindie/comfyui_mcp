@@ -215,70 +215,99 @@ async def _submit_workflow(
         "nodes_used": inspection.nodes_used,
         "warnings": inspection.warnings,
     }
-    if inspect_extra:
-        log_kwargs["extra"] = inspect_extra
+    extra = dict(inspect_extra or {})
+    if inspector.policy.is_configured:
+        extra["policy"] = inspector.policy.describe()
+    if extra:
+        log_kwargs["extra"] = extra
     if model_checker is not None:
         log_kwargs["status"] = "allowed"
     await audit.async_log(**log_kwargs)
 
-    # Elicitation gate (Phase 5): in enforce mode with warnings, ask the user
-    # to confirm before submitting. Only fires when ctx is provided (a live
-    # MCP request). Direct/test callers (ctx=None) keep the pre-existing
-    # behavior — WorkflowBlockedError is raised below for enforce + warnings.
+    # Enforce-mode warning policy. Hard policy violations (deny_nodes,
+    # max_nodes, model folders) already raised inside inspect(); this gate
+    # decides what a remaining warning means.
     if inspection.warnings and inspector.mode == "enforce":
-        prompt = (
-            f"Workflow has {len(inspection.warnings)} warning(s) in enforce mode: "
-            f"{inspection.warnings}. Proceed with submission?"
-        )
-        if ctx is not None:
-            if uses_input_required(ctx):
-                if ctx.input_responses is None:
+        if inspector.on_warning == "allow":
+            await audit.async_log(
+                tool=tool_name,
+                action="policy_allowed",
+                extra={"warnings": inspection.warnings},
+            )
+        elif inspector.on_warning == "block":
+            await audit.async_log(
+                tool=tool_name,
+                action="policy_blocked",
+                extra={"warnings": inspection.warnings},
+            )
+            raise WorkflowBlockedError(
+                "Workflow blocked by policy — warnings: " + "; ".join(inspection.warnings)
+            )
+        else:
+            prompt = (
+                f"Workflow has {len(inspection.warnings)} warning(s) in enforce mode: "
+                f"{inspection.warnings}. Proceed with submission?"
+            )
+            if ctx is not None:
+                if uses_input_required(ctx):
+                    if ctx.input_responses is None:
+                        await audit.async_log(
+                            tool=tool_name,
+                            action="eliciting_confirmation",
+                            extra={
+                                "warnings": inspection.warnings,
+                                "channel": "input_required",
+                            },
+                        )
+                        # The SDK passes an InputRequiredResult through even when
+                        # the tool is annotated with its normal return shape.
+                        return request_approval(prompt)  # type: ignore[return-value]
+                    if not read_approval(ctx):
+                        await audit.async_log(
+                            tool=tool_name,
+                            action="elicitation_declined",
+                            extra={
+                                "warnings": inspection.warnings,
+                                "channel": "input_required",
+                            },
+                        )
+                        raise WorkflowBlockedError(
+                            f"Workflow blocked by user — dangerous nodes: {inspection.warnings}"
+                        )
+                    await audit.async_log(
+                        tool=tool_name,
+                        action="confirmed",
+                        extra={
+                            "warnings": inspection.warnings,
+                            "channel": "input_required",
+                        },
+                    )
+                else:
                     await audit.async_log(
                         tool=tool_name,
                         action="eliciting_confirmation",
-                        extra={"warnings": inspection.warnings, "channel": "input_required"},
+                        extra={"warnings": inspection.warnings},
                     )
-                    # The SDK passes an InputRequiredResult through even when the
-                    # tool is annotated with its normal return shape.
-                    return request_approval(prompt)  # type: ignore[return-value]
-                if not read_approval(ctx):
-                    await audit.async_log(
-                        tool=tool_name,
-                        action="elicitation_declined",
-                        extra={"warnings": inspection.warnings, "channel": "input_required"},
+                    elicit_result = await ctx.elicit(
+                        message=prompt,
+                        response_type=bool,
                     )
-                    raise WorkflowBlockedError(
-                        f"Workflow blocked by user — dangerous nodes: {inspection.warnings}"
-                    )
-                await audit.async_log(
-                    tool=tool_name,
-                    action="confirmed",
-                    extra={"warnings": inspection.warnings, "channel": "input_required"},
-                )
+                    action = getattr(elicit_result, "action", None)
+                    accepted = action == "accept"
+                    data = getattr(elicit_result, "data", None) if accepted else None
+                    if not (accepted and data is True):
+                        await audit.async_log(
+                            tool=tool_name,
+                            action="elicitation_declined",
+                            extra={"action": action, "warnings": inspection.warnings},
+                        )
+                        raise WorkflowBlockedError(
+                            f"Workflow blocked by user — dangerous nodes: {inspection.warnings}"
+                        )
             else:
-                await audit.async_log(
-                    tool=tool_name,
-                    action="eliciting_confirmation",
-                    extra={"warnings": inspection.warnings},
+                raise WorkflowBlockedError(
+                    f"Workflow blocked — dangerous nodes: {inspection.warnings}"
                 )
-                elicit_result = await ctx.elicit(
-                    message=prompt,
-                    response_type=bool,
-                )
-                action = getattr(elicit_result, "action", None)
-                accepted = action == "accept"
-                data = getattr(elicit_result, "data", None) if accepted else None
-                if not (accepted and data is True):
-                    await audit.async_log(
-                        tool=tool_name,
-                        action="elicitation_declined",
-                        extra={"action": action, "warnings": inspection.warnings},
-                    )
-                    raise WorkflowBlockedError(
-                        f"Workflow blocked by user — dangerous nodes: {inspection.warnings}"
-                    )
-        else:
-            raise WorkflowBlockedError(f"Workflow blocked — dangerous nodes: {inspection.warnings}")
 
     # Fail fast if the caller asked us to wait but no progress tracker is
     # wired in — otherwise we'd silently return a submitted envelope and the

@@ -15,7 +15,7 @@ it. Six controls compose into one pipeline.
 
 | Control | Module | What it does |
 |---|---|---|
-| Workflow Inspector | `security/inspector.py` | Parses workflow JSON before submission: dangerous nodes, suspicious inputs, server-side replacements, subgraph recursion |
+| Workflow Inspector | `security/inspector.py` | Parses workflow JSON before submission: dangerous nodes, suspicious inputs, server-side replacements, subgraph recursion, and the optional declarative policy (`security.policy`) |
 | Path Sanitizer | `security/sanitizer.py` | Validates every filename/subfolder/URL segment: traversal, null bytes, control chars, extension allowlist |
 | Rate Limiter | `security/rate_limit.py` | Token-bucket per category: workflow 10/min, generation 10/min, file_ops 30/min, read_only 60/min |
 | Audit Logger | `audit.py` | One structured JSON line per call, sensitive fields redacted |

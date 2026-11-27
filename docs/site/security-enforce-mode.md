@@ -74,6 +74,35 @@ Accept proceeds; decline or cancel raises `ConsentDeniedError` and the
 ComfyUI call is never made. Without a live MCP context, enforce mode fails
 closed. Audit mode logs and proceeds, as before.
 
+## Declarative policy
+
+For deployments with no human to prompt — CI, batch jobs, an unattended
+agent — `security.policy` replaces "any warning prompts" with explicit rules:
+
+```yaml
+security:
+  mode: enforce
+  policy:
+    deny_nodes: ["ExecutePython", "Terminal"]
+    warn_nodes: ["SomeRiskyNode"]
+    on_warning: "block"        # elicit (default) | block | allow
+    max_nodes: 200
+    allowed_model_folders: ["checkpoints", "loras"]
+```
+
+| Key | Behavior |
+|---|---|
+| `deny_nodes` | Hard block in enforce mode; warning in audit mode |
+| `max_nodes` | Hard block above the node count in enforce mode; warning in audit mode (`0` disables) |
+| `allowed_model_folders` | Hard block when a loader reads from another folder; warning in audit mode (`[]` disables) |
+| `warn_nodes` | Adds class types to the warning set |
+| `on_warning` | `elicit` asks (default), `block` refuses, `allow` logs and proceeds |
+
+Unknown keys are rejected at startup. The node cap and folder check count
+nodes nested inside inline subgraphs, and every fired rule names itself in the
+warning text and the `inspected` audit record's `policy` snapshot. The
+allowlist (`security.allowed_nodes`) still applies on top of the policy.
+
 ## Why elicitation matters
 
 Audit-mode warnings rely on the LLM reading the `warnings` array and

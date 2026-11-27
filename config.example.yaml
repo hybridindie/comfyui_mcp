@@ -15,6 +15,13 @@ model_search:
 
 security:
   mode: "audit"
+  # Optional declarative policy (issue #211). Unknown keys are rejected.
+  # policy:
+  #   deny_nodes: ["ExecutePython", "Terminal"]
+  #   warn_nodes: []
+  #   on_warning: "elicit"          # elicit | block | allow
+  #   max_nodes: 0                  # 0 disables the cap
+  #   allowed_model_folders: []     # [] allows every folder
 
 logging:
   audit_file: "~/.comfyui-mcp/audit.log"

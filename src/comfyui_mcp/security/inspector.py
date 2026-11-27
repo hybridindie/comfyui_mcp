@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
+
+from comfyui_mcp.model_registry import MODEL_LOADER_FIELDS
 
 _SUSPICIOUS_PATTERNS = [
     re.compile(r"__import__\s*\("),
@@ -29,6 +32,43 @@ _MAX_SUBGRAPH_DEPTH = 10
 
 class WorkflowBlockedError(Exception):
     """Raised when a workflow is blocked in enforce mode."""
+
+
+@dataclass(frozen=True)
+class WorkflowPolicy:
+    """Declarative inspection policy (issue #211).
+
+    An empty policy is the historical behavior: warnings are logged, the
+    allowlist blocks unapproved nodes in enforce mode, and the caller elicits
+    on warnings.
+    """
+
+    deny_nodes: frozenset[str] = frozenset()
+    warn_nodes: frozenset[str] = frozenset()
+    on_warning: str = "elicit"
+    max_nodes: int = 0
+    allowed_model_folders: frozenset[str] = frozenset()
+
+    @property
+    def is_configured(self) -> bool:
+        """True when anything differs from the historical defaults."""
+        return bool(
+            self.deny_nodes
+            or self.warn_nodes
+            or self.max_nodes
+            or self.allowed_model_folders
+            or self.on_warning != "elicit"
+        )
+
+    def describe(self) -> dict[str, object]:
+        """A JSON-safe snapshot for the audit trail."""
+        return {
+            "deny_nodes": sorted(self.deny_nodes),
+            "warn_nodes": sorted(self.warn_nodes),
+            "on_warning": self.on_warning,
+            "max_nodes": self.max_nodes,
+            "allowed_model_folders": sorted(self.allowed_model_folders),
+        }
 
 
 @dataclass
@@ -135,6 +175,18 @@ def _remap_replacement_inputs(
     return inputs, notes
 
 
+def _iter_nodes(workflow: dict[str, Any]) -> Iterator[tuple[str, dict[str, Any]]]:
+    """Yield every node, including nodes inside inline subgraph maps."""
+    for node_id, node_data in workflow.items():
+        if not isinstance(node_data, dict):
+            continue
+        yield node_id, node_data
+        if _is_subgraph_class(node_data.get("class_type", "")):
+            sub_nodes = _find_subgraph_node_map(node_data)
+            if sub_nodes is not None:
+                yield from _iter_nodes(sub_nodes)
+
+
 def uses_server_replacement(
     workflow: dict[str, Any], node_replacements: dict[str, Any] | None
 ) -> bool:
@@ -159,15 +211,77 @@ class WorkflowInspector:
         mode: str = "audit",
         dangerous_nodes: list[str] | None = None,
         allowed_nodes: list[str] | None = None,
+        policy: WorkflowPolicy | None = None,
     ) -> None:
         self._mode = mode
         self._dangerous_nodes = set(dangerous_nodes or [])
         self._allowed_nodes = set(allowed_nodes or [])
+        self._policy = policy or WorkflowPolicy()
 
     @property
     def mode(self) -> str:
         """Return the current inspection mode ('audit' or 'enforce')."""
         return self._mode
+
+    @property
+    def policy(self) -> WorkflowPolicy:
+        """Return the declarative policy in effect."""
+        return self._policy
+
+    @property
+    def on_warning(self) -> str:
+        """What an enforce-mode warning means: elicit, block, or allow."""
+        return self._policy.on_warning
+
+    def _check_policy(self, workflow: dict[str, Any], nodes_used: list[str]) -> list[str]:
+        """Apply the declarative policy; raise on hard violations in enforce mode."""
+        policy = self._policy
+        if not policy.is_configured:
+            return []
+
+        warnings: list[str] = []
+        for node_type in sorted(set(nodes_used) & policy.warn_nodes):
+            warnings.append(f"Policy warning node: {node_type}")
+
+        denied = sorted(set(nodes_used) & policy.deny_nodes)
+        if denied:
+            message = f"policy denied node type(s): {', '.join(denied)}"
+            if self._mode == "enforce":
+                raise WorkflowBlockedError(f"Workflow blocked — {message}")
+            warnings.append(f"Workflow would be blocked — {message} (audit mode)")
+
+        if policy.max_nodes and len(nodes_used) > policy.max_nodes:
+            message = (
+                f"workflow has {len(nodes_used)} nodes; policy max_nodes is {policy.max_nodes}"
+            )
+            if self._mode == "enforce":
+                raise WorkflowBlockedError(f"Workflow blocked — {message}")
+            warnings.append(f"Workflow would be blocked — {message} (audit mode)")
+
+        if policy.allowed_model_folders:
+            violations: set[str] = set()
+            for _node_id, node in _iter_nodes(workflow):
+                inputs = node.get("inputs")
+                if not isinstance(inputs, dict):
+                    continue
+                for field, folder in MODEL_LOADER_FIELDS.get(node.get("class_type", ""), ()):
+                    value = inputs.get(field)
+                    if (
+                        isinstance(value, str)
+                        and value
+                        and folder not in policy.allowed_model_folders
+                    ):
+                        violations.add(f"{node.get('class_type')}.{field} loads from '{folder}'")
+            if violations:
+                message = (
+                    "policy allows model folders "
+                    f"{sorted(policy.allowed_model_folders)}; violations: {sorted(violations)}"
+                )
+                if self._mode == "enforce":
+                    raise WorkflowBlockedError(f"Workflow blocked — {message}")
+                warnings.append(f"Workflow would be blocked — {message} (audit mode)")
+
+        return warnings
 
     def inspect(
         self,
@@ -291,6 +405,12 @@ class WorkflowInspector:
                         warnings.extend(
                             _check_value_for_suspicious(value, node_id, new_type, input_key)
                         )
+
+        # Declarative policy (#211): checked once for the whole graph, including
+        # nodes nested in inline subgraphs. Hard violations raise in enforce mode
+        # and downgrade to warnings in audit mode.
+        if _depth == 0:
+            warnings.extend(self._check_policy(workflow, nodes_used))
 
         # Enforce mode: block unapproved nodes
         if self._mode == "enforce" and self._allowed_nodes:

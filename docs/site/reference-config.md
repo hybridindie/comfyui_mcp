@@ -23,6 +23,12 @@ comfyui:
 
 security:
   mode: "audit"                    # "audit" (log only) or "enforce" (block unapproved)
+  policy:                          # Optional declarative policy
+    deny_nodes: []                 # Hard block in enforce, warning in audit
+    warn_nodes: []                 # Extra class types to warn on
+    on_warning: "elicit"           # elicit | block | allow
+    max_nodes: 0                   # 0 disables the cap
+    allowed_model_folders: []      # [] allows every model folder
   allowed_nodes: []                # Enforce mode: only these nodes can run
   dangerous_nodes: []              # Appended to the built-in default list (~150 nodes).
                                    # Always flagged in audit log / enforcement.
@@ -74,6 +80,11 @@ tasks:                             # Optional background tasks (FastMCP 4 TasksE
   [enforce mode](./security-enforce-mode.md). The default is audit.
 - `security.allowed_nodes` — only consulted in enforce mode. Nodes not in
   the list are hard-blocked before elicitation.
+- `security.policy` — declarative rules for enforce mode. `deny_nodes`,
+  `max_nodes`, and `allowed_model_folders` hard-block in enforce mode and warn
+  in audit mode; `on_warning` decides what a remaining warning means
+  (`elicit`/`block`/`allow`). Unknown keys are rejected at startup. See
+  [enforce mode](./security-enforce-mode.md#declarative-policy).
 - `security.dangerous_nodes` — *additional* entries; the built-in default
   list always applies. Get candidates via `comfyui_audit_dangerous_nodes`.
 - `security.max_upload_size_mb` — local cap; also cross-checked against the

@@ -9,7 +9,7 @@ from typing import Literal
 from urllib.parse import urlparse
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _logger = logging.getLogger(__name__)
 
@@ -242,9 +242,36 @@ class ComfyUISettings(BaseModel):
         return v
 
 
+class SecurityPolicySettings(BaseModel):
+    """Declarative workflow policy (issue #211).
+
+    ``deny_nodes``, ``max_nodes`` and ``allowed_model_folders`` hard-block in
+    enforce mode (and warn in audit mode). ``warn_nodes`` adds class types to
+    the warning set. ``on_warning`` decides what an enforce-mode warning means:
+    ``elicit`` asks (default), ``block`` refuses (headless CI), ``allow`` logs
+    and proceeds.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    deny_nodes: list[str] = []
+    warn_nodes: list[str] = []
+    on_warning: Literal["elicit", "block", "allow"] = "elicit"
+    max_nodes: int = 0
+    allowed_model_folders: list[str] = []
+
+    @field_validator("max_nodes")
+    @classmethod
+    def non_negative_max_nodes(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("security.policy.max_nodes must be >= 0 (0 disables)")
+        return v
+
+
 class SecuritySettings(BaseModel):
     mode: Literal["audit", "enforce"] = "audit"
     allowed_nodes: list[str] = []
+    policy: SecurityPolicySettings = Field(default_factory=SecurityPolicySettings)
     dangerous_nodes: list[str] = list(_DEFAULT_DANGEROUS_NODES)
     max_upload_size_mb: int = 50
     allowed_extensions: list[str] = list(_DEFAULT_ALLOWED_EXTENSIONS)

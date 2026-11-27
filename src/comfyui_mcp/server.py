@@ -23,7 +23,7 @@ from comfyui_mcp.prompts import register_prompts
 from comfyui_mcp.resources import register_resources
 from comfyui_mcp.security.auth import StaticBearerAuth, resolve_bearer_tokens
 from comfyui_mcp.security.download_validator import DownloadValidator
-from comfyui_mcp.security.inspector import WorkflowInspector
+from comfyui_mcp.security.inspector import WorkflowInspector, WorkflowPolicy
 from comfyui_mcp.security.model_checker import ModelChecker
 from comfyui_mcp.security.node_auditor import NodeAuditor
 from comfyui_mcp.security.rate_limit import RateLimiter
@@ -74,10 +74,18 @@ def _create_audit_logger(settings: Settings) -> AuditLogger:
 
 def _create_workflow_inspector(settings: Settings) -> WorkflowInspector:
     """Create and configure the workflow inspector."""
+    policy = settings.security.policy
     return WorkflowInspector(
         mode=settings.security.mode,
         dangerous_nodes=settings.security.dangerous_nodes,
         allowed_nodes=settings.security.allowed_nodes,
+        policy=WorkflowPolicy(
+            deny_nodes=frozenset(policy.deny_nodes),
+            warn_nodes=frozenset(policy.warn_nodes),
+            on_warning=policy.on_warning,
+            max_nodes=policy.max_nodes,
+            allowed_model_folders=frozenset(policy.allowed_model_folders),
+        ),
     )
 
 
