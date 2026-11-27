@@ -1,0 +1,66 @@
+name: ComfyUI compatibility
+
+# Nightly client-compatibility probe against upstream ComfyUI master.
+# Catches endpoint/shape drift that the mocked unit tests cannot see.
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+
+      - name: Check out ComfyUI
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: comfyanonymous/ComfyUI
+          path: .comfyui
+
+      - name: Install ComfyUI (CPU)
+        working-directory: .comfyui
+        run: |
+          uv venv --python 3.12 .venv
+          uv pip install --python .venv/bin/python \
+            torch torchvision torchaudio \
+            --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --python .venv/bin/python -r requirements.txt
+
+      - name: Start ComfyUI
+        working-directory: .comfyui
+        run: |
+          nohup .venv/bin/python main.py --cpu --port 8188 > /tmp/comfyui.log 2>&1 &
+          for _ in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:8188/queue >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          tail -100 /tmp/comfyui.log
+          exit 1
+
+      - name: Record ComfyUI version
+        run: |
+          version=$(curl -s http://127.0.0.1:8188/system_stats | jq -r '.system.comfyui_version')
+          echo "ComfyUI version: ${version}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run compatibility probe
+        run: uv run python scripts/compat_probe.py --url http://127.0.0.1:8188
+
+      - name: Upload ComfyUI log on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: comfyui-log
+          path: /tmp/comfyui.log
+          if-no-files-found: ignore
