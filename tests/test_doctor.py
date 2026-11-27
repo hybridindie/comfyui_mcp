@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import importlib
 import json
+import tomllib
+from pathlib import Path
 
 import httpx
+import pytest
 import respx
 
 from comfyui_mcp.config import (
@@ -152,6 +156,23 @@ def test_main_json_output(tmp_path, capsys):
     assert code == 0
     assert payload["failed"] is False
     assert any(check["name"] == "comfyui" for check in payload["checks"])
+
+
+def test_console_script_entry_point_resolves():
+    """The wheel must expose comfyui-mcp-doctor (#259)."""
+    root = Path(__file__).resolve().parents[1]
+    project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
+    target = project["scripts"]["comfyui-mcp-doctor"]
+    module_name, _, attr = target.partition(":")
+    module = importlib.import_module(module_name)
+    assert callable(getattr(module, attr))
+
+
+def test_main_help_exits_cleanly(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["--help"])
+    assert exc.value.code == 0
+    assert "Diagnose a ComfyUI MCP" in capsys.readouterr().out
 
 
 @respx.mock

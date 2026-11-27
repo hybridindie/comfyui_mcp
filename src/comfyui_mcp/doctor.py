@@ -4,7 +4,8 @@ Checks the things that make a server look broken but are configuration or
 environment problems: the config file, audit-path writability, transport auth,
 ComfyUI reachability and capabilities, and the two optional plugins.
 
-The CLI wrapper is ``scripts/doctor.py``. No LLM calls, no writes.
+The installed entry point is ``comfyui-mcp-doctor``; ``scripts/doctor.py`` is
+the same command for a repo checkout. No LLM calls, no writes.
 """
 
 from __future__ import annotations
