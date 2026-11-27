@@ -498,6 +498,8 @@ model_search:
 
 logging:
   audit_file: "~/.comfyui-mcp/audit.log"
+  max_bytes: 10485760   # rotate at 10 MiB; 0 disables rotation
+  backup_count: 5       # audit.log.1 … audit.log.5
 
 transport:
   remote:
@@ -535,6 +537,8 @@ Environment variables override config file values:
 | `COMFYUI_TIMEOUT_READ` | `comfyui.timeout_read` |
 | `COMFYUI_SECURITY_MODE` | `security.mode` |
 | `COMFYUI_AUDIT_FILE` | `logging.audit_file` |
+| `COMFYUI_AUDIT_MAX_BYTES` | `logging.max_bytes` |
+| `COMFYUI_AUDIT_BACKUP_COUNT` | `logging.backup_count` |
 | `COMFYUI_HUGGINGFACE_TOKEN` | `model_search.huggingface_token` |
 | `COMFYUI_CIVITAI_API_KEY` | `model_search.civitai_api_key` |
 | `COMFYUI_MAX_SEARCH_RESULTS` | `model_search.max_search_results` |
@@ -676,6 +680,8 @@ grep '"warnings":\[' ~/.comfyui-mcp/audit.log | grep -v '"warnings":\[\]'
 ```
 
 Sensitive fields (`token`, `password`, `secret`, `api_key`, `authorization`) are automatically redacted from log entries.
+
+The file rotates at `logging.max_bytes` (default 10 MiB), keeping `logging.backup_count` files (default 5) named `audit.log.1` … `audit.log.N`; set `max_bytes: 0` to disable rotation. Rotation refuses to run through a symlinked backup path.
 
 ## Security
 

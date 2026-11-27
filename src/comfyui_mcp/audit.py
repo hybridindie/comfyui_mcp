@@ -89,8 +89,23 @@ class AuditRecord(BaseModel):
 
 
 class AuditLogger:
-    def __init__(self, audit_file: Path) -> None:
+    def __init__(
+        self,
+        audit_file: Path,
+        *,
+        max_bytes: int = 10 * 1024 * 1024,
+        backup_count: int = 5,
+    ) -> None:
+        """Create a JSONL audit logger.
+
+        ``max_bytes`` caps the live file; crossing it rotates to
+        ``audit.log.1`` … ``audit.log.N`` (``backup_count`` files). ``0``
+        disables rotation; ``backup_count=0`` truncates instead of keeping
+        history.
+        """
         self._audit_file = Path(audit_file)
+        self._max_bytes = max_bytes
+        self._backup_count = backup_count
         self._dir_created = False
         self._lock = threading.Lock()
 
@@ -116,6 +131,36 @@ class AuditLogger:
             _logger.error("AUDIT LOG FAILURE: cannot create directory: %s", e)
             return False
 
+    def _rotate(self) -> None:
+        """Rotate the live file. Caller holds the lock.
+
+        Refuses when any backup path is a symlink, so a planted link cannot
+        redirect the rotation outside the audit directory. A failed rotation
+        is logged and the record is still appended (never drop audit data).
+        """
+        if self._backup_count <= 0:
+            try:
+                self._audit_file.unlink(missing_ok=True)
+            except OSError as e:
+                _logger.error("AUDIT LOG ROTATION FAILURE: %s", e)
+            return
+
+        backups = [
+            self._audit_file.with_name(f"{self._audit_file.name}.{i}")
+            for i in range(1, self._backup_count + 1)
+        ]
+        if any(path.is_symlink() for path in backups):
+            _logger.error("AUDIT LOG ROTATION REFUSED: backup path contains symlink")
+            return
+        try:
+            backups[-1].unlink(missing_ok=True)
+            for index in range(len(backups) - 1, 0, -1):
+                if backups[index - 1].exists():
+                    backups[index - 1].replace(backups[index])
+            self._audit_file.replace(backups[0])
+        except OSError as e:
+            _logger.error("AUDIT LOG ROTATION FAILURE: %s", e)
+
     def _write_record(self, record: AuditRecord) -> None:
         """Synchronous, thread-safe write of a single audit record."""
         with self._lock:
@@ -129,12 +174,19 @@ class AuditLogger:
                 return
             if not self._ensure_dir():
                 return
+            data = (record.model_dump_json() + "\n").encode()
+            if self._max_bytes > 0:
+                try:
+                    current_size = self._audit_file.stat().st_size
+                except FileNotFoundError:
+                    current_size = 0
+                if current_size and current_size + len(data) > self._max_bytes:
+                    self._rotate()
             try:
                 flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
                 flags |= getattr(os, "O_NOFOLLOW", 0)
                 fd = os.open(str(self._audit_file), flags, 0o600)
                 try:
-                    data = (record.model_dump_json() + "\n").encode()
                     view = memoryview(data)
                     while view:
                         written = os.write(fd, view)

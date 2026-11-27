@@ -3,13 +3,21 @@ type: reference
 title: "The audit log"
 description: "Schema, redaction rules, and the queries worth keeping."
 created: 2026-10-06
-updated: 2026-10-06
+updated: 2026-11-27
 ---
 
 # The audit log
 
 All tool invocations are logged as JSON lines to `~/.comfyui-mcp/audit.log`
 (configurable via `logging.audit_file` / `COMFYUI_AUDIT_FILE`).
+
+## Rotation
+
+The file rotates at `logging.max_bytes` (default 10 MiB) and keeps
+`logging.backup_count` files (default 5) as `audit.log.1` … `audit.log.N`.
+Records are appended atomically under a lock; rotation refuses to run through
+a symlinked backup path. Set `max_bytes: 0` to disable rotation, or
+`backup_count: 0` to truncate instead of keeping history.
 
 ## Schema
 

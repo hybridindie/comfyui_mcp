@@ -276,6 +276,24 @@ class RateLimitSettings(BaseModel):
 
 class LoggingSettings(BaseModel):
     audit_file: str = "~/.comfyui-mcp/audit.log"
+    # Rotate the live audit file at this size; 0 disables rotation.
+    max_bytes: int = 10 * 1024 * 1024
+    # Number of rotated files to keep (audit.log.1 … audit.log.N); 0 truncates.
+    backup_count: int = 5
+
+    @field_validator("max_bytes")
+    @classmethod
+    def non_negative_max_bytes(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("logging.max_bytes must be >= 0")
+        return v
+
+    @field_validator("backup_count")
+    @classmethod
+    def non_negative_backup_count(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("logging.backup_count must be >= 0")
+        return v
 
 
 class RemoteAuthSettings(BaseModel):
@@ -370,6 +388,8 @@ def _apply_env_overrides(data: dict) -> dict:
         "COMFYUI_TIMEOUT_READ": ("comfyui", "timeout_read"),
         "COMFYUI_SECURITY_MODE": ("security", "mode"),
         "COMFYUI_AUDIT_FILE": ("logging", "audit_file"),
+        "COMFYUI_AUDIT_MAX_BYTES": ("logging", "max_bytes"),
+        "COMFYUI_AUDIT_BACKUP_COUNT": ("logging", "backup_count"),
         "COMFYUI_HUGGINGFACE_TOKEN": ("model_search", "huggingface_token"),
         "COMFYUI_CIVITAI_API_KEY": ("model_search", "civitai_api_key"),
         "COMFYUI_MAX_SEARCH_RESULTS": ("model_search", "max_search_results"),
@@ -383,7 +403,13 @@ def _apply_env_overrides(data: dict) -> dict:
             section, key = path
             if section not in data:
                 data[section] = {}
-            if key in ("timeout_connect", "timeout_read", "max_search_results"):
+            if key in (
+                "timeout_connect",
+                "timeout_read",
+                "max_search_results",
+                "max_bytes",
+                "backup_count",
+            ):
                 data[section][key] = int(value)
             elif key in ("tls_verify", "enabled"):
                 data[section][key] = value.lower() in ("true", "1", "yes")

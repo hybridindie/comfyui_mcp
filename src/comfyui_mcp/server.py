@@ -65,7 +65,11 @@ def _create_client(settings: Settings) -> ComfyUIClient:
 def _create_audit_logger(settings: Settings) -> AuditLogger:
     """Create and configure the audit logger."""
     audit_path = Path(settings.logging.audit_file).expanduser()
-    return AuditLogger(audit_file=audit_path)
+    return AuditLogger(
+        audit_file=audit_path,
+        max_bytes=settings.logging.max_bytes,
+        backup_count=settings.logging.backup_count,
+    )
 
 
 def _create_workflow_inspector(settings: Settings) -> WorkflowInspector:
