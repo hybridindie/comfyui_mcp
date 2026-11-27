@@ -22,6 +22,7 @@ from pathlib import Path
 
 SKIP_DIRS = {
     ".git",
+    ".git.broken-backup",
     ".hg",
     ".svn",
     ".venv",

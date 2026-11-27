@@ -118,6 +118,10 @@ class Drift:
             return
         text = agents.read_text(encoding="utf-8")
         rules_dir = self.root / ".claude" / "rules"
+        # Doctrine files (`.claude/rules/doctrine/*.md`) are skill-execution
+        # contracts, not path-scoped rules: they carry no `read_when`
+        # frontmatter and are deliberately not indexed in AGENTS.md. Excluding
+        # them here is the documented contract, not a blind spot.
         actual = {
             p.relative_to(rules_dir).as_posix()
             for p in rules_dir.rglob("*.md")
