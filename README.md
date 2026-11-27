@@ -940,7 +940,7 @@ by Click's default):
 ```bash
 uv run python scripts/run_multimodel_eval.py \
     evals/comfyui_mcp_task.py@comfyui_mcp_phase4 \
-    --models ollama/gpt-oss:120b-cloud,ollama/qwen3-coder:480b-cloud,anthropic/claude-sonnet-4-6 \
+    --models ollama/gpt-oss:120b-cloud,ollama/glm-5.3-flash:cloud,anthropic/claude-sonnet-4-6 \
     --log-dir ./logs/phase4-cross-model
 ```
 

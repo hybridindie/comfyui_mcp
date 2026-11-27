@@ -3,13 +3,13 @@
 Run with:
 
     uv run inspect eval evals/comfyui_mcp_task.py \\
-        --model ollama/qwen3-coder:480b-cloud
+        --model ollama/glm-5.3-flash:cloud
 
 For a multi-model run:
 
     uv run inspect eval-set evals/comfyui_mcp_task.py \\
         --model ollama/gpt-oss:120b-cloud \\
-        --model ollama/qwen3-coder:480b-cloud \\
+        --model ollama/glm-5.3-flash:cloud \\
         --model anthropic/claude-sonnet-4-6 \\
         --log-dir ./logs/phase4
 
