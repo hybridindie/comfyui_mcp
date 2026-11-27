@@ -26,6 +26,7 @@ CI where files are awkward.
 | `COMFYUI_CIVITAI_API_KEY` | `model_search.civitai_api_key` |
 | `COMFYUI_MAX_SEARCH_RESULTS` | `model_search.max_search_results` |
 | `COMFYUI_ALLOWED_DOWNLOAD_DOMAINS` | `security.allowed_download_domains` |
+| `COMFYUI_TOOLS_PROFILE` | `tools.profile` (`full` or `core`) |
 | `COMFYUI_TASKS_ENABLED` | `tasks.enabled` |
 | `COMFYUI_TASKS_BACKEND_URL` | `tasks.backend_url` (`memory://` or `redis://...`) |
 | `COMFYUI_HTTP_AUTH_ENABLED` | `transport.remote.auth.enabled` |

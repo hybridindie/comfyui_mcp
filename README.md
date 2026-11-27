@@ -297,6 +297,15 @@ docker run --rm ghcr.io/hybridindie/comfyui_mcp:latest --help
 
 ## Tools
 
+### Tool profiles
+
+`tools.profile: "full"` (default) exposes every tool. `"core"` exposes the
+generation, jobs, files, and discovery loop (25 tools) and hides history,
+settings, downloads, node packs, subgraphs, presets, and other niche tools.
+Hidden tools are not listed in `tools/list` and a direct call by name returns
+`NotFoundError`, so the reduction is enforced server-side. Prompts and resources
+are unaffected.
+
 ### Generation & Workflows
 
 | Tool | Description |
@@ -523,6 +532,9 @@ transport:
       enabled: false
       tokens:
         operator: COMFYUI_MCP_HTTP_TOKEN
+
+tools:
+  profile: "full"                 # "core": generation/jobs/files/discovery only
 ```
 
 When `transport.remote.enabled` is `true`, the server starts in Streamable HTTP mode and binds to `transport.remote.host` and `transport.remote.port`. A non-loopback bind is refused unless `auth.enabled` or `allow_unauthenticated` is set.

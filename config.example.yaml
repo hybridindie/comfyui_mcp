@@ -42,6 +42,11 @@ transport:
       tokens:
         operator: COMFYUI_MCP_HTTP_TOKEN
 
+# Tool-surface profile (issue #212). "core" hides all but the generation,
+# jobs, files, and discovery loop; hidden tools are not callable by name.
+tools:
+  profile: "full"   # "full" or "core"
+
 # Phase 6 (optional): background tasks for long-running workflows.
 # Disabled by default — most useful for the HTTP/remote transport where a
 # long generation can return a task handle instead of holding the request.

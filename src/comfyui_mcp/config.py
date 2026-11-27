@@ -242,6 +242,18 @@ class ComfyUISettings(BaseModel):
         return v
 
 
+class ToolsSettings(BaseModel):
+    """Tool-surface profile (issue #212).
+
+    ``full`` exposes every registered tool. ``core`` exposes the generation,
+    jobs, files, and discovery loop and hides the niche/destructive surface
+    (history, settings, downloads, node packs, subgraphs, presets). Hidden
+    tools are not listed and cannot be called by name.
+    """
+
+    profile: Literal["full", "core"] = "full"
+
+
 class SecurityPolicySettings(BaseModel):
     """Declarative workflow policy (issue #211).
 
@@ -402,6 +414,7 @@ class Settings(BaseModel):
     logging: LoggingSettings = LoggingSettings()
     transport: TransportSettings = TransportSettings()
     model_search: ModelSearchSettings = ModelSearchSettings()
+    tools: ToolsSettings = ToolsSettings()
     tasks: TasksSettings = TasksSettings()
 
 
@@ -421,6 +434,7 @@ def _apply_env_overrides(data: dict) -> dict:
         "COMFYUI_CIVITAI_API_KEY": ("model_search", "civitai_api_key"),
         "COMFYUI_MAX_SEARCH_RESULTS": ("model_search", "max_search_results"),
         "COMFYUI_ALLOWED_DOWNLOAD_DOMAINS": ("security", "allowed_download_domains"),
+        "COMFYUI_TOOLS_PROFILE": ("tools", "profile"),
         "COMFYUI_TASKS_ENABLED": ("tasks", "enabled"),
         "COMFYUI_TASKS_BACKEND_URL": ("tasks", "backend_url"),
     }

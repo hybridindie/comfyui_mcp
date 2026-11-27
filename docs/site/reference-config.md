@@ -69,6 +69,9 @@ transport:
       tokens:                      # identity label → token env var name
         operator: COMFYUI_MCP_HTTP_TOKEN
 
+tools:                             # Tool-surface profile
+  profile: "full"                  # "full" or "core"
+
 tasks:                             # Optional background tasks (FastMCP 4 TasksExtension)
   enabled: false
   backend_url: "memory://"         # or "redis://localhost:6379/0"
@@ -103,6 +106,10 @@ tasks:                             # Optional background tasks (FastMCP 4 TasksE
   startup and never written to config; the label lands in the audit log and
   scopes per-identity rate limits. Startup fails closed if no configured
   variable is set. OIDC/TLS stay at the reverse proxy.
+- `tools.profile` — `full` (default) exposes every tool; `core` exposes the
+  generation, jobs, files, and discovery loop (25 tools) and hides the rest.
+  Hidden tools are neither listed nor callable by name. Prompts/resources are
+  unaffected.
 - `tasks.*` — off by default; see [background tasks](./architecture/tasks.md).
 
 Environment variables override any of these — see
