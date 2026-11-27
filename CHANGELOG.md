@@ -12,6 +12,9 @@ server configuration, not only before a workflow runs.
 
 ### Added
 
+- `scripts/doctor.py` *(#226)*: config, audit-path, transport/auth, ComfyUI,
+  `/features`, Manager, and Model-Manager diagnostics with pass/warn/fail and
+  a next step for each failure. `--json` for automation.
 - Skills: `edit`, `batch`, `security-review`, and `connect` recipes for the
   common image-edit, matrix, security-onboarding, and client-setup flows.
 - `scripts/policy_init.py` *(#230)*: turns the audit log into a reviewable
